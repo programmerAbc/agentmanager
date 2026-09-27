@@ -8,6 +8,8 @@
 
 - M10（0.4.0）：「启动 Codex」按钮（默认 `codex --dangerously-bypass-approvals-and-sandbox`）与 Codex 工作状态（`-c` 注入 hooks + 环境变量 + try/finally 检测退出）；状态机与 IPC 泛化为 agents（claude / codex）；设置页「AI 助手」分区；设置对话框按视口高度收缩并居中。
 
+- 0.4.1：侧栏第二行固定显示目录路径，状态只用名称前的图形表示（实心小点 = 终端运行中、空心圆环 = 助手就绪、形状变换 = 工作中、举手 = 等待确认、对勾 = 已完成），悬浮提示显示状态文字。dev 自测通过（Playground 实心点 + 路径；项目C 启动 Claude 后空心圆环 + 路径，提示「Claude 就绪」）。
+
 ## In Progress
 - 无。
 

@@ -105,14 +105,13 @@ export class Sidebar {
     if (li && project) this.applyAgentState(li, project)
   }
 
-  /** 状态图形放在名称前；有助手在运行时第二行显示状态文字，否则显示路径 */
+  /** 状态只用名称前的图形表示，第二行固定显示路径；状态文字放在悬浮提示里 */
   private applyAgentState(li: HTMLLIElement, project: Project): void {
     const state = this.agents.get(project.id) ?? null
     const status = state?.status ?? 'none'
     for (const s of ALL_STATUSES) li.classList.toggle(`agent-${s}`, s === status)
     li.querySelector('.status-slot')?.replaceChildren(statusIndicator(status))
-    const pathEl = li.querySelector('.project-path')
-    if (pathEl) pathEl.textContent = state ? statusText(state) : shortenPath(project.path)
+    li.title = state ? `${project.path}\n${statusText(state)}` : project.path
   }
 
   setWidth(width: number): void {

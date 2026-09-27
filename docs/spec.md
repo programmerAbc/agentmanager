@@ -72,7 +72,8 @@
   - codex 没有退出事件：启动命令用 PowerShell `try { … } finally { 上报 SessionEnd }` 包裹，codex 退出（含 Ctrl+C）时清除状态。
   - codex 会对新增 / 变化的 hook 弹出「Hooks need review」，用户选择信任一次后不再提示（codex 把信任记录写在自己的 config.toml 的 `[hooks.state]`）。因此 hook 命令文本必须固定：会变的端口 / token / 会话 id 通过终端环境变量 `AGENT_DESK_HOOK_URL` 传入，hooks 配置本身放在 `AGENT_DESK_CODEX_HOOKS` 环境变量里。
   - codex 在 Windows 上用 PowerShell 执行 hook（实测），hook 命令为 `$null = @($input); curl.exe -s -m 2 -d <事件> $env:AGENT_DESK_HOOK_URL`（不含引号，事件名放在请求体里）。
-- 状态文字带助手名：「Claude 工作中…」/「Codex 工作中…」等。
+- 状态文字带助手名：「Claude 工作中…」/「Codex 工作中…」等（顶部栏状态标签）。
+- **侧栏**（用户要求）：项目第二行固定显示目录路径，状态只用名称前的图形表示——实心小点 = 终端运行中、空心圆环 = 助手就绪、形状变换动画 = 工作中、举手 = 等待确认、对勾 = 已完成；悬浮提示中显示路径与状态文字。
 - **设置对话框**：窗口较矮时对话框按窗口高度收缩并垂直居中，内容区滚动，不再被截断在底部。
 
 ## Open

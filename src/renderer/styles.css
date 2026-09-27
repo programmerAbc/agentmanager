@@ -407,27 +407,15 @@ select {
   }
 }
 
-.project-item.agent-idle .status-dot {
-  background: var(--md-sys-color-secondary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-secondary) 25%, transparent);
-}
-
-.project-item.agent-starting .project-path,
-.project-item.agent-working .project-path {
-  color: var(--md-sys-color-primary);
-  opacity: 1;
-}
-
-.project-item.agent-waiting .project-path {
-  color: var(--md-sys-color-tertiary);
-  opacity: 1;
-  font-weight: 600;
-}
-
-.project-item.agent-done .project-path {
-  color: var(--md-sys-color-primary);
-  opacity: 1;
-  font-weight: 600;
+/* 侧栏只靠图形区分状态：实心小点 = 终端运行中；空心圆环 = 助手就绪；
+   形状变换动画 = 工作中；举手 = 等待确认；对勾 = 已完成 */
+.project-item.agent-idle .status-dot,
+.project-item.running.agent-idle .status-dot {
+  width: 12px;
+  height: 12px;
+  background: transparent;
+  border: 2.5px solid var(--md-sys-color-primary);
+  box-shadow: none;
 }
 
 .status-chip {
