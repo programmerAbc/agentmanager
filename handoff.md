@@ -15,7 +15,8 @@
 - 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main，含 1.1.0）。以后的推送需用户要求。
 - M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
 - M12（迭代 4）：主题色新增「白色」（单色浅色界面，白底终端 + 浅色 ANSI + 最小对比度 4.5）与「黑色」（单色纯黑界面）；色块描边；启动时窗口底色与主题一致、主题应用前页面透明，避免闪烁。
-- M13（用户实际使用中反馈，尚未打包 / 推送）：`Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` 在 claude、codex 输入框里换行，在 PowerShell 里续行；设置新增「光标」竖线（默认）/ 下划线 / 方块。开发模式 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口不激活显示（自测不抢焦点）。
+- 1.2.0（M13）：按用户要求推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.2.0-setup.exe`（SHA256 5435C3B2…38F6CDA8，与 dist 中一致）。为不抢用户焦点，打包版未启动 GUI 冒烟，改为静态检查（见 Verification）。
+- M13（用户实际使用中反馈）：`Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` 在 claude、codex 输入框里换行，在 PowerShell 里续行；设置新增「光标」竖线（默认）/ 下划线 / 方块。开发模式 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口不激活显示（自测不抢焦点）。
 - 1.1.0（M11 + M12）：按用户要求版本号改为 1.1.0，安装包 `D:\agnent_manager_release\agentmanager-1.1.0-setup.exe`（SHA256 0FE53C70…58A2A8FA，与 dist 中一致；同目录的 1.0.0 安装包保留）。已推送到 GitHub。
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
@@ -80,6 +81,8 @@
   - 顺带验证：按钮启动的 claude 用 `/exit` 或两次 Ctrl+C 退出，SessionEnd 均到达、按钮恢复；此前「状态卡在就绪」是测试时第三次 Ctrl+C 打断了 hook 的 curl（已记入 spec Open）。
   - 事故：一次用 Bash 工具传 `/exit` 参数时被 MSYS 改写成 `C:/Program Files/Git/exit`，作为提示词发给了 claude（一次很小的请求，claude 只回复了说明，没有执行操作）。见 lessons.md。
   - 未测：真实键盘上的输入法状态下按 Shift+Enter；Windows 10 上的回退分支。
+- 1.2.0 打包：`npm run build:win`（含 typecheck）通过。用户正在使用安装版，打包版若启动会抢焦点（`showInactive` 只在开发模式生效），因此没有启动 GUI，改为解包 `app.asar` 静态检查：package.json 版本 1.2.0；渲染进程 bundle 含换行序列 `[13;28;10;1;16;1_` 与 `cursorInactiveStyle`；主进程含 `cursorStyle` 校验；`AGENTMANAGER_TEST_INACTIVE` 编译结果带 `!app.isPackaged` 判断；node-pty 原生模块在 app.asar.unpacked 中。打包配置自 1.1.0（已做 GUI 冒烟）以来未变。
+- 覆盖安装数据：数据在 `%APPDATA%\AgentManager`（与安装目录分开），NSIS 升级时以 `/S /KEEP_APP_DATA` 运行旧卸载程序；数据库 schema 未变（user_version 1）；settings.json 缺少新字段 `cursorStyle` 时按字段回退默认值（竖线），其他设置保留。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。
