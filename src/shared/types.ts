@@ -49,6 +49,21 @@ export const FONT_SIZE = { default: 14, min: 8, max: 32 } as const
 export const LINE_HEIGHT = { default: 1.0, min: 1.0, max: 1.6 } as const
 export const DEFAULT_FONT_FAMILY = 'Maple Mono NF CN'
 export const DEFAULT_THEME_SEED = '#D97757'
+/** 这两个种子色表示白色（浅色界面）/ 黑色（纯黑界面）主题；其余种子色为动态配色的深色界面 */
+export const THEME_SEED_WHITE = '#FFFFFF'
+export const THEME_SEED_BLACK = '#000000'
+
+export type ThemeMode = 'light' | 'black' | 'dark'
+
+export function themeModeOf(seed: string): ThemeMode {
+  const s = seed.toUpperCase()
+  if (s === THEME_SEED_WHITE) return 'light'
+  if (s === THEME_SEED_BLACK) return 'black'
+  return 'dark'
+}
+
+/** 窗口底色：页面画出来之前、以及拖大窗口时露出的颜色，与主题一致避免闪烁 */
+export const WINDOW_BACKGROUND: Record<ThemeMode, string> = { light: '#FFFFFF', black: '#000000', dark: '#181818' }
 export const DEFAULT_CLAUDE_COMMAND = 'claude --permission-mode bypassPermissions'
 export const DEFAULT_CODEX_COMMAND = 'codex --dangerously-bypass-approvals-and-sandbox'
 /** 字体族名只允许常见字符，避免拼进 CSS font-family 时出问题 */

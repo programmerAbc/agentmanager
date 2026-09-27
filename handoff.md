@@ -14,6 +14,8 @@
 - 1.0.0 改名 AgentManager（用户要求）：界面 / 窗口标题 / 安装包 / 快捷方式 / `AgentManager.exe` / 卸载项统一改名，package 名 `agentmanager`；数据目录变为 `%APPDATA%\AgentManager`、数据库 `agentmanager.db`。**不迁移旧数据**（用户决定），projects.json 导入代码一并删除。`appId` 保留 `com.agentdesk.app`，安装时会静默卸载已安装的 Agent Desk。安装包 `dist/agentmanager-1.0.0-setup.exe`，由用户自行安装。按用户要求从干净工作区（commit e472b15）重新打包，并复制到 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`（SHA256 608CE6F5…40ED911B，与 dist 中一致）。`dist/agent-desk-*.exe` 是改名前的旧包，不要再用。
 - 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main）。之后的提交（M11 起）尚未推送，推送需用户同意。
 - M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
+- M12（迭代 4）：主题色新增「白色」（单色浅色界面，白底终端 + 浅色 ANSI + 最小对比度 4.5）与「黑色」（单色纯黑界面）；色块描边；启动时窗口底色与主题一致、主题应用前页面透明，避免闪烁。
+- 版本号仍为 1.0.0，M11 / M12 尚未打安装包（用户未要求）。
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
@@ -35,6 +37,7 @@
 - M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
 - 1.0.0 改名：electron-builder.yml、package.json、package-lock.json、scripts/postinstall.mjs、src/main/{index,projectStore,ptyManager,settingsStore}.ts、src/shared/types.ts（删除 ProjectsFile）、src/renderer/{index.html,main,settingsDialog,sidebar}.ts；README、docs、plans、handoff。
 - M11：src/renderer/fuzzy.ts（新）、sidebar.ts、main.ts、terminalView.ts、icons.ts、styles.css；spec、architecture、README、plans、handoff、lessons。
+- M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
 - `npm run typecheck`：通过。dev + CDP 自测（隔离 userData）：
@@ -59,7 +62,13 @@
 - M11（`npm run typecheck` 通过）：
   - `fuzzy.ts` 用 esbuild 打包的临时脚本做了 18 项断言（子序列、词首 / 连续加分、大小写、中文、emoji 码点下标、多词与、不跨分隔符、名称优先、路径命中下标），全部通过。
   - dev + CDP（隔离 userData，7 个测试项目，启动参数加 `--disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows`）：`Ctrl+Shift+F` 从终端聚焦搜索框并全选，终端缓冲区不变；`agm` → 只剩 agentmanager 且 a/g/m 高亮；`lab3` → 路径命中两个项目（整段命中的排前）；`api ser` 多词；`ge` → GameEngine（词首）排在 agentmanager（连续）之前；`xyz` → 「没有匹配的项目」；↓↓↑ 移动当前项、Enter 打开 notes 并聚焦其终端、搜索词保留；Esc 清空、再按 Esc 焦点回到终端；拼音组字 `qian'duan` 时列表不变，上屏「前端」后只剩「前端项目」；过滤状态下 F2 重命名为「前端控制台」→ 仍在结果中并重新高亮，数据库已更新。截图检查搜索栏、高亮与当前项描边。
-  - 未测：删除全部项目后搜索框隐藏（代码路径简单，未走 UI 删除流程）。
+  - 空数据目录启动：没有项目时搜索框隐藏（display:none），`Ctrl+Shift+F` 不抢焦点。未走「逐个移除到 0 个」的 UI 流程（同一个 setProjects 代码路径）。
+- M12（`npm run typecheck` 通过；dev + CDP，同一测试 userData）：
+  - 在 pwsh 里打印 ANSI 0–15、dim / bold、真彩色白 `38;2;255;255;255` 与灰 `38;2;200;200;200`，分别截图：原深色主题不变；白色主题——侧栏 / 终端纯白、`color-scheme: light`、浅色 ANSI、真彩色白字被调暗为可读的深色（最小对比度生效）、PSReadLine 语法高亮可读；黑色主题——surface / container-low 均为 #000000、container-high #1b1b1b、白色强调。设置页白 / 黑色块带描边，白色块上为黑勾。
+  - 选白色后 settings.json 写入 `#FFFFFF`；重启后直接是白色主题（`booting` 已移除，body 背景 rgb(255,255,255)），日志无错误。
+  - 白色主题下「启动 Claude」：claude 的目录信任提示在白底上清晰可读，随后选「No, exit」退出。
+  - 关闭流程：有终端时单次 WM_CLOSE 后 0.5 秒内出现退出确认框（之前两次「找不到对话框」是测试脚本的 UI Automation 问题，已改用 Win32 枚举，见 lessons.md）。
+  - 未测：启动瞬间是否闪烁无法用 CDP 截到，只验证了窗口底色 / booting 的代码路径与最终状态；请用户实际启动时留意。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。

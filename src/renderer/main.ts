@@ -49,7 +49,7 @@ class App {
   constructor(settings: AppSettings, projects: Project[]) {
     this.projects = projects
     this.settings = settings
-    const terminalTheme = applyTheme(settings.themeSeed)
+    const terminalColors = applyTheme(settings.themeSeed)
 
     const host = mustGet('terminal-host')
     this.emptyState = document.createElement('div')
@@ -85,7 +85,7 @@ class App {
         fontFamily: fontStack(settings.fontFamily),
         fontSize: settings.fontSize,
         lineHeight: settings.lineHeight,
-        theme: terminalTheme
+        ...terminalColors
       },
       {
         onRunningChange: (id, running) => {
@@ -273,7 +273,7 @@ class App {
     const s = this.settings
 
     if (patch.themeSeed !== undefined && patch.themeSeed !== prev.themeSeed) {
-      this.terminals.setAppearance({ theme: applyTheme(s.themeSeed) })
+      this.terminals.setAppearance(applyTheme(s.themeSeed))
     }
     if (patch.fontFamily !== undefined && patch.fontFamily !== prev.fontFamily) {
       void ensureFontLoaded(s.fontFamily, s.fontSize).then(() =>
@@ -546,9 +546,11 @@ async function bootstrap(): Promise<void> {
   // 选的是内置字体时先加载，否则 xterm 会按回退字体测量字符宽度
   await ensureFontLoaded(settings.fontFamily, settings.fontSize)
   new App(settings, projects)
+  document.documentElement.classList.remove('booting')
 }
 
 bootstrap().catch((err: unknown) => {
+  document.documentElement.classList.remove('booting')
   console.error(err)
   toast(`启动失败：${err instanceof Error ? err.message : String(err)}`)
 })

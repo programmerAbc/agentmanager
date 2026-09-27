@@ -177,3 +177,13 @@ Chromium 在 Windows 上做原生窗口遮挡检测：窗口被其他窗口完�
 ### Prevention
 所有自测启动命令都带上这两个参数；测试前先用 `document.visibilityState` 确认页面可见，不要去激活或挪动窗口打扰用户。
 另：Bash 工具的 heredoc 会吃掉反斜杠，写含 Windows 路径或 `\` 转义的脚本时用 Write 工具生成文件。
+
+## Lesson: 用 UI Automation 找被遮挡窗口上的消息框不可靠
+### Problem
+自测关闭 dev 实例时，`click-dialog.ps1` 连续两次报「找不到对话框」，看起来像是第一次关闭窗口没有弹出退出确认。
+### Root Cause
+对话框其实已经弹出（Win32 `EnumWindows` 能看到可见的 `#32770`），是 UI Automation 的 `RootElement.FindAll` 在窗口被其他窗口遮挡时找不到它。应用本身没问题：单次 WM_CLOSE 后 0.5 秒内就有确认框。
+### Solution
+`click-dialog.ps1` 改用 Win32 `EnumWindows` + `EnumChildWindows` 查找对话框和按钮，再发 `BM_CLICK`；仍然只匹配 dev 进程的 PID。
+### Prevention
+测试工具报「应用没反应」时，先用另一种手段（Win32 枚举、日志）确认应用状态，再判断是应用 bug 还是工具问题。

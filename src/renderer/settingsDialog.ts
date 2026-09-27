@@ -9,7 +9,7 @@ import { button, openDialog } from './dialog'
 import { BUNDLED_FONT, effectiveFont, fontStack, isFontAvailable, listMonospaceFonts } from './fonts'
 import { icon, type IconName } from './icons'
 import { shapeSvg } from './shapes'
-import { THEME_PRESETS } from './theme'
+import { isLightColor, THEME_PRESETS } from './theme'
 import { toast } from './toast'
 
 const api = window.api
@@ -245,6 +245,8 @@ function appearanceSection(deps: SettingsDialogDeps): HTMLElement {
     chip.dataset.seed = preset.seed.toUpperCase()
     chip.title = `${preset.name} ${preset.seed}`
     chip.style.background = preset.seed
+    // 浅色色块（白色）上用深色的勾
+    chip.classList.toggle('on-light', isLightColor(preset.seed))
     chip.appendChild(icon('check'))
     chip.addEventListener('click', () => {
       deps.change({ themeSeed: preset.seed })
@@ -269,7 +271,9 @@ function appearanceSection(deps: SettingsDialogDeps): HTMLElement {
   list.appendChild(custom)
 
   markSelected()
-  section.appendChild(row('主题色', '界面配色由种子色按 Material 3 规则生成', document.createElement('span')))
+  section.appendChild(
+    row('主题色', '界面配色由种子色按 Material 3 规则生成；白色为浅色界面，黑色为纯黑界面', document.createElement('span'))
+  )
   section.appendChild(list)
   return section
 }

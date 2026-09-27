@@ -3,6 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   IPC,
+  themeModeOf,
+  WINDOW_BACKGROUND,
   type AgentKind,
   type AppInfo,
   type DataResult,
@@ -108,9 +110,13 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
   // ---------- settings ----------
   ipcMain.handle(IPC.settingsGet, () => settings.get())
 
-  ipcMain.handle(IPC.settingsUpdate, (_e, patch: unknown) =>
+  ipcMain.handle(IPC.settingsUpdate, (e, patch: unknown) =>
     guard('保存设置', async () => {
-      await settings.update(asSettingsPatch(patch))
+      const parsed = asSettingsPatch(patch)
+      await settings.update(parsed)
+      if (parsed.themeSeed) {
+        BrowserWindow.fromWebContents(e.sender)?.setBackgroundColor(WINDOW_BACKGROUND[themeModeOf(parsed.themeSeed)])
+      }
     })
   )
 

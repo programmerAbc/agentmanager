@@ -75,6 +75,11 @@ preload (src/preload/index.ts)
 | 过滤只重建 `<ul>` 内容，项目状态（运行 / 助手状态）保存在 Sidebar 的 Map 里，渲染时重新应用；搜索词不持久化 | 与原有的 setProjects 渲染路径一致，状态不会因过滤丢失 |
 | `Ctrl+Shift+F` 由 document 捕获阶段监听处理，终端的 `attachCustomKeyEventHandler` 对它返回 false | 与 `Ctrl+,` 等应用快捷键相同的模式：焦点在终端里也生效，且不发给 PTY；对话框打开时不响应 |
 | 输入法：`input` 事件 `isComposing` 时跳过，`compositionend` 再过滤 | 避免拼音组字过程中列表闪烁 |
+| 白色 / 黑色主题仍以种子色保存（`#FFFFFF` / `#000000`，`shared/types.ts` 的 `themeModeOf`），不新增设置字段 | 设置格式与校验不变；自定义颜色选到这两个值时行为一致 |
+| 白 / 黑用 `SchemeMonochrome`（浅 / 深，2025 规范），其余用 `SchemeTonalSpot` 深色；再按模式用中性色板 tone 覆盖 surface 系列（白：surface / lowest / low / bright = 100；黑：surface / dim / lowest / low = 0，container 6、high 10、highest 17、bright 22） | 单色方案给出无彩色强调；规范默认的 surface（98 / 6）不是纯白 / 纯黑，而用户要的是白底 / 纯黑界面，面板仍需与背景拉开层次 |
+| 浅色终端：VS Code Light 的 ANSI 16 色 + xterm `minimumContrastRatio: 4.5`（深色为 1，保持原样）；`applyTheme` 返回 `{theme, minimumContrastRatio}` 并入 `TerminalAppearance` | claude 等程序默认按深色背景输出颜色（包括 24 位真彩色），最小对比度让 xterm 自动调暗过浅的前景色 |
+| 防闪烁：主进程按主题设置 `BrowserWindow.backgroundColor`（`WINDOW_BACKGROUND`），设置更新时 `setBackgroundColor`；`<html class="booting">` 期间页面透明、`#app` 隐藏，App 构造完成（已应用主题）后移除 | 窗口在首次绘制（ready-to-show）时显示，那时主题还没应用，CSS 默认深色会先闪一下 |
+| `document.documentElement.style.colorScheme` 随模式切换 | 原生滚动条、颜色选择器等跟随明暗 |
 
 ## 打包（electron-builder.yml）
 

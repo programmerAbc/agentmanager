@@ -69,7 +69,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
   - Claude：追加 `--settings <userData>\agent-hooks\<会话>.json`，**不修改** `~/.claude/settings.json`。
   - Codex：追加 `-c $env:AGENT_DESK_CODEX_HOOKS` 注入 hooks，并用 `try { … } finally { … }` 检测退出，**不修改** `~/.codex/config.toml`。首次启动时 codex 会提示「Hooks need review」，选「Trust all and continue」后不再提示（这条信任记录由 codex 自己保存）。需要系统自带的 `curl.exe`。
 - **搜索项目**（侧栏搜索框，或 `Ctrl+Shift+F`）：输入即过滤，模糊匹配项目名和侧栏上显示的路径（如输入 `agm` 能找到 agentmanager），多个词用空格分开；`↑` / `↓` 选择、`Enter` 打开、`Esc` 清空 / 回到终端。
-- **设置**（侧栏底部，或 `Ctrl+,`）：终端字体（列出本机等宽字体，默认 Maple Mono NF CN）、字号、行高、主题色（Material 3 动态配色）、Claude 启动命令。点击左上角的应用名可查看版本信息。
+- **设置**（侧栏底部，或 `Ctrl+,`）：终端字体（列出本机等宽字体，默认 Maple Mono NF CN）、字号、行高、主题色（Material 3 动态配色；「白色」为浅色界面，「黑色」为纯黑界面）、Claude / Codex 启动命令。点击左上角的应用名可查看版本信息。
 - 界面采用 Material Design 3 Expressive 风格。
 
 ## 终端快捷键

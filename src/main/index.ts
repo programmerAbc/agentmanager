@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, Menu, screen, type Rectangle } from 'electron'
 import path from 'node:path'
-import { IPC, type WindowState } from '../shared/types'
+import { IPC, themeModeOf, WINDOW_BACKGROUND, type WindowState } from '../shared/types'
 import { AgentHookServer } from './hookServer'
 import { registerIpc } from './ipc'
 import log from './log'
@@ -40,7 +40,7 @@ function createWindow(): BrowserWindow {
     minHeight: MIN_SIZE.height,
     show: false,
     title: 'AgentManager',
-    backgroundColor: '#181818',
+    backgroundColor: WINDOW_BACKGROUND[themeModeOf(settings.get().themeSeed)],
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,

@@ -16,6 +16,7 @@ export interface TerminalAppearance {
   fontSize: number
   lineHeight: number
   theme: ITheme
+  minimumContrastRatio: number
 }
 
 export type ZoomAction = 'in' | 'out' | 'reset'
@@ -91,6 +92,7 @@ class TerminalView {
       cursorBlink: true,
       allowProposedApi: true,
       theme: appearance.theme,
+      minimumContrastRatio: appearance.minimumContrastRatio,
       windowsPty: { backend: 'conpty', buildNumber: api.system.windowsBuild }
     })
     this.term.loadAddon(this.fitAddon)
@@ -241,6 +243,9 @@ class TerminalView {
     if (o.fontSize !== appearance.fontSize) o.fontSize = appearance.fontSize
     if (o.lineHeight !== appearance.lineHeight) o.lineHeight = appearance.lineHeight
     if (o.theme !== appearance.theme) o.theme = appearance.theme
+    if (o.minimumContrastRatio !== appearance.minimumContrastRatio) {
+      o.minimumContrastRatio = appearance.minimumContrastRatio
+    }
     // 隐藏的终端等下次显示时再 fit
     if (this.fit()) this.syncPtySize()
   }
