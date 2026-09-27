@@ -1,5 +1,6 @@
 ## Completed
-- 修复（1.3.0 之后，未发版）：用户反馈 claude `/resume` 界面里 Esc 没用。根因：终端用过 Shift/Ctrl/Alt+Enter（M13 发 win32-input-mode 序列）后，ConPTY 会吞掉单独的 ESC，Esc / Ctrl+[ 在 claude、codex、PowerShell 里都失效直到终端重启。修法：`terminalView.ts` 记录当前 PTY 是否发过换行序列，之后单独的 `\x1b` 改发 win32-input-mode Esc（`ESC_KEY`），PTY 启动时复位。未改版本号、未打包、未推送（等用户要求）。
+- 1.3.1（Esc 修复）：按用户要求提交、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.3.1-setup.exe`（SHA256 B783E4DC…4DC211B9，与 dist 中一致）。为不抢焦点未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后实测：终端里按过 Shift+Enter 后，claude `/resume` 选择器按 Esc 能取消。
+- 修复：用户反馈 claude `/resume` 界面里 Esc 没用。根因：终端用过 Shift/Ctrl/Alt+Enter（M13 发 win32-input-mode 序列）后，ConPTY 会吞掉单独的 ESC，Esc / Ctrl+[ 在 claude、codex、PowerShell 里都失效直到终端重启。修法：`terminalView.ts` 记录当前 PTY 是否发过换行序列，之后单独的 `\x1b` 改发 win32-input-mode Esc（`ESC_KEY`），PTY 启动时复位。
 - 迭代 1（M0–M6）：项目列表、每项目保活终端、复制粘贴 / 字号 / 自适应、生命周期与进程树清理、NSIS 打包。详见 git 历史与 plans.md。
 - M7：设置页（`Ctrl+,` / 侧栏底部）——终端字体（本机等宽字体检测，默认 Maple Mono NF CN）、字号、行高、预览；主题色（预设 + 自定义）；关于。MD3 Expressive 界面（动态配色、Material Symbols 图标、导航抽屉 + FAB、顶部栏、圆角终端卡片、形状变化与弹簧动效、MD3 菜单 / 对话框 / Snackbar / 滑块）；移除项目改为应用内对话框。
 - M8：「启动 Claude」按钮（顶部栏 / 未启动面板 / 右键菜单），执行设置中的命令（默认 `claude --permission-mode bypassPermissions`）；通过 `--settings` 注入 hooks，本地 HTTP 服务接收事件；侧栏与顶部栏显示 就绪 / 工作中 / 等待确认 / 已完成。
@@ -50,6 +51,7 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 1.3.1 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar：package.json 版本 1.3.1；渲染进程 bundle 含 win32-input-mode Esc 序列 `[27;1;27;1;0;1_`、`win32InputSent` 与换行序列；node-pty 原生模块在 app.asar.unpacked 中。打包配置自 1.3.0 以来未变。
 - Esc 修复（`npm run typecheck` 通过）：
   - 复现（修复前代码路径，直接用 node-pty + 原始模式读 stdin 的 Node 子进程，Electron 以 `ELECTRON_RUN_AS_NODE=1` 运行脚本）：发换行序列前 `\x1b` → 收到 `1b`；发换行序列后 `\x1b` 收不到（`\x1b\x1b`、`\x1b[`、`\x1bO` 同样收不到），方向键 / Ctrl+↑ / Home / F1 / F5 / Alt+b / 粘贴正常；win32-input-mode Esc 在发换行序列前后都收到 `1b`。
   - dev 实例（`AGENTMANAGER_TEST_INACTIVE=1`、userData `.devtest/ud`，前台窗口确认仍是用户的程序；CDP 真实按键）：探针依次 Esc → `1b`、Shift+Enter → `0a`、Esc → `1b`、Ctrl+[ → `1b`；同一 PTY 中 PowerShell 输入 `echo abc` 后 Esc 清除整行，`echo one` Shift+Enter `echo two` 后 Esc 清除两行；claude 中输入 abc Shift+Enter def → 两行，Esc Esc 清空输入框，`/resume` 打开选择器后 Esc 关闭回到输入框，`/exit` 退出。测试结束用 close-dev.ps1 关闭，无残留 dev 进程。
