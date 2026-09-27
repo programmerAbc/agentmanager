@@ -18,7 +18,7 @@ const result = spawnSync('electron-rebuild', ['-f', '-o', 'node-pty'], {
 
 if (result.status !== 0) {
   console.error(
-    '\n[agent-desk] node-pty 编译失败。请确认已安装 README「环境要求」一节列出的 VS Build Tools 组件和 Python。\n'
+    '\n[agentmanager] node-pty 编译失败。请确认已安装 README「环境要求」一节列出的 VS Build Tools 组件和 Python。\n'
   )
 }
 process.exit(result.status ?? 1)

@@ -10,7 +10,7 @@ export interface PtyOpenOptions {
   cwd: string
   cols: number
   rows: number
-  /** 额外的环境变量（例如 Agent Desk 的 hooks 地址） */
+  /** 额外的环境变量（例如 AgentManager 的 hooks 地址） */
   env?: Record<string, string>
 }
 
@@ -268,7 +268,7 @@ function buildEnv(): Record<string, string> {
     }
     if (injectedByElectronVite) delete env.NODE_ENV
   }
-  // 如果 Agent Desk 本身是从某个 Claude Code 会话里启动的，去掉那个会话的会话级标记，
+  // 如果 AgentManager 本身是从某个 Claude Code 会话里启动的，去掉那个会话的会话级标记，
   // 否则终端里运行的 claude 会把自己当成子会话（例如关闭会话记录、连到父会话的消息管道）。
   // Claude Code 还会给它的工具 shell 设置 NO_COLOR=1，一并去掉，否则终端里的程序都没有颜色。
   // 只去掉会话标记，ANTHROPIC_API_KEY、CLAUDE_CONFIG_DIR 等用户配置保持不变；

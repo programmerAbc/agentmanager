@@ -430,9 +430,9 @@ class App {
 
   private render(): void {
     const project = this.projects.find((p) => p.id === this.selectedId) ?? null
-    document.title = project ? `Agent Desk — ${project.name}` : 'Agent Desk'
+    document.title = project ? `AgentManager — ${project.name}` : 'AgentManager'
 
-    this.topbar.title.textContent = project ? project.name : 'Agent Desk'
+    this.topbar.title.textContent = project ? project.name : 'AgentManager'
     this.topbar.subtitle.textContent = project ? project.path : '项目终端管理器'
     this.topbar.subtitle.title = project?.path ?? ''
     this.topbar.actions.hidden = project === null

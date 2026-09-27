@@ -9,11 +9,6 @@ export interface Project {
   lastOpenedAt?: number
 }
 
-export interface ProjectsFile {
-  version: 1
-  projects: Project[]
-}
-
 /** 操作结果。主进程不抛异常给渲染进程，错误通过返回值传递。 */
 export type OpResult = { ok: true } | { ok: false; error: string }
 export type DataResult<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -181,7 +176,7 @@ export interface Api {
     openDir(kind: 'userData' | 'logs'): Promise<OpResult>
   }
   agents: {
-    /** 在该会话的终端里执行设置中的助手启动命令（并注入 Agent Desk 的 hooks 以跟踪状态） */
+    /** 在该会话的终端里执行设置中的助手启动命令（并注入 AgentManager 的 hooks 以跟踪状态） */
     launch(sessionId: string, agent: AgentKind): Promise<OpResult>
     onEvent(cb: (sessionId: string, event: AgentEvent) => void): () => void
   }

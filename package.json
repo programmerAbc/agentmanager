@@ -1,6 +1,6 @@
 {
-  "name": "agent-desk",
-  "productName": "Agent Desk",
+  "name": "agentmanager",
+  "productName": "AgentManager",
   "version": "1.0.0",
   "description": "项目终端管理器：左侧项目列表，右侧每个项目一个保活的嵌入式终端",
   "author": "consul",

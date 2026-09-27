@@ -1,4 +1,4 @@
-# Plans — Agent Desk
+# Plans — AgentManager
 
 需求见 [PLAN.md](PLAN.md)。严格按 M0 → M6 推进，每个里程碑：typecheck + dev 启动 → 对照验收项自检 → 人工验证项交给用户 → `git commit -m "M<n>: <简述>"`。
 
@@ -34,7 +34,7 @@
 ## 待用户确认
 - 微软拼音输入法实测（候选框位置、上屏不重复不丢字）→ 填写 README「中文输入法测试记录」。
 - claude TUI 长时间对话下有无错位/闪烁。
-- 在未安装 Node 的干净 Windows 机器上安装 `dist/agent-desk-0.1.0-setup.exe` 并走一遍 M1–M5。
+- 在未安装 Node 的干净 Windows 机器上安装 `dist/agentmanager-1.0.0-setup.exe` 并走一遍 M1–M5。
 
 ## 可选改进（未排期）
 - 应用图标（目前为 Electron 默认图标）。

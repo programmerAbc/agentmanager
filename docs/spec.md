@@ -1,11 +1,11 @@
-# Spec — Agent Desk
+# Spec — AgentManager
 
 原始需求文档是仓库根目录的 [PLAN.md](../PLAN.md)（目标、技术栈、数据模型、IPC 契约、M0–M6 验收标准、UI 规格、代码约定）。**PLAN.md 是需求的权威来源**，本文件只记录对它的澄清、补充和实现时确定的细节，不重复其内容。
 
 ## 澄清与补充
 
 ### 项目根目录
-- PLAN §2 的 `agent-desk/` 即本仓库根目录（`D:\develop\workspace_lab3\agentmanager`），`package.json` 的 name 为 `agent-desk`。
+- PLAN §2 的 `agent-desk/` 即本仓库根目录（`D:\develop\workspace_lab3\agentmanager`），`package.json` 的 name 为 `agentmanager`（1.0.0 之前应用名为 Agent Desk，name 为 `agent-desk`）。
 
 ### IPC 返回值（PLAN §4、§7）
 - §7 要求错误通过返回值传给渲染进程，因此：
@@ -14,7 +14,7 @@
 - 额外的 IPC（PLAN §4 未列出，但功能需要）：`projects.openInExplorer`、`settings.get/update`、`clipboard.readText/writeText`、`shell.openExternal`、`dialog.confirm`。
 
 ### 持久化
-- 项目列表：`userData/projects.json`（PLAN §3）。
+- 项目列表：SQLite（见 M9；PLAN §3 的 projects.json 已不再使用）。
 - UI 设置：`userData/settings.json`，格式 `{version:1, sidebarWidth, fontSize, lastProjectId, window}`，同样原子写入。字段不合法时逐项回退默认值；顶层结构损坏时备份后使用默认值。
 - 字号范围 8–32，默认 14；侧栏宽度 180–400，默认 240。
 
@@ -24,7 +24,7 @@
 ### 终端环境变量
 - 终端继承 `process.env`，额外设置 `TERM` / `COLORTERM`。
 - 仅在未打包（dev）时，去掉 npm / electron-vite 注入的变量（`npm_*`、`NODE_ENV`(electron-vite 注入时)、`ELECTRON_CLI_ARGS` 等），避免干扰用户在终端里运行的命令。
-- 始终去掉**父 Claude Code 会话的会话级标记**（`CLAUDECODE`、`CLAUDE_PID`、`CLAUDE_CODE_CHILD_SESSION`、`CLAUDE_CODE_ENTRYPOINT`、`CLAUDE_CODE_SESSION_*`、`CLAUDE_CODE_MESSAGING_*`）：Agent Desk 若是从某个 claude 会话里启动的，这些标记会让终端里的 claude 以为自己是子会话（例如关闭会话记录）。用户配置类变量（`ANTHROPIC_*`、`CLAUDE_CONFIG_DIR` 等）不受影响。
+- 始终去掉**父 Claude Code 会话的会话级标记**（`CLAUDECODE`、`CLAUDE_PID`、`CLAUDE_CODE_CHILD_SESSION`、`CLAUDE_CODE_ENTRYPOINT`、`CLAUDE_CODE_SESSION_*`、`CLAUDE_CODE_MESSAGING_*`）：AgentManager 若是从某个 claude 会话里启动的，这些标记会让终端里的 claude 以为自己是子会话（例如关闭会话记录）。用户配置类变量（`ANTHROPIC_*`、`CLAUDE_CONFIG_DIR` 等）不受影响。
 - 检测到从 Claude Code 会话里启动（存在 `CLAUDECODE`）时，同时去掉 `NO_COLOR`（Claude Code 给工具 shell 设置的，否则终端里的 claude 等程序全部没有颜色）；否则保留用户自己的 `NO_COLOR`。
 
 ### 渲染进程重载
@@ -46,7 +46,7 @@
 
 ### M8 启动 Claude 按钮与工作状态
 - **启动 Claude 按钮**（用户选择按钮而非快捷键）：顶部栏按钮；空闲面板、项目右键菜单中也提供。在当前项目的终端里执行设置中的命令；终端未启动（或已退出）时先启动；若检测到该终端里通过按钮启动的 Claude 仍在运行，则不重复执行，只聚焦终端并提示。
-- **状态检测只对通过按钮启动的 claude 生效**：命令的第一个词是 `claude` 时，自动追加 `--settings "<userData>/claude-hooks/<sessionId>.json"`，该文件只包含 Agent Desk 的 hooks（`curl.exe` 把事件 POST 到主进程本地端口）。**不修改** `~/.claude/settings.json`；手动输入的 `claude` 没有状态。
+- **状态检测只对通过按钮启动的 claude 生效**：命令的第一个词是 `claude` 时，自动追加 `--settings "<userData>/claude-hooks/<sessionId>.json"`，该文件只包含 AgentManager 的 hooks（`curl.exe` 把事件 POST 到主进程本地端口）。**不修改** `~/.claude/settings.json`；手动输入的 `claude` 没有状态。
 - **状态与显示**（侧栏项目、顶部栏状态标签）：
   - 工作中：`UserPromptSubmit`、`PostToolUse` → MD3 Expressive 形状变换加载指示器。
   - 等待确认：`Notification` 且 `notification_type` 为 `permission_prompt` / `elicitation_dialog`。
@@ -58,10 +58,9 @@
 ## 迭代 3 需求（2026-09-27 用户新增）
 
 ### M9 项目记录存入 SQLite（覆盖 PLAN §1「持久化」与 §3 中 projects.json 的约定）
-- 项目列表保存在 `userData/agent-desk.db`（SQLite，使用 Electron 内置 Node 的 `node:sqlite`，不新增依赖），表 `projects`。
+- 项目列表保存在 `userData/agentmanager.db`（1.0.0 之前为 `agent-desk.db`）（SQLite，使用 Electron 内置 Node 的 `node:sqlite`，不新增依赖），表 `projects`。
 - 行为不变：按添加顺序排列；同一路径（忽略大小写与末尾分隔符）不重复添加；重命名 / 移除 / 更新打开时间立即落盘。
-- 迁移：数据库中没有项目且存在 `projects.json` 时，启动时一次性导入（保留 id、名称、路径、时间与顺序），导入后把原文件改名为 `projects.json.migrated-<时间戳>` 作为备份。
-- 损坏处理：数据库无法打开或完整性检查失败时，把 `agent-desk.db`（及 `-wal` / `-shm`）改名为 `*.bak-<时间戳>`，以空库启动，不崩溃。
+- 损坏处理：数据库无法打开或完整性检查失败时，把数据库文件（及 `-wal` / `-shm`）改名为 `*.bak-<时间戳>`，以空库启动，不崩溃。
 - 设置仍保存在 `settings.json`（本次只迁移项目记录）。
 
 ### M10 Codex CLI 启动与工作状态；设置对话框位置
@@ -75,6 +74,12 @@
 - 状态文字带助手名：「Claude 工作中…」/「Codex 工作中…」等（顶部栏状态标签）。
 - **侧栏**（用户要求）：项目第二行固定显示目录路径，状态只用名称前的图形表示——实心小点 = 终端运行中、空心圆环 = 助手就绪、形状变换动画 = 工作中、举手 = 等待确认、对勾 = 已完成；悬浮提示中显示路径与状态文字。
 - **设置对话框**：窗口较矮时对话框按窗口高度收缩并垂直居中，内容区滚动，不再被截断在底部。
+
+### 1.0.0 应用改名：Agent Desk → AgentManager
+- 界面、窗口标题、安装包、快捷方式、可执行文件（`AgentManager.exe`）、卸载项名称统一改为 **AgentManager**；package 名 `agentmanager`。
+- **不迁移旧数据**（用户决定）：数据目录随应用名变为 `%APPDATA%\AgentManager`，数据库为 `agentmanager.db`，首次启动是空的项目列表与默认设置。旧目录 `%APPDATA%\Agent Desk` 不读取也不删除。迭代 3 的 projects.json 导入逻辑一并删除。
+- **安装升级**：`appId` 保持 `com.agentdesk.app` 不变，NSIS 安装包会识别已安装的 Agent Desk，静默卸载旧版（保留旧数据目录）后安装 AgentManager，不会出现两个应用。
+- **不改**：codex hooks 使用的环境变量名 `AGENT_DESK_HOOK_URL` / `AGENT_DESK_CODEX_HOOKS`（出现在 hook 命令文本中，改名会让 codex 要求重新信任）；原始需求文档 PLAN.md 保持原样。
 
 ## Open
 - codex 一轮对话出错（例如模型不可用）时不会有 Stop，状态停留在「工作中」直到下一次事件或 codex 退出。

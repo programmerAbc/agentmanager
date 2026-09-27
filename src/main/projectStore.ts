@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import type { Project, ProjectsFile } from '../shared/types'
-import { readJsonFile, timestamp } from './jsonFile'
+import type { Project } from '../shared/types'
+import { timestamp } from './jsonFile'
 import log from './log'
 
 /** 数据库 schema 版本，记录在 PRAGMA user_version */
@@ -18,15 +18,10 @@ const SELECT_COLUMNS = 'id, name, path, created_at, last_opened_at'
 export class ProjectStore {
   private db: DatabaseSync | null = null
 
-  constructor(
-    private readonly dbFile: string,
-    /** 迭代 1 使用的 projects.json，首次启动时导入 */
-    private readonly legacyJsonFile: string
-  ) {}
+  constructor(private readonly dbFile: string) {}
 
   async load(): Promise<void> {
     this.db = await openOrRecover(this.dbFile)
-    await this.importLegacyJson()
     log.info(`[projects] 已加载 ${this.count()} 个项目（${path.basename(this.dbFile)}）`)
   }
 
@@ -99,33 +94,6 @@ export class ProjectStore {
   private count(): number {
     const row = this.database().prepare('SELECT COUNT(*) AS n FROM projects').get()
     return Number(row?.n ?? 0)
-  }
-
-  /**
-   * 迭代 1 的 projects.json → SQLite。只在数据库里还没有项目时导入，
-   * 导入后把原文件改名为 projects.json.migrated-<时间戳> 留作备份。
-   * 文件损坏时 readJsonFile 已经把它备份为 .bak-<时间戳>，这里直接跳过。
-   */
-  private async importLegacyJson(): Promise<void> {
-    if (this.count() > 0) return
-    const result = await readJsonFile(this.legacyJsonFile, parseProjectsFile)
-    if (result.kind !== 'ok') return
-    const projects = result.value.projects
-    const db = this.database()
-    const insert = db.prepare(
-      `INSERT OR IGNORE INTO projects (id, name, path, path_key, sort_order, created_at, last_opened_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-    transaction(db, () => {
-      projects.forEach((p, i) => {
-        insert.run(p.id, p.name, p.path, pathKey(p.path), i, p.createdAt, p.lastOpenedAt ?? null)
-      })
-    })
-    const migrated = `${this.legacyJsonFile}.migrated-${timestamp()}`
-    await fs.rename(this.legacyJsonFile, migrated).catch((err: unknown) => {
-      log.warn('[projects] 迁移后重命名 projects.json 失败', err)
-    })
-    log.info(`[projects] 已从 projects.json 导入 ${projects.length} 个项目，原文件备份为 ${path.basename(migrated)}`)
   }
 }
 
@@ -215,32 +183,4 @@ function pathKey(p: string): string {
   const resolved = path.resolve(p)
   const trimmed = resolved.length > 3 ? resolved.replace(/[\\/]+$/, '') : resolved
   return trimmed.toLowerCase()
-}
-
-function parseProjectsFile(raw: unknown): ProjectsFile | null {
-  if (!isRecord(raw) || raw.version !== 1 || !Array.isArray(raw.projects)) return null
-  const projects: Project[] = []
-  for (const item of raw.projects) {
-    const project = parseProject(item)
-    // 任何一项不合法都视为整个文件损坏，交给调用方备份原文件，避免静默丢数据
-    if (!project) return null
-    projects.push(project)
-  }
-  return { version: 1, projects }
-}
-
-function parseProject(raw: unknown): Project | null {
-  if (!isRecord(raw)) return null
-  const { id, name, path: p, createdAt, lastOpenedAt } = raw
-  if (typeof id !== 'string' || !id) return null
-  if (typeof name !== 'string' || typeof p !== 'string' || !p) return null
-  if (typeof createdAt !== 'number') return null
-  if (lastOpenedAt !== undefined && typeof lastOpenedAt !== 'number') return null
-  const project: Project = { id, name, path: p, createdAt }
-  if (lastOpenedAt !== undefined) project.lastOpenedAt = lastOpenedAt
-  return project
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
 }

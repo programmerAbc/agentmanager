@@ -1,4 +1,4 @@
-# Agent Desk
+# AgentManager
 
 Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保活的嵌入式终端（工作目录为项目目录）。在终端里手动运行 `claude` 等命令，切换项目时终端和其中的进程不会中断。
 
@@ -35,19 +35,20 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 
 ## 打包与安装
 
-- `npm run build:win` 生成 `dist/agent-desk-<版本>-setup.exe`（NSIS，按用户安装，可选安装目录，创建桌面与开始菜单快捷方式）。
+- `npm run build:win` 生成 `dist/agentmanager-<版本>-setup.exe`（NSIS，按用户安装，可选安装目录，创建桌面与开始菜单快捷方式）。
 - node-pty 整体放在 `app.asar.unpacked`（原生模块、conout Worker 脚本、console list agent 都需要在 asar 外）。
 - `npmRebuild: false`：postinstall 已针对同一 Electron 版本编译过 node-pty，打包时不再重复编译。
 - 原生模块只依赖系统 DLL（静态链接 CRT），目标机器不需要安装 Node 或 VC++ 运行库。
-- 静默安装 / 卸载：`agent-desk-0.1.0-setup.exe /S /D=<目录>`；`"<目录>\Uninstall agent-desk.exe" /S /currentuser`。
+- 静默安装 / 卸载：`agentmanager-1.0.0-setup.exe /S /D=<目录>`；`"<目录>\Uninstall AgentManager.exe" /S /currentuser`。
+- 1.0.0 由 Agent Desk 改名而来：`appId` 未变，安装时会先静默卸载已安装的 Agent Desk；数据目录改为 `%APPDATA%\AgentManager`，不迁移旧数据（旧目录 `%APPDATA%\Agent Desk` 保留，可手动删除）。
 - 目前使用 Electron 默认图标（未提供应用图标）。
 
 ## 数据位置
 
-`%APPDATA%\Agent Desk\`：
+`%APPDATA%\AgentManager\`：
 
-- `agent-desk.db` — 项目列表（SQLite，表 `projects`；损坏时自动备份为 `agent-desk.db.bak-<时间戳>` 并以空库启动）。旧版本的 `projects.json` 会在首次启动时自动导入，并改名为 `projects.json.migrated-<时间戳>`
-- `settings.json` — 侧栏宽度、终端字体 / 字号 / 行高、主题色、Claude 启动命令、最后选中的项目、窗口位置
+- `agentmanager.db` — 项目列表（SQLite，表 `projects`；损坏时自动备份为 `agentmanager.db.bak-<时间戳>` 并以空库启动）
+- `settings.json` — 侧栏宽度、终端字体 / 字号 / 行高、主题色、Claude / Codex 启动命令、最后选中的项目、窗口位置
 - `agent-hooks\` — 「启动 Claude」时生成的会话 hooks 文件（每次启动应用时清空）
 - `logs\main.log` — 主进程日志（PTY 创建 / 退出 / kill / 错误）
 

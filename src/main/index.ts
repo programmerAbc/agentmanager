@@ -17,7 +17,7 @@ let quitConfirmed = false
 let cleanedUp = false
 
 const userData = app.getPath('userData')
-const projects = new ProjectStore(path.join(userData, 'agent-desk.db'), path.join(userData, 'projects.json'))
+const projects = new ProjectStore(path.join(userData, 'agentmanager.db'))
 const settings = new SettingsStore(path.join(userData, 'settings.json'))
 const ptys = new PtyManager(
   (sessionId, data) => sendToRenderer(IPC.ptyData, sessionId, data),
@@ -39,7 +39,7 @@ function createWindow(): BrowserWindow {
     minWidth: MIN_SIZE.width,
     minHeight: MIN_SIZE.height,
     show: false,
-    title: 'Agent Desk',
+    title: 'AgentManager',
     backgroundColor: '#181818',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -99,7 +99,7 @@ async function confirmQuit(win: BrowserWindow): Promise<void> {
   const count = ptys.size
   const { response } = await dialog.showMessageBox(win, {
     type: 'warning',
-    title: 'Agent Desk',
+    title: 'AgentManager',
     message: `有 ${count} 个终端仍在运行，确定退出？`,
     detail: '退出会结束这些终端以及其中运行的所有进程。',
     buttons: ['退出', '取消'],

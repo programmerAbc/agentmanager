@@ -10,14 +10,16 @@
 
 - 0.4.1：侧栏第二行固定显示目录路径，状态只用名称前的图形表示（实心小点 = 终端运行中、空心圆环 = 助手就绪、形状变换 = 工作中、举手 = 等待确认、对勾 = 已完成），悬浮提示显示状态文字。dev 自测通过（Playground 实心点 + 路径；项目C 启动 Claude 后空心圆环 + 路径，提示「Claude 就绪」）。
 
-- 1.0.0：版本号定为 1.0.0（功能与 0.4.1 相同），安装包 `dist/agent-desk-1.0.0-setup.exe`（SHA256 B87CB2C1…302D4C），由用户自行安装。
-- 用户环境：0.4.1 已按用户安装到 `%LOCALAPPDATA%\Programs\agent-desk`（开始菜单 / 桌面快捷方式），用户数据仍在 `%APPDATA%\Agent Desk`。以后重新打包不会占用冲突；升级时需要先关闭正在运行的应用再运行新安装包。
+- 1.0.0：版本号定为 1.0.0（功能与 0.4.1 相同）。
+- 1.0.0 改名 AgentManager（用户要求）：界面 / 窗口标题 / 安装包 / 快捷方式 / `AgentManager.exe` / 卸载项统一改名，package 名 `agentmanager`；数据目录变为 `%APPDATA%\AgentManager`、数据库 `agentmanager.db`。**不迁移旧数据**（用户决定），projects.json 导入代码一并删除。`appId` 保留 `com.agentdesk.app`，安装时会静默卸载已安装的 Agent Desk。安装包 `dist/agentmanager-1.0.0-setup.exe`（SHA256 4F434DDC…39B0B1），由用户自行安装。`dist/agent-desk-*.exe` 是改名前的旧包，不要再用。
+- 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main）。
+- 用户环境：0.4.1 已按用户安装到 `%LOCALAPPDATA%\Programs\agent-desk`（开始菜单 / 桌面快捷方式），用户数据在 `%APPDATA%\Agent Desk`。用 AgentManager 安装包升级时，NSIS 会沿用注册表中的旧安装位置；需要先关闭正在运行的应用再运行新安装包。
 
 ## In Progress
 - 无。
 
 ## Next Steps
-- 用户安装 `dist/agent-desk-0.3.0-setup.exe`（覆盖安装后会自动把 `%APPDATA%\Agent Desk\projects.json` 导入数据库），试用新界面与 Claude 状态，反馈观感。
+- 用户安装 `dist/agentmanager-1.0.0-setup.exe`，重新添加项目（空数据）；旧目录 `%APPDATA%\Agent Desk` 可手动删除。
 - 待人工确认项见下方。
 
 ## Risks
@@ -30,6 +32,7 @@
 ## Changed Files
 - M7：src/shared/types.ts、src/main/{settingsStore,ipc}.ts、src/preload/index.ts、src/renderer/{main,sidebar,terminalView,contextMenu,dialog,settingsDialog,theme,fonts,icons,shapes}.ts、styles.css、index.html、env.d.ts；package.json（新增 @material/material-color-utilities、@material-symbols/svg-400）。
 - M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
+- 1.0.0 改名：electron-builder.yml、package.json、package-lock.json、scripts/postinstall.mjs、src/main/{index,projectStore,ptyManager,settingsStore}.ts、src/shared/types.ts（删除 ProjectsFile）、src/renderer/{index.html,main,settingsDialog,sidebar}.ts；README、docs、plans、handoff。
 
 ## Verification
 - `npm run typecheck`：通过。dev + CDP 自测（隔离 userData）：
@@ -50,6 +53,7 @@
   - Claude 回归：右键菜单「启动 Claude」→ 就绪 → 退出后清除。
   - 设置对话框：视口 863 / 583 高时分别为 52–812 / 24–559，居中不截断，内容区滚动。
   - **事故**：15:00:31 关闭 dev 实例时，测试脚本按窗口标题匹配，把用户正在使用的 0.3.0 也关掉了（4 个终端被结束）。脚本已改为只匹配 dev 进程，见 lessons.md。
+- 1.0.0 改名（AgentManager）：`npm run typecheck` 通过；`npm run build:win` 生成 `dist/agentmanager-1.0.0-setup.exe`。`dist/win-unpacked/AgentManager.exe` 在隔离的带空格 userData 下启动：窗口标题 AgentManager，日志「已加载 0 个项目（agentmanager.db）」、hooks 服务启动；按 PID 发 WM_CLOSE 后正常退出，WAL 已合并，settings.json 已写入。未测：在已安装 Agent Desk 的机器上覆盖安装（由用户自行安装）。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。

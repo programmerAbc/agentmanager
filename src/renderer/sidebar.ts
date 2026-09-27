@@ -38,8 +38,8 @@ export class Sidebar {
     const title = document.createElement('button')
     title.type = 'button'
     title.className = 'app-title'
-    title.title = '关于 Agent Desk'
-    title.append(shapeSvg('cookie9', 'app-logo'), document.createTextNode('Agent Desk'))
+    title.title = '关于 AgentManager'
+    title.append(shapeSvg('cookie9', 'app-logo'), document.createTextNode('AgentManager'))
     title.addEventListener('click', () => cb.onOpenAbout())
     const addButton = document.createElement('button')
     addButton.type = 'button'

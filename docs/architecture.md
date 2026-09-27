@@ -1,4 +1,4 @@
-# Architecture — Agent Desk
+# Architecture — AgentManager
 
 ## 进程与模块
 
@@ -7,7 +7,7 @@
   index.ts         窗口创建、生命周期、退出确认与清理、窗口状态持久化
   ipc.ts           注册所有 ipcMain handler；参数校验；sessionId → 项目映射
   ptyManager.ts    PTY 创建/写入/resize/kill，以 sessionId 为键；输出批量转发；进程树清理
-  projectStore.ts  项目存储（SQLite：agent-desk.db；含 projects.json 迁移与损坏恢复）
+  projectStore.ts  项目存储（SQLite：agentmanager.db；含损坏恢复）
   hookServer.ts    接收 claude hooks 上报的本地 HTTP 服务
   settingsStore.ts settings.json 读写
   jsonFile.ts      原子写（临时文件 + fsync + rename，串行队列）、损坏文件备份
@@ -58,7 +58,7 @@ preload (src/preload/index.ts)
 | 图标用 `@material-symbols/svg-400`（Apache-2.0）的 Rounded SVG，经 Vite `?raw` 按需导入 | 官方 MD3 图标；只打包用到的几个 |
 | MD3 Expressive 动效用 CSS `cubic-bezier` 近似弹簧（带回弹的 spatial 曲线 + 无回弹的 effects 曲线）；加载指示器为 SVG SMIL 在多个圆角多边形之间做路径变换并旋转 | 不引入动画库；路径由极坐标采样同样点数生成，保证可插值 |
 | 字体检测：渲染进程 `queryLocalFonts()` 取已安装字体族，canvas 比较 `i` 与 `W` 宽度过滤等宽字体；失败时只提供默认列表 | Chromium 内置 API，无需主进程枚举注册表 |
-| 设置扩展为 `{sidebarWidth, fontSize, fontFamily, lineHeight, themeSeed, claudeCommand, lastProjectId, window}`，主进程校验与限幅 | 单一持久化入口 |
+| 设置扩展为 `{sidebarWidth, fontSize, fontFamily, lineHeight, themeSeed, claudeCommand, codexCommand, lastProjectId, window}`，主进程校验与限幅 | 单一持久化入口 |
 | Claude 状态：主进程 `hookServer` 监听 `127.0.0.1:0`（随机端口）+ 随机 token；启动 Claude 时为会话写 `userData/claude-hooks/<sessionId>.json`（端口、token、sessionId 直接写进 hook 命令），命令追加 `--settings "<该文件>"`；hook 命令为 `curl.exe -s -m 2 -X POST --data-binary "@-" http://127.0.0.1:<port>/hook/<token>/<sessionId>/<event>` | 用户选择不改全局配置；实测 claude 在 Windows 上用 Git Bash 执行 hook，该命令在 bash / cmd / PowerShell 下都成立，且不依赖环境变量展开；curl.exe 为系统自带 |
 | 状态机放在渲染进程（`claudeStatus.ts`）：idle / working / waiting / done / none；「已完成」在项目被查看后转空闲 | 「是否被查看」只有渲染进程知道 |
 | 启动命令由主进程拼接并直接写入 PTY（`agents.launch(sessionId, agent)`） | 命令、hooks 文件路径、端口都在主进程，渲染进程只负责确保终端已启动 |
@@ -75,11 +75,10 @@ preload (src/preload/index.ts)
 
 ## 存储
 
-- **项目**：`userData/agent-desk.db`（SQLite，Electron 44 内置 Node 24 的 `node:sqlite` / `DatabaseSync`，SQLite 3.53；迭代 3 起）。
+- **项目**：`userData/agentmanager.db`（SQLite，Electron 44 内置 Node 24 的 `node:sqlite` / `DatabaseSync`，SQLite 3.53；迭代 3 起）。
   - 表 `projects(id TEXT PK, name, path, path_key TEXT UNIQUE, sort_order INTEGER, created_at INTEGER, last_opened_at INTEGER)`；`path_key` 为小写、去末尾分隔符的路径，用唯一约束去重；按 `sort_order` 排序（添加顺序）。
   - `PRAGMA journal_mode=WAL`、`synchronous=FULL`；schema 版本用 `PRAGMA user_version`（当前 1），升级在 `migrateSchema` 中按版本递增处理。
   - 打开时执行 `PRAGMA quick_check`；打开失败或检查不通过 → 把 `.db` / `-wal` / `-shm` 改名为 `*.bak-YYYYMMDD-HHmmss` → 新建空库；连备份都失败时用内存数据库保证能启动。
-  - 首次启动若库为空且存在 `projects.json`：在一个事务里导入，然后把 JSON 改名为 `projects.json.migrated-<时间戳>`。
   - 所有写操作同步执行，返回时已落盘；退出时 `close()` 合并 WAL。
   - 选择 `node:sqlite` 而非 better-sqlite3：零新增依赖，不需要再编译 / 打包一个原生模块（已验证打包版可用）。
 - **设置**：`userData/settings.json`：`{version:1, sidebarWidth, fontSize, fontFamily, lineHeight, themeSeed, claudeCommand, lastProjectId, window}`。写入：`<file>.tmp-<pid>-<ts>` → fsync → rename（EPERM/EBUSY/EACCES 时退避重试 5 次），同一文件的写入串行；顶层结构损坏时备份为 `.bak-<时间戳>`。

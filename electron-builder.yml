@@ -1,5 +1,6 @@
+# appId 沿用改名前的 com.agentdesk.app：NSIS 以它识别已安装的旧版 Agent Desk，升级时先静默卸载旧版，不会出现两个应用
 appId: com.agentdesk.app
-productName: Agent Desk
+productName: AgentManager
 copyright: Copyright © 2026 consul
 
 directories:
@@ -31,14 +32,14 @@ win:
     - target: nsis
       arch:
         - x64
-  executableName: agent-desk
+  executableName: AgentManager
 
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   artifactName: ${name}-${version}-setup.${ext}
-  shortcutName: Agent Desk
-  uninstallDisplayName: Agent Desk
+  shortcutName: AgentManager
+  uninstallDisplayName: AgentManager
   createDesktopShortcut: true
   createStartMenuShortcut: true

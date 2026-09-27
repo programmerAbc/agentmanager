@@ -28,7 +28,7 @@ const DEFAULTS: AppSettings = {
   window: null
 }
 
-/** settings.json：界面与终端偏好、最后选中的项目、窗口状态。与 projects.json 同样原子写入。 */
+/** settings.json：界面与终端偏好、最后选中的项目、窗口状态。先写临时文件再 rename，保证原子写入。 */
 export class SettingsStore {
   private settings: AppSettings = { ...DEFAULTS }
   private readonly writer: JsonFileWriter

@@ -50,7 +50,7 @@ function terminalSection(deps: SettingsDialogDeps): HTMLElement {
   const section = sectionEl('终端', 'terminal')
   const preview = document.createElement('div')
   preview.className = 'font-preview'
-  preview.textContent = 'Agent Desk 终端预览  0123456789\n() [] {} <= => != ~/.claude  中文等宽对齐 ✓\nclaude --permission-mode bypassPermissions'
+  preview.textContent = 'AgentManager 终端预览  0123456789\n() [] {} <= => != ~/.claude  中文等宽对齐 ✓\nclaude --permission-mode bypassPermissions'
   const hint = document.createElement('div')
   hint.className = 'font-hint'
 
@@ -307,7 +307,7 @@ function aboutContent(): HTMLElement[] {
   const names = document.createElement('div')
   const name = document.createElement('div')
   name.className = 'name'
-  name.textContent = 'Agent Desk'
+  name.textContent = 'AgentManager'
   const version = document.createElement('div')
   version.className = 'version'
   version.textContent = '版本 …'
