@@ -126,6 +126,26 @@ Electron 44 内置 Node 24.21，`node:sqlite`（`DatabaseSync`，SQLite 3.53）�
 ### Prevention
 升级 Electron 时确认 `process.versions.sqlite` 仍存在；`node:sqlite` 仍标记为实验特性，系统 Node 下使用会打印 ExperimentalWarning（无害）。
 
+## Lesson: 测试脚本误关了用户正在使用的 Agent Desk
+### Problem
+自测时用 `close-window.ps1`（按窗口标题「Agent Desk」发 WM_CLOSE）和 `click-dialog.ps1`（点标题为 Agent Desk 的消息框按钮）关闭 dev 实例，结果把用户同时在用的打包版也关了，并在它的「有 N 个终端仍在运行」确认框上点了「退出」，用户的 4 个终端（含 claude 会话）被结束。
+### Root Cause
+脚本按窗口标题匹配，没有区分进程；dev 实例与用户的应用标题相同。
+### Solution
+两个脚本改为只匹配本项目 `node_modules\electron\electron.exe` 的进程（或显式传入的测试进程 PID）；绝不按标题操作 `agent-desk.exe`。
+### Prevention
+任何会关闭窗口 / 点击对话框 / 结束进程的自动化操作，必须先按进程（路径或 PID）限定目标；用户可能同时在用同一个应用。动手前用进程列表确认目标。
+
+## Lesson: codex hooks 的信任与执行方式
+### Problem
+通过 `-c` 注入的 codex hooks 每次启动都弹「Hooks need review」；hook 命令在 codex 里没有生效。
+### Root Cause
+codex 按 hook 命令内容的哈希记录信任（写在 `~/.codex/config.toml` 的 `[hooks.state]`，键为 `<session-flags>` + 事件 + 位置），命令文本一变就要重新信任；codex 在 Windows 上用 PowerShell 执行 hook，`@-`、`{{…}}` 等写法在 PowerShell 下不成立。codex 的 SessionStart 在第一轮对话时才触发，且没有 SessionEnd 事件。
+### Solution
+hook 命令文本固定为 `$null = @($input); curl.exe -s -m 2 -d <事件> $env:AGENT_DESK_HOOK_URL`，会变的地址放在终端环境变量里，整段 hooks 配置放在 `AGENT_DESK_CODEX_HOOKS`；启动命令用 `try { … } finally { 上报 SessionEnd }` 包裹。
+### Prevention
+改动 `CODEX_HOOK_EVENTS` 的顺序或 hook 命令文本会让所有用户重新信任一次，确有必要才改。
+
 ## Lesson: 退出时异步写配置会丢
 ### Problem
 关闭窗口后 settings.json 里 `window` 仍为 null。

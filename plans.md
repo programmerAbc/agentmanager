@@ -25,7 +25,8 @@
 
 | 里程碑 | 状态 | 任务 |
 |---|---|---|
-| M9 项目记录存入 SQLite | ✅ 完成 | `node:sqlite` 实现 ProjectStore（接口不变）；schema 版本（`PRAGMA user_version`）；从 projects.json 迁移；损坏备份；退出时关闭数据库；验证迁移 / 增删改 / 去重 / 损坏恢复 / 打包 |
+| M9 项目记录存入 SQLite | ✅ 完成 |
+| M10 Codex 启动与状态；设置对话框位置 | ✅ 完成 | 类型与 IPC 泛化为 agents；hookServer 增加 codex 路由与环境变量；PTY 注入环境变量；codex 启动命令（try/finally）；状态机按助手区分；UI 按钮 / 右键菜单 / 设置；对话框高度与居中；验证 | `node:sqlite` 实现 ProjectStore（接口不变）；schema 版本（`PRAGMA user_version`）；从 projects.json 迁移；损坏备份；退出时关闭数据库；验证迁移 / 增删改 / 去重 / 损坏恢复 / 打包 |
 
 ## 阻塞
 - 无。

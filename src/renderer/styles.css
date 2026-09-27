@@ -407,24 +407,24 @@ select {
   }
 }
 
-.project-item.claude-idle .status-dot {
+.project-item.agent-idle .status-dot {
   background: var(--md-sys-color-secondary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-secondary) 25%, transparent);
 }
 
-.project-item.claude-starting .project-path,
-.project-item.claude-working .project-path {
+.project-item.agent-starting .project-path,
+.project-item.agent-working .project-path {
   color: var(--md-sys-color-primary);
   opacity: 1;
 }
 
-.project-item.claude-waiting .project-path {
+.project-item.agent-waiting .project-path {
   color: var(--md-sys-color-tertiary);
   opacity: 1;
   font-weight: 600;
 }
 
-.project-item.claude-done .project-path {
+.project-item.agent-done .project-path {
   color: var(--md-sys-color-primary);
   opacity: 1;
   font-weight: 600;
@@ -450,23 +450,23 @@ select {
   display: none;
 }
 
-.status-chip.claude-working,
-.status-chip.claude-starting {
+.status-chip.agent-working,
+.status-chip.agent-starting {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
 }
 
-.status-chip.claude-working .loading-indicator,
-.status-chip.claude-starting .loading-indicator {
+.status-chip.agent-working .loading-indicator,
+.status-chip.agent-starting .loading-indicator {
   color: var(--md-sys-color-on-primary-container);
 }
 
-.status-chip.claude-waiting {
+.status-chip.agent-waiting {
   background: var(--md-sys-color-tertiary-container);
   color: var(--md-sys-color-on-tertiary-container);
 }
 
-.status-chip.claude-waiting .status-icon {
+.status-chip.agent-waiting .status-icon {
   color: var(--md-sys-color-on-tertiary-container);
 }
 
@@ -474,13 +474,21 @@ select {
   background: var(--md-sys-color-secondary);
 }
 
-.status-chip.claude-done {
+.status-chip.agent-done {
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
 }
 
-.launch-claude {
-  margin-right: 8px;
+.launch-agent {
+  padding: 0 18px;
+}
+
+.launch-agent + .launch-agent {
+  margin-left: 4px;
+}
+
+.launch-agent + .icon-btn {
+  margin-left: 8px;
 }
 
 .project-text {
@@ -897,12 +905,14 @@ select {
 /* ============================================================
    对话框
    ============================================================ */
+/* 用 flex 居中；对话框高度按视口计算（百分比高度在 auto 行里不生效，窗口矮时会被截断在底部） */
 .dialog-scrim {
   position: fixed;
   inset: 0;
   z-index: 900;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 24px;
   background: color-mix(in srgb, var(--md-sys-color-scrim) 0%, transparent);
   transition: background-color var(--md-duration-effects) var(--md-motion-default-effects);
@@ -916,7 +926,7 @@ select {
   display: flex;
   flex-direction: column;
   width: min(440px, 100%);
-  max-height: 100%;
+  max-height: calc(100vh - 48px);
   padding: 24px 0 20px;
   border-radius: var(--md-shape-xl);
   background: var(--md-sys-color-surface-container-high);
@@ -999,7 +1009,7 @@ select {
    ============================================================ */
 .dialog.settings-dialog {
   width: min(760px, 100%);
-  height: min(760px, 100%);
+  height: min(760px, calc(100vh - 48px));
   padding-bottom: 8px;
   background: var(--md-sys-color-surface-container);
 }
@@ -1286,6 +1296,10 @@ select {
   margin-top: 6px;
   font-size: 12px;
   line-height: 16px;
+}
+
+.field-help + .setting-row {
+  margin-top: 14px;
 }
 
 .about-grid {

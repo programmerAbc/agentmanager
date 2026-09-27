@@ -1,13 +1,16 @@
 import '@xterm/xterm/css/xterm.css'
 import './styles.css'
 import {
+  AGENT_LABEL,
   DEFAULT_CLAUDE_COMMAND,
+  DEFAULT_CODEX_COMMAND,
   FONT_SIZE,
+  type AgentKind,
   type AppSettings,
   type Project,
   type SettingsPatch
 } from '../shared/types'
-import { ALL_STATUSES, ClaudeStatusTracker, STATUS_TEXT, statusIndicator } from './claudeStatus'
+import { ALL_STATUSES, AgentStatusTracker, statusIndicator, statusText } from './agentStatus'
 import { confirmDialog, iconButton, button } from './dialog'
 import { ensureFontLoaded, fontStack } from './fonts'
 import { icon, type IconName } from './icons'
@@ -20,6 +23,7 @@ import { toast } from './toast'
 
 const api = window.api
 const SETTINGS_SAVE_DELAY_MS = 400
+const AGENT_ICON: Record<AgentKind, IconName> = { claude: 'rocketLaunch', codex: 'codeBlocks' }
 
 /** 渲染进程的总控：持有项目列表、当前选中项和设置，协调侧栏、顶部栏与终端区域。 */
 class App {
@@ -35,10 +39,10 @@ class App {
     title: HTMLElement
     subtitle: HTMLElement
     status: HTMLElement
-    launch: HTMLButtonElement
+    launch: Record<AgentKind, HTMLButtonElement>
     actions: HTMLElement
   }
-  private readonly claude: ClaudeStatusTracker
+  private readonly agents: AgentStatusTracker
   private pendingPatch: SettingsPatch = {}
   private saveTimer: number | undefined
 
@@ -69,11 +73,11 @@ class App {
 
     this.topbar = this.buildTopbar(mustGet('topbar'))
 
-    this.claude = new ClaudeStatusTracker((id, status) => {
-      this.sidebar.setClaudeStatus(id, status)
+    this.agents = new AgentStatusTracker((id, state) => {
+      this.sidebar.setAgentState(id, state)
       if (id === this.selectedId) this.render()
     })
-    api.claude.onEvent((id, event) => this.claude.handleEvent(id, event))
+    api.agents.onEvent((id, event) => this.agents.handleEvent(id, event))
 
     this.terminals = new TerminalManager(
       host,
@@ -86,10 +90,10 @@ class App {
       {
         onRunningChange: (id, running) => {
           this.sidebar.setRunning(id, running)
-          // 终端退出 / 重启 / 被结束，里面的 claude 也就没了
-          if (!running) this.claude.reset(id)
+          // 终端退出 / 重启 / 被结束，里面的助手也就没了
+          if (!running) this.agents.reset(id)
         },
-        onInput: (id) => this.claude.markSeen(id),
+        onInput: (id) => this.agents.markSeen(id),
         onError: (message) => toast(message)
       }
     )
@@ -99,7 +103,7 @@ class App {
       onOpenSettings: () => this.openSettings(),
       onOpenAbout: () => openAboutDialog(() => this.openSettings()),
       onSelect: (id) => this.select(id, true),
-      onLaunchClaude: (id) => void this.launchClaude(id),
+      onLaunchAgent: (id, agent) => void this.launchAgent(id, agent),
       onRename: (id, name) => void this.renameProject(id, name),
       onRemove: (id) => void this.removeProject(id),
       onOpenInExplorer: (id) => void this.openInExplorer(id),
@@ -154,46 +158,78 @@ class App {
       this.changeSettings({ lastProjectId: id })
       if (id) {
         void api.projects.touch(id)
-        this.claude.markSeen(id)
+        this.agents.markSeen(id)
       }
     }
   }
 
-  // ---------------- Claude ----------------
+  // ---------------- AI 助手 ----------------
 
-  /** 在项目终端里执行设置中的 Claude 启动命令；终端未启动 / 已退出时先启动 */
-  private async launchClaude(id: string): Promise<void> {
+  /** 在项目终端里执行设置中的助手启动命令；终端未启动 / 已退出时先启动 */
+  private async launchAgent(id: string, agent: AgentKind): Promise<void> {
     if (this.selectedId !== id) this.select(id, true)
-    if (this.claude.get(id) !== 'none') {
-      toast('Claude 已经在这个终端里运行', 'info')
+    const current = this.agents.get(id)
+    if (current) {
+      toast(`${AGENT_LABEL[current.agent]} 已经在这个终端里运行`, 'info')
       this.terminals.focus(id)
       return
     }
     const running = await this.terminals.ensureRunning(id)
     this.render()
     if (!running) return
-    this.claude.markStarting(id)
-    const result = await api.claude.launch(id)
+    this.agents.markLaunched(id, agent)
+    const result = await api.agents.launch(id, agent)
     if (!result.ok) {
-      this.claude.reset(id)
+      this.agents.reset(id)
       toast(result.error)
     }
     this.terminals.focus(id)
   }
 
-  private claudeSection(): HTMLElement {
-    const section = sectionEl('Claude', 'rocketLaunch')
+  private agentsSection(): HTMLElement {
+    const section = sectionEl('AI 助手', 'rocketLaunch')
+    section.append(
+      ...this.commandField(
+        'claudeCommand',
+        'Claude 启动命令',
+        '「启动 Claude」按钮执行的命令',
+        DEFAULT_CLAUDE_COMMAND,
+        '命令以 claude 开头时会自动追加 --settings，用于显示工作状态（不修改 ~/.claude/settings.json）。'
+      ),
+      ...this.commandField(
+        'codexCommand',
+        'Codex 启动命令',
+        '「启动 Codex」按钮执行的命令',
+        DEFAULT_CODEX_COMMAND,
+        '命令以 codex 开头时会自动追加 -c 注入 hooks 以显示工作状态（不修改 ~/.codex/config.toml）。' +
+          '首次启动时 codex 会提示「Hooks need review」，选择「Trust all and continue」后不再提示。'
+      )
+    )
+    const note = document.createElement('div')
+    note.className = 'field-help'
+    note.textContent = '只有通过按钮启动的助手才会显示状态；在终端里手动输入的 claude / codex 没有状态。'
+    section.appendChild(note)
+    return section
+  }
+
+  private commandField(
+    key: 'claudeCommand' | 'codexCommand',
+    name: string,
+    desc: string,
+    defaultValue: string,
+    helpText: string
+  ): HTMLElement[] {
     const input = document.createElement('input')
     input.className = 'text-field'
     input.spellcheck = false
-    input.value = this.settings.claudeCommand
+    input.value = this.settings[key]
     const commit = (): void => {
       const value = input.value.trim()
       if (!value) {
-        input.value = this.settings.claudeCommand
+        input.value = this.settings[key]
         return
       }
-      if (value !== this.settings.claudeCommand) this.changeSettings({ claudeCommand: value })
+      if (value !== this.settings[key]) this.changeSettings({ [key]: value })
     }
     input.addEventListener('change', commit)
     input.addEventListener('keydown', (e) => {
@@ -201,7 +237,7 @@ class App {
     })
     const reset = button('恢复默认', 'text')
     reset.addEventListener('click', () => {
-      input.value = DEFAULT_CLAUDE_COMMAND
+      input.value = defaultValue
       commit()
     })
     const field = document.createElement('div')
@@ -209,11 +245,8 @@ class App {
     field.append(input, reset)
     const help = document.createElement('div')
     help.className = 'field-help'
-    help.textContent =
-      '点击「启动 Claude」时在当前项目的终端里执行。命令以 claude 开头时会自动追加 --settings，' +
-      '用于在侧栏显示工作状态（不会修改 ~/.claude/settings.json）；手动输入的 claude 没有状态。'
-    section.append(row('启动命令', '「启动 Claude」按钮执行的命令'), field, help)
-    return section
+    help.textContent = helpText
+    return [row(name, desc), field, help]
   }
 
   // ---------------- 设置 ----------------
@@ -222,7 +255,7 @@ class App {
     openSettingsDialog({
       get: () => this.settings,
       change: (patch) => this.changeSettings(patch),
-      extraSections: [() => this.claudeSection()]
+      extraSections: [() => this.agentsSection()]
     })
   }
 
@@ -342,18 +375,24 @@ class App {
     const status = document.createElement('div')
     status.className = 'status-chip'
 
-    const launch = button('启动 Claude', 'filled', 'rocketLaunch')
-    launch.classList.add('launch-claude')
-    launch.title = '在当前项目的终端里运行设置中的 Claude 启动命令'
-    launch.addEventListener('click', () => {
-      if (this.selectedId) void this.launchClaude(this.selectedId)
-    })
+    const launchButton = (agent: AgentKind, variant: 'filled' | 'tonal'): HTMLButtonElement => {
+      const name = AGENT_LABEL[agent]
+      const btn = button(`启动 ${name}`, variant, AGENT_ICON[agent])
+      btn.classList.add('launch-agent')
+      btn.title = `在当前项目的终端里运行设置中的 ${name} 启动命令`
+      btn.addEventListener('click', () => {
+        if (this.selectedId) void this.launchAgent(this.selectedId, agent)
+      })
+      return btn
+    }
+    const launch = { claude: launchButton('claude', 'filled'), codex: launchButton('codex', 'tonal') }
 
     const actions = document.createElement('div')
     actions.className = 'topbar-actions'
     actions.append(
       status,
-      launch,
+      launch.claude,
+      launch.codex,
       iconButton('restartAlt', '重启终端', () => {
         if (this.selectedId) void this.restartTerminal(this.selectedId)
       }),
@@ -365,22 +404,28 @@ class App {
     return { title, subtitle, status, launch, actions }
   }
 
-  private renderClaudeStatus(project: Project | null): void {
-    const status = project ? this.claude.get(project.id) : 'none'
+  private renderAgentStatus(project: Project | null): void {
+    const state = project ? this.agents.get(project.id) : null
+    const status = state?.status ?? 'none'
     const chip = this.topbar.status
-    chip.hidden = status === 'none'
-    for (const s of ALL_STATUSES) chip.classList.toggle(`claude-${s}`, s === status)
-    if (status !== 'none' && chip.dataset.status !== status) {
+    chip.hidden = state === null
+    for (const s of ALL_STATUSES) chip.classList.toggle(`agent-${s}`, s === status)
+    const key = state ? `${state.agent}:${state.status}` : 'none'
+    if (state && chip.dataset.state !== key) {
       const text = document.createElement('span')
-      text.textContent = STATUS_TEXT[status]
+      text.textContent = statusText(state)
       chip.replaceChildren(statusIndicator(status), text)
     }
-    chip.dataset.status = status
+    chip.dataset.state = key
 
-    const launch = this.topbar.launch
-    launch.disabled = status !== 'none'
-    const label = launch.querySelector('span:last-child')
-    if (label) label.textContent = status === 'none' ? '启动 Claude' : 'Claude 运行中'
+    // 同一终端同时只跟踪一个助手：有助手在运行时两个启动按钮都禁用，运行中的那个显示「运行中」
+    for (const agent of ['claude', 'codex'] as const) {
+      const btn = this.topbar.launch[agent]
+      btn.disabled = state !== null
+      const label = btn.querySelector('span:last-child')
+      const name = AGENT_LABEL[agent]
+      if (label) label.textContent = state?.agent === agent ? `${name} 运行中` : `启动 ${name}`
+    }
   }
 
   private render(): void {
@@ -391,7 +436,7 @@ class App {
     this.topbar.subtitle.textContent = project ? project.path : '项目终端管理器'
     this.topbar.subtitle.title = project?.path ?? ''
     this.topbar.actions.hidden = project === null
-    this.renderClaudeStatus(project)
+    this.renderAgentStatus(project)
 
     const terminalShown = project !== null && this.terminals.has(project.id)
     this.emptyState.hidden = project !== null
@@ -406,16 +451,16 @@ class App {
         hint: '终端尚未启动，点击此处或按 Enter 启动。',
         buttons: [
           { label: '启动终端', variant: 'tonal', icon: 'playArrowFill' },
-          {
-            label: '启动 Claude',
-            variant: 'filled',
-            icon: 'rocketLaunch',
-            action: (e) => {
+          ...(['claude', 'codex'] as const).map((agent) => ({
+            label: `启动 ${AGENT_LABEL[agent]}`,
+            variant: 'filled' as const,
+            icon: AGENT_ICON[agent],
+            action: (e: MouseEvent) => {
               // 不冒泡给面板（面板点击只启动终端）
               e.stopPropagation()
-              void this.launchClaude(project.id)
+              void this.launchAgent(project.id, agent)
             }
-          }
+          }))
         ]
       })
     } else if (!project && this.projects.length === 0) {

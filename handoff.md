@@ -6,6 +6,8 @@
 - 版本号 0.2.0。
 - M9（迭代 3）：项目记录改存 SQLite（`userData/agent-desk.db`，`node:sqlite`，零新增依赖）；首次启动自动导入 `projects.json` 并改名为 `.migrated-<时间戳>`；数据库损坏时备份并以空库启动。设置仍在 settings.json。版本号 0.3.0，安装包 `dist/agent-desk-0.3.0-setup.exe`。
 
+- M10（0.4.0）：「启动 Codex」按钮（默认 `codex --dangerously-bypass-approvals-and-sandbox`）与 Codex 工作状态（`-c` 注入 hooks + 环境变量 + try/finally 检测退出）；状态机与 IPC 泛化为 agents（claude / codex）；设置页「AI 助手」分区；设置对话框按视口高度收缩并居中。
+
 ## In Progress
 - 无。
 
@@ -37,6 +39,12 @@
   - 损坏恢复：把数据库写成垃圾内容 → 启动后备份为 `agent-desk.db.bak-20260927-142238`，空库正常启动。
   - 打包版（0.3.0，`ud prod sqlite` 带空格路径）：旧 projects.json 自动导入，退出无残留。
   - 观察：dev 实例在「退出时结束终端」后偶尔以退出码 9 结束（迭代 1 就出现过，清理与落盘均已完成，不影响功能），原因未查明。
+- M10（`npm run typecheck` 通过；dev + CDP 自测，测试 userData 的 Codex 命令临时加了 `-c model=gpt-5.5 -c model_reasoning_effort=low`，因为用户的 codex 0.141 跑不了配置的 gpt-5.6-sol）：
+  - 先用独立脚本实测：codex 用 PowerShell 执行 hook；信任记录写在 `~/.codex/config.toml` 的 `[hooks.state]`（测试中已对 Agent Desk 的 5 条 hook 选择信任，与产品中的命令文本完全一致，用户不会再看到审查提示）。
+  - 应用内：点「启动 Codex」→「Codex 就绪」、两个启动按钮禁用；发最小 prompt → SessionStart / UserPromptSubmit / Stop →「Codex 已完成」；Ctrl+C 退出 → finally 上报 SessionEnd → 状态清除。
+  - Claude 回归：右键菜单「启动 Claude」→ 就绪 → 退出后清除。
+  - 设置对话框：视口 863 / 583 高时分别为 52–812 / 24–559，居中不截断，内容区滚动。
+  - **事故**：15:00:31 关闭 dev 实例时，测试脚本按窗口标题匹配，把用户正在使用的 0.3.0 也关掉了（4 个终端被结束）。脚本已改为只匹配 dev 进程，见 lessons.md。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。

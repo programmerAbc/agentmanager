@@ -1,8 +1,16 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import os from 'node:os'
 import path from 'node:path'
-import { IPC, type AppInfo, type DataResult, type OpResult, type Project, type SettingsPatch } from '../shared/types'
-import type { ClaudeHookServer } from './hookServer'
+import {
+  IPC,
+  type AgentKind,
+  type AppInfo,
+  type DataResult,
+  type OpResult,
+  type Project,
+  type SettingsPatch
+} from '../shared/types'
+import type { AgentHookServer } from './hookServer'
 import log from './log'
 import type { ProjectStore } from './projectStore'
 import type { PtyManager } from './ptyManager'
@@ -12,7 +20,7 @@ export interface IpcDeps {
   projects: ProjectStore
   settings: SettingsStore
   ptys: PtyManager
-  hooks: ClaudeHookServer
+  hooks: AgentHookServer
 }
 
 /** 目前一个项目一个会话，sessionId 就是 projectId。以后支持多会话时只需要改这里。 */
@@ -71,7 +79,12 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
       const sessionId = asString(id)
       const project = projects.get(projectIdOfSession(sessionId))
       if (!project) return { ok: false, error: '项目不存在' }
-      return ptys.open(sessionId, { cwd: project.path, cols: asInt(cols), rows: asInt(rows) })
+      return ptys.open(sessionId, {
+        cwd: project.path,
+        cols: asInt(cols),
+        rows: asInt(rows),
+        env: hooks.envFor(sessionId)
+      })
     } catch (err) {
       log.error('[ipc] pty.open 失败', err)
       return { ok: false, error: errorMessage(err) }
@@ -118,22 +131,35 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
     })
   )
 
-  // ---------- claude ----------
-  ipcMain.handle(IPC.claudeLaunch, (_e, id: unknown) =>
-    guard('启动 Claude', async () => {
+  // ---------- agents ----------
+  ipcMain.handle(IPC.agentLaunch, (_e, id: unknown, agent: unknown) =>
+    guard('启动助手', async () => {
       const sessionId = asString(id)
+      const kind = asAgentKind(agent)
       if (!ptys.has(sessionId)) throw new Error('终端未启动')
-      const command = settings.get().claudeCommand
-      let line = command
-      // 只有真正启动 claude 时才注入 hooks；终端里的 shell 固定是 PowerShell，用单引号避免 $ 被展开
-      if (/^claude(\.exe|\.cmd)?(\s|$)/i.test(command)) {
-        const file = await hooks.writeSessionSettings(sessionId)
-        line = `${command} --settings '${file.replace(/'/g, "''")}'`
-      }
+      const line = await launchLine(kind, sessionId)
       ptys.write(sessionId, `${line}\r`)
-      log.info(`[claude] 启动 session=${sessionId} command=${command}`)
+      log.info(`[agents] 启动 ${kind} session=${sessionId}`)
     })
   )
+
+  /**
+   * 拼出写进终端的启动命令。终端里的 shell 固定是 PowerShell。
+   * 只有命令确实以 claude / codex 开头、且 hooks 服务可用时才注入 hooks，否则原样执行（没有状态）。
+   */
+  async function launchLine(kind: AgentKind, sessionId: string): Promise<string> {
+    const s = settings.get()
+    if (kind === 'claude') {
+      const command = s.claudeCommand
+      if (!hooks.ready || !/^claude(\.exe|\.cmd)?(\s|$)/i.test(command)) return command
+      const file = await hooks.writeClaudeSettings(sessionId)
+      // 单引号避免路径里的 $ 被 PowerShell 展开
+      return `${command} --settings '${file.replace(/'/g, "''")}'`
+    }
+    const command = s.codexCommand
+    if (!hooks.ready || !/^codex(\.exe|\.cmd|\.ps1)?(\s|$)/i.test(command)) return command
+    return hooks.codexLaunchLine(command)
+  }
 
   // ---------- app ----------
   ipcMain.handle(IPC.appInfo, (): AppInfo => ({
@@ -187,6 +213,11 @@ function asString(v: unknown): string {
   return v
 }
 
+function asAgentKind(v: unknown): AgentKind {
+  if (v !== 'claude' && v !== 'codex') throw new Error('参数类型错误')
+  return v
+}
+
 function isPositiveInt(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v > 0
 }
@@ -208,6 +239,7 @@ function asSettingsPatch(v: unknown): SettingsPatch {
   if (typeof r.fontFamily === 'string') patch.fontFamily = r.fontFamily
   if (typeof r.themeSeed === 'string') patch.themeSeed = r.themeSeed
   if (typeof r.claudeCommand === 'string') patch.claudeCommand = r.claudeCommand
+  if (typeof r.codexCommand === 'string') patch.codexCommand = r.codexCommand
   if (typeof r.lastProjectId === 'string' || r.lastProjectId === null) patch.lastProjectId = r.lastProjectId
   return patch
 }

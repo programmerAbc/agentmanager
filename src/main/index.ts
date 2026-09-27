@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, Menu, screen, type Rectangle } from 'electron'
 import path from 'node:path'
 import { IPC, type WindowState } from '../shared/types'
-import { ClaudeHookServer } from './hookServer'
+import { AgentHookServer } from './hookServer'
 import { registerIpc } from './ipc'
 import log from './log'
 import { ProjectStore } from './projectStore'
@@ -23,8 +23,8 @@ const ptys = new PtyManager(
   (sessionId, data) => sendToRenderer(IPC.ptyData, sessionId, data),
   (sessionId, exitCode) => sendToRenderer(IPC.ptyExit, sessionId, exitCode)
 )
-const hooks = new ClaudeHookServer(path.join(userData, 'claude-hooks'), (sessionId, event) =>
-  sendToRenderer(IPC.claudeEvent, sessionId, event)
+const hooks = new AgentHookServer(path.join(userData, 'agent-hooks'), (sessionId, event) =>
+  sendToRenderer(IPC.agentEvent, sessionId, event)
 )
 
 function sendToRenderer(channel: string, ...args: unknown[]): void {
@@ -200,8 +200,8 @@ function main(): void {
       // 使用系统原生标题栏，但不需要菜单栏（也去掉默认菜单的 Ctrl+=/- 页面缩放快捷键）
       Menu.setApplicationMenu(null)
       await Promise.all([projects.load(), settings.load()])
-      // 状态服务启动失败不影响终端功能，只是没有 Claude 状态
-      await hooks.start().catch((err: unknown) => log.error('[claude] hooks 服务启动失败', err))
+      // 状态服务启动失败不影响终端功能，只是没有助手状态
+      await hooks.start().catch((err: unknown) => log.error('[agents] hooks 服务启动失败', err))
       registerIpc({ projects, settings, ptys, hooks })
       mainWindow = createWindow()
     })

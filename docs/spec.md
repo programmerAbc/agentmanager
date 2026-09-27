@@ -64,5 +64,17 @@
 - 损坏处理：数据库无法打开或完整性检查失败时，把 `agent-desk.db`（及 `-wal` / `-shm`）改名为 `*.bak-<时间戳>`，以空库启动，不崩溃。
 - 设置仍保存在 `settings.json`（本次只迁移项目记录）。
 
+### M10 Codex CLI 启动与工作状态；设置对话框位置
+- **启动 Codex**：与「启动 Claude」并列的按钮（顶部栏 / 未启动面板 / 项目右键菜单）。执行设置中的 Codex 命令，默认 `codex --dangerously-bypass-approvals-and-sandbox`（与 Claude 的 bypassPermissions 对应）。同一终端同时只跟踪一个助手；有助手在运行时两个启动按钮都禁用。
+- **Codex 状态**（只对按钮启动的 codex 生效，不修改 codex 的配置文件）：
+  - 通过 codex 的 hooks（`-c` 注入）上报：SessionStart / UserPromptSubmit / PostToolUse → 工作中，PermissionRequest → 等待确认，Stop → 已完成。
+  - codex 的 SessionStart 在第一轮对话时才触发，所以点击启动后直接显示「Codex 就绪」。
+  - codex 没有退出事件：启动命令用 PowerShell `try { … } finally { 上报 SessionEnd }` 包裹，codex 退出（含 Ctrl+C）时清除状态。
+  - codex 会对新增 / 变化的 hook 弹出「Hooks need review」，用户选择信任一次后不再提示（codex 把信任记录写在自己的 config.toml 的 `[hooks.state]`）。因此 hook 命令文本必须固定：会变的端口 / token / 会话 id 通过终端环境变量 `AGENT_DESK_HOOK_URL` 传入，hooks 配置本身放在 `AGENT_DESK_CODEX_HOOKS` 环境变量里。
+  - codex 在 Windows 上用 PowerShell 执行 hook（实测），hook 命令为 `$null = @($input); curl.exe -s -m 2 -d <事件> $env:AGENT_DESK_HOOK_URL`（不含引号，事件名放在请求体里）。
+- 状态文字带助手名：「Claude 工作中…」/「Codex 工作中…」等。
+- **设置对话框**：窗口较矮时对话框按窗口高度收缩并垂直居中，内容区滚动，不再被截断在底部。
+
 ## Open
+- codex 一轮对话出错（例如模型不可用）时不会有 Stop，状态停留在「工作中」直到下一次事件或 codex 退出。
 - 用户按 Esc 中断 claude 时 `Stop` 不触发，状态会停留在「工作中」，直到下一次事件或约 60 秒后的 `idle_prompt` 通知。

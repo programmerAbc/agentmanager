@@ -3,32 +3,53 @@ import { promises as fs } from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
-import { CLAUDE_HOOK_EVENTS, type ClaudeEvent, type ClaudeHookEvent } from '../shared/types'
+import {
+  CLAUDE_HOOK_EVENTS,
+  CODEX_HOOK_EVENTS,
+  type AgentEvent,
+  type AgentHookEvent
+} from '../shared/types'
 import log from './log'
 
 const MAX_BODY_BYTES = 64 * 1024
 const HOOK_TIMEOUT_SECONDS = 5
+/** /hook/<token>/<sessionId>/<Event>（claude）或 /hook/<token>/<sessionId>/codex（codex，事件名在请求体里） */
 const URL_PATTERN = /^\/hook\/([0-9a-f]{32})\/([A-Za-z0-9-]{1,64})\/([A-Za-z]+)$/
 
 /**
- * 接收 claude hooks 上报的本地 HTTP 服务（只监听 127.0.0.1，随机端口 + 随机 token）。
- *
- * 通过「启动 Claude」按钮启动的 claude 会带上 `--settings <会话 hooks 文件>`，
- * 文件里每个事件的 hook 都是一条 curl.exe 命令，把 hook 的 stdin（事件 JSON）POST 到这里。
- * 端口、token、sessionId 直接写在命令里，不依赖环境变量展开，bash / cmd / PowerShell 下都成立。
+ * codex 的 hook 命令。codex 在 Windows 上用 PowerShell 执行 hook（实测）。
+ * 文本必须固定：codex 对新增 / 变化的 hook 会要求用户重新信任，所以端口、token、会话 id
+ * 都通过终端环境变量 AGENT_DESK_HOOK_URL 传入；不含引号；先读完 stdin 再上报。
  */
-export class ClaudeHookServer {
+const codexHookCommand = (event: AgentHookEvent): string =>
+  `$null = @($input); curl.exe -s -m 2 -d ${event} $env:AGENT_DESK_HOOK_URL`
+
+/** 通过 `codex -c $env:AGENT_DESK_CODEX_HOOKS` 注入的配置（TOML，字符串用单引号字面量） */
+const CODEX_HOOKS_TOML = `hooks={${CODEX_HOOK_EVENTS.map(
+  (event) => `${event}=[{hooks=[{type='command',command='${codexHookCommand(event)}'}]}]`
+).join(',')}}`
+
+/**
+ * 接收 claude / codex hooks 上报的本地 HTTP 服务（只监听 127.0.0.1，随机端口 + 随机 token）。
+ *
+ * - claude：「启动 Claude」时生成会话 hooks 文件并追加 `--settings <文件>`，hook 为 curl.exe 命令，
+ *   把 stdin（事件 JSON）POST 到 /hook/<token>/<sessionId>/<Event>。
+ * - codex：终端启动时注入环境变量 AGENT_DESK_HOOK_URL / AGENT_DESK_CODEX_HOOKS，
+ *   「启动 Codex」时追加 `-c $env:AGENT_DESK_CODEX_HOOKS`，并用 try/finally 在 codex 退出时上报 SessionEnd。
+ * 响应一律为 204 无正文：hook 的标准输出会进入助手的上下文（claude），或被当作 hook 结果解析（codex）。
+ */
+export class AgentHookServer {
   private server: http.Server | null = null
   private port = 0
   private readonly token = randomBytes(16).toString('hex')
 
   constructor(
     private readonly dir: string,
-    private readonly onEvent: (sessionId: string, event: ClaudeEvent) => void
+    private readonly onEvent: (sessionId: string, event: AgentEvent) => void
   ) {}
 
   async start(): Promise<void> {
-    // 上次运行留下的文件里是旧端口 / 旧 token，已经无效
+    // 上次运行留下的 claude hooks 文件里是旧端口 / 旧 token，已经无效
     await fs.rm(this.dir, { recursive: true, force: true }).catch(() => undefined)
     const server = http.createServer((req, res) => this.handle(req, res))
     await new Promise<void>((resolve, reject) => {
@@ -37,7 +58,7 @@ export class ClaudeHookServer {
     })
     this.server = server
     this.port = (server.address() as AddressInfo).port
-    log.info(`[claude] hooks 服务已启动 127.0.0.1:${this.port}`)
+    log.info(`[agents] hooks 服务已启动 127.0.0.1:${this.port}`)
   }
 
   stop(): void {
@@ -45,13 +66,35 @@ export class ClaudeHookServer {
     this.server = null
   }
 
-  /** 为会话生成 hooks 设置文件，返回文件路径 */
-  async writeSessionSettings(sessionId: string): Promise<string> {
+  get ready(): boolean {
+    return this.server !== null
+  }
+
+  /** 终端启动时注入的环境变量（服务未启动时为空，不影响终端） */
+  envFor(sessionId: string): Record<string, string> {
+    if (!this.server) return {}
+    return {
+      AGENT_DESK_HOOK_URL: `http://127.0.0.1:${this.port}/hook/${this.token}/${sessionId}/codex`,
+      AGENT_DESK_CODEX_HOOKS: CODEX_HOOKS_TOML
+    }
+  }
+
+  /** claude：为会话生成 hooks 设置文件，返回文件路径 */
+  async writeClaudeSettings(sessionId: string): Promise<string> {
     if (!this.server) throw new Error('状态服务未启动')
     const hooks: Record<string, unknown> = {}
     for (const event of CLAUDE_HOOK_EVENTS) {
+      const url = `http://127.0.0.1:${this.port}/hook/${this.token}/${sessionId}/${event}`
       hooks[event] = [
-        { hooks: [{ type: 'command', command: this.command(sessionId, event), timeout: HOOK_TIMEOUT_SECONDS }] }
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `curl.exe -s -m 2 -X POST --data-binary "@-" ${url}`,
+              timeout: HOOK_TIMEOUT_SECONDS
+            }
+          ]
+        }
       ]
     }
     await fs.mkdir(this.dir, { recursive: true })
@@ -60,9 +103,15 @@ export class ClaudeHookServer {
     return file
   }
 
-  private command(sessionId: string, event: ClaudeHookEvent): string {
-    const url = `http://127.0.0.1:${this.port}/hook/${this.token}/${sessionId}/${event}`
-    return `curl.exe -s -m 2 -X POST --data-binary "@-" ${url}`
+  /**
+   * codex：在用户命令后追加 hooks，并用 PowerShell try/finally 包裹，
+   * codex 退出（包括 Ctrl+C）时上报 SessionEnd（codex 自身没有这个事件）。
+   */
+  codexLaunchLine(command: string): string {
+    return (
+      `try { ${command} -c $env:AGENT_DESK_CODEX_HOOKS } ` +
+      'finally { curl.exe -s -m 2 -d SessionEnd $env:AGENT_DESK_HOOK_URL | Out-Null }'
+    )
   }
 
   private handle(req: http.IncomingMessage, res: http.ServerResponse): void {
@@ -74,21 +123,22 @@ export class ClaudeHookServer {
     })
     req.on('error', () => undefined)
     req.on('end', () => {
-      // 必须没有响应体：SessionStart / UserPromptSubmit 的 hook 输出会被加进 claude 的上下文
       res.writeHead(204)
       res.end()
       try {
         const m = URL_PATTERN.exec(req.url ?? '')
-        if (req.method !== 'POST' || !m || !this.tokenMatches(m[1]) || !isHookEvent(m[3])) return
-        const event: ClaudeEvent = { name: m[3] }
-        if (event.name === 'Notification' && size <= MAX_BODY_BYTES) {
-          event.notificationType = notificationTypeOf(Buffer.concat(chunks).toString('utf8'))
-        }
-        if (event.name === 'PostToolUse') log.debug(`[claude] ${event.name} session=${m[2]}`)
-        else log.info(`[claude] ${event.name}${event.notificationType ? `(${event.notificationType})` : ''} session=${m[2]}`)
-        this.onEvent(m[2], event)
+        if (req.method !== 'POST' || !m || !this.tokenMatches(m[1])) return
+        const sessionId = m[2]
+        const body = size <= MAX_BODY_BYTES ? Buffer.concat(chunks).toString('utf8') : ''
+        const event = m[3] === 'codex' ? codexEvent(body) : claudeEvent(m[3], body)
+        if (!event) return
+        const detail = event.notificationType ? `(${event.notificationType})` : ''
+        const text = `[agents] ${event.agent} ${event.name}${detail} session=${sessionId}`
+        if (event.name === 'PostToolUse') log.debug(text)
+        else log.info(text)
+        this.onEvent(sessionId, event)
       } catch (err) {
-        log.warn('[claude] 处理 hook 请求失败', err)
+        log.warn('[agents] 处理 hook 请求失败', err)
       }
     })
   }
@@ -100,8 +150,17 @@ export class ClaudeHookServer {
   }
 }
 
-function isHookEvent(name: string): name is ClaudeHookEvent {
-  return (CLAUDE_HOOK_EVENTS as readonly string[]).includes(name)
+function claudeEvent(name: string, body: string): AgentEvent | null {
+  if (!(CLAUDE_HOOK_EVENTS as readonly string[]).includes(name)) return null
+  const event: AgentEvent = { agent: 'claude', name: name as AgentHookEvent }
+  if (event.name === 'Notification') event.notificationType = notificationTypeOf(body)
+  return event
+}
+
+function codexEvent(body: string): AgentEvent | null {
+  const name = body.trim()
+  const known: readonly string[] = [...CODEX_HOOK_EVENTS, 'SessionEnd']
+  return known.includes(name) ? { agent: 'codex', name: name as AgentHookEvent } : null
 }
 
 function notificationTypeOf(body: string): string | undefined {

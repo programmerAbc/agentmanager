@@ -36,6 +36,8 @@ export interface AppSettings {
   themeSeed: string
   /** 「启动 Claude」按钮执行的命令 */
   claudeCommand: string
+  /** 「启动 Codex」按钮执行的命令 */
+  codexCommand: string
   lastProjectId: string | null
   window: WindowState | null
 }
@@ -53,6 +55,7 @@ export const LINE_HEIGHT = { default: 1.0, min: 1.0, max: 1.6 } as const
 export const DEFAULT_FONT_FAMILY = 'Maple Mono NF CN'
 export const DEFAULT_THEME_SEED = '#D97757'
 export const DEFAULT_CLAUDE_COMMAND = 'claude --permission-mode bypassPermissions'
+export const DEFAULT_CODEX_COMMAND = 'codex --dangerously-bypass-approvals-and-sandbox'
 /** 字体族名只允许常见字符，避免拼进 CSS font-family 时出问题 */
 export const FONT_FAMILY_PATTERN = /^[^"'\\;{}<>\r\n]{1,100}$/
 export const THEME_SEED_PATTERN = /^#[0-9a-fA-F]{6}$/
@@ -90,20 +93,26 @@ export const IPC = {
   shellOpenExternal: 'shell:open-external',
   appInfo: 'app:info',
   appOpenDir: 'app:open-dir',
-  claudeLaunch: 'claude:launch',
-  claudeEvent: 'claude:event'
+  agentLaunch: 'agent:launch',
+  agentEvent: 'agent:event'
 } as const
 
-/** Agent Desk 注入给 claude 的 hooks 会上报的事件 */
-export type ClaudeHookEvent =
+/** 可以从按钮启动、并跟踪工作状态的 AI 助手 */
+export type AgentKind = 'claude' | 'codex'
+
+export const AGENT_LABEL: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+
+/** 各助手的 hooks 会上报的事件（codex 没有 SessionEnd，由启动命令的 finally 上报） */
+export type AgentHookEvent =
   | 'SessionStart'
   | 'UserPromptSubmit'
   | 'PostToolUse'
+  | 'PermissionRequest'
   | 'Notification'
   | 'Stop'
   | 'SessionEnd'
 
-export const CLAUDE_HOOK_EVENTS: readonly ClaudeHookEvent[] = [
+export const CLAUDE_HOOK_EVENTS: readonly AgentHookEvent[] = [
   'SessionStart',
   'UserPromptSubmit',
   'PostToolUse',
@@ -112,9 +121,19 @@ export const CLAUDE_HOOK_EVENTS: readonly ClaudeHookEvent[] = [
   'SessionEnd'
 ]
 
-export interface ClaudeEvent {
-  name: ClaudeHookEvent
-  /** 仅 Notification：permission_prompt / idle_prompt / elicitation_dialog / auth_success … */
+/** 注入 codex 的 hooks（顺序与内容一旦改变，用户需要在 codex 里重新信任） */
+export const CODEX_HOOK_EVENTS: readonly AgentHookEvent[] = [
+  'SessionStart',
+  'UserPromptSubmit',
+  'PermissionRequest',
+  'PostToolUse',
+  'Stop'
+]
+
+export interface AgentEvent {
+  agent: AgentKind
+  name: AgentHookEvent
+  /** 仅 claude 的 Notification：permission_prompt / idle_prompt / elicitation_dialog / auth_success … */
   notificationType?: string
 }
 
@@ -161,9 +180,9 @@ export interface Api {
     info(): Promise<AppInfo>
     openDir(kind: 'userData' | 'logs'): Promise<OpResult>
   }
-  claude: {
-    /** 在该会话的终端里执行设置中的 Claude 启动命令（命令以 claude 开头时追加 Agent Desk 的 hooks） */
-    launch(sessionId: string): Promise<OpResult>
-    onEvent(cb: (sessionId: string, event: ClaudeEvent) => void): () => void
+  agents: {
+    /** 在该会话的终端里执行设置中的助手启动命令（并注入 Agent Desk 的 hooks 以跟踪状态） */
+    launch(sessionId: string, agent: AgentKind): Promise<OpResult>
+    onEvent(cb: (sessionId: string, event: AgentEvent) => void): () => void
   }
 }

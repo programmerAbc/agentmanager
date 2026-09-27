@@ -1,5 +1,5 @@
-import { SIDEBAR_WIDTH, type Project } from '../shared/types'
-import { ALL_STATUSES, STATUS_TEXT, statusIndicator, type ClaudeStatus } from './claudeStatus'
+import { SIDEBAR_WIDTH, type AgentKind, type Project } from '../shared/types'
+import { ALL_STATUSES, statusIndicator, statusText, type AgentState } from './agentStatus'
 import { showContextMenu } from './contextMenu'
 import { icon } from './icons'
 import { shapeSvg } from './shapes'
@@ -9,7 +9,7 @@ export interface SidebarCallbacks {
   onOpenSettings(): void
   onOpenAbout(): void
   onSelect(id: string): void
-  onLaunchClaude(id: string): void
+  onLaunchAgent(id: string, agent: AgentKind): void
   onRename(id: string, name: string): void
   onRemove(id: string): void
   onOpenInExplorer(id: string): void
@@ -23,7 +23,7 @@ export class Sidebar {
   private projects: Project[] = []
   private selectedId: string | null = null
   private readonly running = new Set<string>()
-  private readonly claude = new Map<string, ClaudeStatus>()
+  private readonly agents = new Map<string, AgentState>()
   private readonly list: HTMLUListElement
   private width: number = SIDEBAR_WIDTH.default
 
@@ -97,21 +97,22 @@ export class Sidebar {
     this.itemById(id)?.classList.toggle('running', running)
   }
 
-  setClaudeStatus(id: string, status: ClaudeStatus): void {
-    if (status === 'none') this.claude.delete(id)
-    else this.claude.set(id, status)
+  setAgentState(id: string, state: AgentState | null): void {
+    if (state) this.agents.set(id, state)
+    else this.agents.delete(id)
     const li = this.itemById(id)
     const project = this.projects.find((p) => p.id === id)
-    if (li && project) this.applyClaudeStatus(li, project)
+    if (li && project) this.applyAgentState(li, project)
   }
 
-  /** 状态图形放在名称前；有状态时第二行显示状态文字，否则显示路径 */
-  private applyClaudeStatus(li: HTMLLIElement, project: Project): void {
-    const status = this.claude.get(project.id) ?? 'none'
-    for (const s of ALL_STATUSES) li.classList.toggle(`claude-${s}`, s === status)
+  /** 状态图形放在名称前；有助手在运行时第二行显示状态文字，否则显示路径 */
+  private applyAgentState(li: HTMLLIElement, project: Project): void {
+    const state = this.agents.get(project.id) ?? null
+    const status = state?.status ?? 'none'
+    for (const s of ALL_STATUSES) li.classList.toggle(`agent-${s}`, s === status)
     li.querySelector('.status-slot')?.replaceChildren(statusIndicator(status))
     const pathEl = li.querySelector('.project-path')
-    if (pathEl) pathEl.textContent = status === 'none' ? shortenPath(project.path) : STATUS_TEXT[status]
+    if (pathEl) pathEl.textContent = state ? statusText(state) : shortenPath(project.path)
   }
 
   setWidth(width: number): void {
@@ -180,7 +181,7 @@ export class Sidebar {
       pathEl.textContent = shortenPath(project.path)
       text.append(name, pathEl)
       li.append(slot, text)
-      this.applyClaudeStatus(li, project)
+      this.applyAgentState(li, project)
       fragment.appendChild(li)
     }
     this.list.replaceChildren(fragment)
@@ -191,8 +192,14 @@ export class Sidebar {
       {
         label: '启动 Claude',
         icon: 'rocketLaunch',
-        disabled: this.claude.has(id),
-        action: () => this.cb.onLaunchClaude(id)
+        disabled: this.agents.has(id),
+        action: () => this.cb.onLaunchAgent(id, 'claude')
+      },
+      {
+        label: '启动 Codex',
+        icon: 'codeBlocks',
+        disabled: this.agents.has(id),
+        action: () => this.cb.onLaunchAgent(id, 'codex')
       },
       { separator: true },
       { label: '重命名', icon: 'edit', action: () => this.beginRename(id) },

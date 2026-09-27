@@ -10,6 +10,8 @@ export interface PtyOpenOptions {
   cwd: string
   cols: number
   rows: number
+  /** 额外的环境变量（例如 Agent Desk 的 hooks 地址） */
+  env?: Record<string, string>
 }
 
 interface Session {
@@ -60,7 +62,7 @@ export class PtyManager {
     return this.sessions.has(sessionId)
   }
 
-  open(sessionId: string, { cwd, cols, rows }: PtyOpenOptions): OpResult {
+  open(sessionId: string, { cwd, cols, rows, env: extraEnv }: PtyOpenOptions): OpResult {
     if (this.sessions.has(sessionId)) return { ok: true }
 
     const dirError = checkDirectory(cwd)
@@ -73,7 +75,7 @@ export class PtyManager {
         cols: sanitizeDim(cols, 80),
         rows: sanitizeDim(rows, 24),
         cwd,
-        env: buildEnv()
+        env: { ...buildEnv(), ...extraEnv }
       })
       const session: Session = {
         id: sessionId,

@@ -61,7 +61,9 @@ preload (src/preload/index.ts)
 | 设置扩展为 `{sidebarWidth, fontSize, fontFamily, lineHeight, themeSeed, claudeCommand, lastProjectId, window}`，主进程校验与限幅 | 单一持久化入口 |
 | Claude 状态：主进程 `hookServer` 监听 `127.0.0.1:0`（随机端口）+ 随机 token；启动 Claude 时为会话写 `userData/claude-hooks/<sessionId>.json`（端口、token、sessionId 直接写进 hook 命令），命令追加 `--settings "<该文件>"`；hook 命令为 `curl.exe -s -m 2 -X POST --data-binary "@-" http://127.0.0.1:<port>/hook/<token>/<sessionId>/<event>` | 用户选择不改全局配置；实测 claude 在 Windows 上用 Git Bash 执行 hook，该命令在 bash / cmd / PowerShell 下都成立，且不依赖环境变量展开；curl.exe 为系统自带 |
 | 状态机放在渲染进程（`claudeStatus.ts`）：idle / working / waiting / done / none；「已完成」在项目被查看后转空闲 | 「是否被查看」只有渲染进程知道 |
-| 启动命令由主进程拼接并直接写入 PTY（`claude.launch(sessionId)`） | 命令、hooks 文件路径、端口都在主进程，渲染进程只负责确保终端已启动 |
+| 启动命令由主进程拼接并直接写入 PTY（`agents.launch(sessionId, agent)`） | 命令、hooks 文件路径、端口都在主进程，渲染进程只负责确保终端已启动 |
+| **Codex（M10）**：终端启动时注入 `AGENT_DESK_HOOK_URL`（`…/hook/<token>/<sessionId>/codex`）和 `AGENT_DESK_CODEX_HOOKS`（固定的 hooks TOML）；启动命令 `try { <命令> -c $env:AGENT_DESK_CODEX_HOOKS } finally { curl.exe -s -m 2 -d SessionEnd $env:AGENT_DESK_HOOK_URL \| Out-Null }`；hook 命令 `$null = @($input); curl.exe -s -m 2 -d <事件> $env:AGENT_DESK_HOOK_URL`，服务端从请求体读事件名 | codex 对 hook 命令文本做信任校验（变化即需重新信任），所以文本必须固定；codex 在 Windows 用 PowerShell 执行 hook（实测）；codex 无 SessionEnd，靠 PowerShell finally（Ctrl+C 也会执行）上报退出 |
+| 状态机 `AgentStatusTracker`：每个终端只跟踪一个助手 `{agent, status}`；claude 启动后等 SessionStart（30 秒超时），codex 启动后直接「就绪」（其 SessionStart 在第一轮对话才触发） | 两种助手的事件时序不同 |
 
 ## 打包（electron-builder.yml）
 

@@ -1,5 +1,6 @@
 import {
   DEFAULT_CLAUDE_COMMAND,
+  DEFAULT_CODEX_COMMAND,
   DEFAULT_FONT_FAMILY,
   DEFAULT_THEME_SEED,
   FONT_FAMILY_PATTERN,
@@ -22,6 +23,7 @@ const DEFAULTS: AppSettings = {
   lineHeight: LINE_HEIGHT.default,
   themeSeed: DEFAULT_THEME_SEED,
   claudeCommand: DEFAULT_CLAUDE_COMMAND,
+  codexCommand: DEFAULT_CODEX_COMMAND,
   lastProjectId: null,
   window: null
 }
@@ -64,6 +66,7 @@ export class SettingsStore {
       next.themeSeed = patch.themeSeed.toUpperCase()
     }
     if (patch.claudeCommand !== undefined) next.claudeCommand = checkCommand(patch.claudeCommand)
+    if (patch.codexCommand !== undefined) next.codexCommand = checkCommand(patch.codexCommand)
     if (patch.lastProjectId !== undefined) next.lastProjectId = patch.lastProjectId
     this.settings = next
     await this.save()
@@ -125,13 +128,15 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
       typeof r.themeSeed === 'string' && THEME_SEED_PATTERN.test(r.themeSeed)
         ? r.themeSeed.toUpperCase()
         : DEFAULTS.themeSeed,
-    claudeCommand:
-      typeof r.claudeCommand === 'string' && r.claudeCommand.trim() && !/[\r\n]/.test(r.claudeCommand)
-        ? r.claudeCommand.trim()
-        : DEFAULTS.claudeCommand,
+    claudeCommand: parseCommand(r.claudeCommand, DEFAULTS.claudeCommand),
+    codexCommand: parseCommand(r.codexCommand, DEFAULTS.codexCommand),
     lastProjectId: typeof r.lastProjectId === 'string' ? r.lastProjectId : null,
     window: parseWindowState(r.window)
   }
+}
+
+function parseCommand(raw: unknown, fallback: string): string {
+  return typeof raw === 'string' && raw.trim() && !/[\r\n]/.test(raw) ? raw.trim() : fallback
 }
 
 function parseWindowState(raw: unknown): WindowState | null {
