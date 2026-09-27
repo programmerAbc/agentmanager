@@ -1,4 +1,5 @@
 ## Completed
+- 修复（1.3.0 之后，未发版）：用户反馈 claude `/resume` 界面里 Esc 没用。根因：终端用过 Shift/Ctrl/Alt+Enter（M13 发 win32-input-mode 序列）后，ConPTY 会吞掉单独的 ESC，Esc / Ctrl+[ 在 claude、codex、PowerShell 里都失效直到终端重启。修法：`terminalView.ts` 记录当前 PTY 是否发过换行序列，之后单独的 `\x1b` 改发 win32-input-mode Esc（`ESC_KEY`），PTY 启动时复位。未改版本号、未打包、未推送（等用户要求）。
 - 迭代 1（M0–M6）：项目列表、每项目保活终端、复制粘贴 / 字号 / 自适应、生命周期与进程树清理、NSIS 打包。详见 git 历史与 plans.md。
 - M7：设置页（`Ctrl+,` / 侧栏底部）——终端字体（本机等宽字体检测，默认 Maple Mono NF CN）、字号、行高、预览；主题色（预设 + 自定义）；关于。MD3 Expressive 界面（动态配色、Material Symbols 图标、导航抽屉 + FAB、顶部栏、圆角终端卡片、形状变化与弹簧动效、MD3 菜单 / 对话框 / Snackbar / 滑块）；移除项目改为应用内对话框。
 - M8：「启动 Claude」按钮（顶部栏 / 未启动面板 / 右键菜单），执行设置中的命令（默认 `claude --permission-mode bypassPermissions`）；通过 `--settings` 注入 hooks，本地 HTTP 服务接收事件；侧栏与顶部栏显示 就绪 / 工作中 / 等待确认 / 已完成。
@@ -39,6 +40,7 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- Esc 修复：src/renderer/terminalView.ts（WIN32_INPUT_KEYS、ESC_KEY、win32InputSent）；docs/spec.md、docs/architecture.md、plans.md、lessons.md、handoff.md。`.devtest/cdp.mjs` 新增 `[` 按键（不提交）。
 - M7：src/shared/types.ts、src/main/{settingsStore,ipc}.ts、src/preload/index.ts、src/renderer/{main,sidebar,terminalView,contextMenu,dialog,settingsDialog,theme,fonts,icons,shapes}.ts、styles.css、index.html、env.d.ts；package.json（新增 @material/material-color-utilities、@material-symbols/svg-400）。
 - M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
 - 1.0.0 改名：electron-builder.yml、package.json、package-lock.json、scripts/postinstall.mjs、src/main/{index,projectStore,ptyManager,settingsStore}.ts、src/shared/types.ts（删除 ProjectsFile）、src/renderer/{index.html,main,settingsDialog,sidebar}.ts；README、docs、plans、handoff。
@@ -48,6 +50,11 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- Esc 修复（`npm run typecheck` 通过）：
+  - 复现（修复前代码路径，直接用 node-pty + 原始模式读 stdin 的 Node 子进程，Electron 以 `ELECTRON_RUN_AS_NODE=1` 运行脚本）：发换行序列前 `\x1b` → 收到 `1b`；发换行序列后 `\x1b` 收不到（`\x1b\x1b`、`\x1b[`、`\x1bO` 同样收不到），方向键 / Ctrl+↑ / Home / F1 / F5 / Alt+b / 粘贴正常；win32-input-mode Esc 在发换行序列前后都收到 `1b`。
+  - dev 实例（`AGENTMANAGER_TEST_INACTIVE=1`、userData `.devtest/ud`，前台窗口确认仍是用户的程序；CDP 真实按键）：探针依次 Esc → `1b`、Shift+Enter → `0a`、Esc → `1b`、Ctrl+[ → `1b`；同一 PTY 中 PowerShell 输入 `echo abc` 后 Esc 清除整行，`echo one` Shift+Enter `echo two` 后 Esc 清除两行；claude 中输入 abc Shift+Enter def → 两行，Esc Esc 清空输入框，`/resume` 打开选择器后 Esc 关闭回到输入框，`/exit` 退出。测试结束用 close-dev.ps1 关闭，无残留 dev 进程。
+  - 副作用：测试在 agentmanager 目录启动过一次 claude（会话 9c3dd801…，没有发送消息），可能出现在该项目的 `/resume` 列表里。
+  - 未测：codex 里的 Esc（改发的是标准 VK_ESCAPE 记录，与 PSReadLine 同一读法）；Windows 10（build < 22000 不发 win32-input-mode，不受影响）。
 - `npm run typecheck`：通过。dev + CDP 自测（隔离 userData）：
   - M7：MD3 界面截图检查；设置页字体下拉列出本机等宽字体（已过滤符号字体与 -Ext 字库），选 Cascadia Mono 后终端即时切换并写入 settings.json；主题色切到紫色后界面与终端配色即时更新；未安装的默认字体显示「当前实际使用 Maple Mono NL NF CN」；关于页显示版本信息。
   - M8：点击「启动 Claude」→ 1.5 秒内 SessionStart →「Claude 就绪」、按钮变「Claude 运行中」禁用；发送最小 prompt → 1 秒内「工作中」（加载指示器）→ 约 3 秒「已完成」；claude 回复不受 hook 影响；切到其他项目「已完成」保留，切回变「就绪」；Ctrl+C 退出 claude → SessionEnd → 状态清除、按钮恢复。

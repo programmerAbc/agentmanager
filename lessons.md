@@ -209,6 +209,16 @@ xterm.js 对 Shift/Ctrl+Enter 只发 `\r`，Alt+Enter 发 `ESC \r`。Windows 上
 ### Prevention
 终端里的按键问题先用两个探针验证（Node 原始模式读 stdin、`[Console]::ReadKey`），再在真实程序里验证；ConPTY 会丢弃不认识的 CSI 序列（如 CSI u），不要假设序列能原样到达程序。
 
+## Lesson: 向 ConPTY 发过 win32-input-mode 序列后，单独的 ESC 会被吞掉
+### Problem
+1.3.0 用户反馈：claude 的 `/resume` 选择器里按 Esc 没反应。实际是该终端用过 Shift+Enter 之后，Esc / Ctrl+[ 在 claude、codex、PowerShell 里全部失效，直到终端重启。
+### Root Cause
+ConPTY 收到过一次 win32-input-mode 序列（M13 的换行键）就认为终端的所有按键都会用这种格式发送，之后一段输入末尾的单独 `ESC` 不再按超时当作 Esc 键，而是当成未完成序列的开头吞掉。用 node-pty 直接写入复现：发换行序列前 `\x1b` 正常到达，之后 `\x1b`、`\x1b\x1b`、`\x1b[`、`\x1bO` 都到不了程序，完整序列（方向键、F 键、Alt+字母、粘贴）不受影响。M13 只测了换行本身，没有测「之后其他按键是否还正常」。
+### Solution
+每个 PTY 记录是否发过换行序列；之后 xterm 发来的单独 `\x1b` 改写为 win32-input-mode 的 Esc（`ESC[27;1;27;1;0;1_ESC[27;1;27;0;0;1_`），PTY 重启时复位。
+### Prevention
+向 ConPTY 注入 win32-input-mode（或任何改变其输入解析状态的）序列后，要回归测试其他按键，尤其是 Esc 这类单字节、靠超时判断的按键；复现脚本用 node-pty + 原始模式读 stdin 的子进程最快（见 handoff 验证记录）。
+
 ## Lesson: Bash 工具（Git Bash）会把以 / 开头的参数改写成 Windows 路径
 ### Problem
 自测时 `node cdp.mjs 9223 type "/exit"` 实际输入的是 `C:/Program Files/Git/exit`，claude 把它当成提示词发出了一次请求。

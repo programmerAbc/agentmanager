@@ -34,6 +34,7 @@
 |---|---|---|
 | M11 项目列表模糊搜索 | ✅ 完成 | 模糊匹配与打分（纯函数，fuzzy.ts）；侧栏搜索框、过滤 / 排序 / 高亮；键盘（Ctrl+Shift+F、↑↓、Enter、Esc）；输入法组字；无结果提示；dev + CDP 验证 |
 | M12 白色 / 黑色主题 | ✅ 完成 |
+| 修复：用过换行键后 Esc 失效（用户反馈） | ✅ 完成（未发版） | ConPTY 收到 win32-input-mode 序列后吞掉单独的 ESC；发过换行序列的 PTY 改发 win32-input-mode Esc；node-pty 复现 + dev 验证（探针、PSReadLine、claude `/resume`） |
 | M15 顶部栏按钮、Ctrl+单击打开文件（用户反馈） | ✅ 完成 | 助手运行时隐藏启动按钮；OSC 8（linkHandler）、网址、纯文本路径统一 Ctrl+单击；主进程协议白名单与可执行文件 / 网络位置保护；FORCE_HYPERLINK=1 |
 | M14 默认终端 | ✅ 完成 | shells.ts 检测 / 解析（pwsh、powershell、cmd、Git Bash）；设置字段与校验；pty.open 按设置启动并记录 shell 家族；按家族生成 claude / codex 启动命令；设置页下拉（通用化 select 菜单）；dev 验证各 shell 启动、cwd、换行键、claude / codex 启动与退出上报 |
 | M13 换行按键与光标样式（迭代 5，用户反馈） | ✅ 完成 | 实测 claude / codex / PowerShell 各自如何读 Enter 变体；Shift/Ctrl/Alt+Enter 发 win32-input-mode Shift+Enter（字符 LF）；设置「光标」竖线 / 下划线 / 方块（默认竖线）；dev 自测窗口不抢焦点 | theme.ts 按种子色选方案（单色浅 / 单色深纯黑 / 原动态深色）；浅色 ANSI 与最小对比度；color-scheme；色块描边；截图检查各界面 |

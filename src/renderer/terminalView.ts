@@ -20,7 +20,15 @@ const RESIZE_DEBOUNCE_MS = 50
  * - claude（Node / libuv 只取字符）收到 "\n"，即 Ctrl+J → 换行
  * 未验证过的较老 Windows（build < 22000）退回只发 "\n"。
  */
-const NEWLINE_KEY = api.system.windowsBuild >= 22000 ? '\x1b[13;28;10;1;16;1_\x1b[13;28;10;0;16;1_' : '\n'
+const WIN32_INPUT_KEYS = api.system.windowsBuild >= 22000
+const NEWLINE_KEY = WIN32_INPUT_KEYS ? '\x1b[13;28;10;1;16;1_\x1b[13;28;10;0;16;1_' : '\n'
+
+/**
+ * win32-input-mode 格式的 Esc（按下 + 抬起，VK_ESCAPE）。
+ * ConPTY 一旦收到过 win32-input-mode 序列（即发过 NEWLINE_KEY），就认为终端会把所有按键都这样发，
+ * 此后单独的 ESC 会被当成未完成序列的开头吞掉（实测），Esc / Ctrl+[ 失效。所以那之后 Esc 改用这个格式发送。
+ */
+const ESC_KEY = '\x1b[27;1;27;1;0;1_\x1b[27;1;27;0;0;1_'
 
 /** Shift / Ctrl / Alt + Enter（输入法组字时的 Enter 交给输入法） */
 function isNewlineKey(e: KeyboardEvent): boolean {
@@ -100,6 +108,8 @@ class TerminalView {
   private state: ViewState = 'idle'
   private startPromise: Promise<void> = Promise.resolve()
   private disposed = false
+  /** 当前 PTY 是否已收到过 win32-input-mode 序列（见 ESC_KEY）；ConPTY 的这个状态直到 PTY 结束都不会恢复 */
+  private win32InputSent = false
 
   constructor(
     readonly sessionId: string,
@@ -223,6 +233,7 @@ class TerminalView {
     const result = await api.pty.open(this.sessionId, this.term.cols, this.term.rows)
     if (this.disposed) return
     if (result.ok) {
+      this.win32InputSent = false
       this.setState('running')
       // pty.open 期间窗口尺寸可能变过
       this.syncPtySize()
@@ -380,6 +391,8 @@ class TerminalView {
 
   private handleInput(data: string): void {
     if (this.state === 'running') {
+      if (data === NEWLINE_KEY && WIN32_INPUT_KEYS) this.win32InputSent = true
+      else if (data === '\x1b' && this.win32InputSent) data = ESC_KEY
       api.pty.write(this.sessionId, data)
       // 程序开启焦点上报（DECSET 1004）时，xterm 在获得 / 失去焦点时会自动发送 ESC[I / ESC[O，不算用户输入
       if (data !== '\x1b[I' && data !== '\x1b[O') this.hooks.onInput(this.sessionId)

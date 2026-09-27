@@ -98,6 +98,7 @@ preload (src/preload/index.ts)
 |---|---|
 | `Shift` / `Ctrl` / `Alt` + `Enter` 在 `attachCustomKeyEventHandler` 里拦截，发送上表最后一行（按下 + 抬起两条记录），keydown 时 `preventDefault` 且对 keypress / keyup 也返回 false | 唯一在三条路径上都成立的序列：claude 收到 `\n`（Ctrl+J）换行；codex 与 PSReadLine 收到真正的 Shift+Enter（codex 界面提示「Shift+⏎ newline」，PSReadLine 为 AddLine）。已在 claude 2.1.283、codex 0.157.1、pwsh 7.6 实测。不 preventDefault 时 Shift+Enter 还会产生 keypress，被 xterm 当成 `\r` 再发一次 |
 | Windows build < 22000 时退回只发 `\n` | 老版本 ConPTY 是否解析 win32-input-mode 未验证；`\n` 至少在 claude 里是换行 |
+| 当前 PTY 发过换行序列后，单独的 `ESC`（Esc、Ctrl+[）改发 win32-input-mode 的 Esc：`ESC[27;1;27;1;0;1_ESC[27;1;27;0;0;1_`；每次 PTY 启动时复位 | ConPTY 收到过一次 win32-input-mode 序列后，认为终端所有按键都会这样发，此后一段输入末尾的单独 `ESC` 被当成未完成序列吞掉（node-pty 实测，直到该 PTY 结束都不恢复）——Esc 在 claude（如 `/resume` 选择器）、codex、PSReadLine 里全部失效。改发的 Esc 在三条路径上都是 Esc（libuv 得到 `\x1b`，控制台记录为 VK_ESCAPE）。只在发过换行序列后才改写，保持从未按过换行键的会话与原来完全一致。仍受影响（未处理，罕见）：`Alt+[`、`Alt+Shift+O`、`Alt+Esc` 这类以不完整序列结尾的输入 |
 | 光标样式存在设置 `cursorStyle`（bar / underline / block，默认 bar），映射到 xterm `cursorStyle`，`cursorInactiveStyle` 取同一形状（block 失焦为 outline），竖线宽 2px | 用户不喜欢默认方块；xterm 默认失焦时画空心方块，与竖线不一致；1px 在高 DPI 下太细 |
 | 开发模式下环境变量 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口用 `showInactive()` 显示 | 自测时不抢用户的键盘焦点（见 lessons.md）；打包版不受影响 |
 
