@@ -7,7 +7,8 @@
   index.ts         窗口创建、生命周期、退出确认与清理、窗口状态持久化
   ipc.ts           注册所有 ipcMain handler；参数校验；sessionId → 项目映射
   ptyManager.ts    PTY 创建/写入/resize/kill，以 sessionId 为键；输出批量转发；进程树清理
-  projectStore.ts  projects.json 读写（内存为唯一数据源，改动后整体落盘）
+  projectStore.ts  项目存储（SQLite：agent-desk.db；含 projects.json 迁移与损坏恢复）
+  hookServer.ts    接收 claude hooks 上报的本地 HTTP 服务
   settingsStore.ts settings.json 读写
   jsonFile.ts      原子写（临时文件 + fsync + rename，串行队列）、损坏文件备份
   log.ts           electron-log → userData/logs/main.log；兜底捕获未处理异常
@@ -72,9 +73,14 @@ preload (src/preload/index.ts)
 
 ## 存储
 
-- `userData/projects.json`：`{version:1, projects: Project[]}`。读取时任一项不合法即视为损坏 → 改名为 `projects.json.bak-YYYYMMDD-HHmmss` → 空列表启动。
-- `userData/settings.json`：`{version:1, sidebarWidth, fontSize, lastProjectId, window}`。
-- 写入：`<file>.tmp-<pid>-<ts>` → fsync → rename（EPERM/EBUSY/EACCES 时退避重试 5 次）。同一文件的写入串行。
+- **项目**：`userData/agent-desk.db`（SQLite，Electron 44 内置 Node 24 的 `node:sqlite` / `DatabaseSync`，SQLite 3.53；迭代 3 起）。
+  - 表 `projects(id TEXT PK, name, path, path_key TEXT UNIQUE, sort_order INTEGER, created_at INTEGER, last_opened_at INTEGER)`；`path_key` 为小写、去末尾分隔符的路径，用唯一约束去重；按 `sort_order` 排序（添加顺序）。
+  - `PRAGMA journal_mode=WAL`、`synchronous=FULL`；schema 版本用 `PRAGMA user_version`（当前 1），升级在 `migrateSchema` 中按版本递增处理。
+  - 打开时执行 `PRAGMA quick_check`；打开失败或检查不通过 → 把 `.db` / `-wal` / `-shm` 改名为 `*.bak-YYYYMMDD-HHmmss` → 新建空库；连备份都失败时用内存数据库保证能启动。
+  - 首次启动若库为空且存在 `projects.json`：在一个事务里导入，然后把 JSON 改名为 `projects.json.migrated-<时间戳>`。
+  - 所有写操作同步执行，返回时已落盘；退出时 `close()` 合并 WAL。
+  - 选择 `node:sqlite` 而非 better-sqlite3：零新增依赖，不需要再编译 / 打包一个原生模块（已验证打包版可用）。
+- **设置**：`userData/settings.json`：`{version:1, sidebarWidth, fontSize, fontFamily, lineHeight, themeSeed, claudeCommand, lastProjectId, window}`。写入：`<file>.tmp-<pid>-<ts>` → fsync → rename（EPERM/EBUSY/EACCES 时退避重试 5 次），同一文件的写入串行；顶层结构损坏时备份为 `.bak-<时间戳>`。
 
 ## 依赖
 

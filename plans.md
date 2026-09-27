@@ -21,6 +21,12 @@
 | M7 设置页 / 字体 / MD3 Expressive | ✅ 完成 | 设置字段扩展（字体、行高、主题色、Claude 命令）与校验；`app.info` IPC；动态配色（material-color-utilities）；MD3 样式重做（侧栏抽屉、FAB、顶部栏、菜单、对话框、Snackbar）；设置页；本机等宽字体检测；移除确认改为应用内对话框 |
 | M8 启动 Claude + 工作状态 | ✅ 完成 | hooks HTTP 服务（127.0.0.1 随机端口 + token）；每会话 hooks 设置文件；`claude.launch` IPC；渲染进程状态机；侧栏 / 顶部栏状态显示；形状变换加载指示器；端到端验证（含一次最小 prompt） |
 
+## 迭代 3
+
+| 里程碑 | 状态 | 任务 |
+|---|---|---|
+| M9 项目记录存入 SQLite | ✅ 完成 | `node:sqlite` 实现 ProjectStore（接口不变）；schema 版本（`PRAGMA user_version`）；从 projects.json 迁移；损坏备份；退出时关闭数据库；验证迁移 / 增删改 / 去重 / 损坏恢复 / 打包 |
+
 ## 阻塞
 - 无。
 

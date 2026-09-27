@@ -46,7 +46,8 @@ async function backupCorrupt(file: string): Promise<string | null> {
   }
 }
 
-function timestamp(): string {
+/** 本地时间 YYYYMMDD-HHmmss，用于备份文件名 */
+export function timestamp(): string {
   const d = new Date()
   const pad = (n: number): string => String(n).padStart(2, '0')
   return (

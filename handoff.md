@@ -4,12 +4,13 @@
 - M8：「启动 Claude」按钮（顶部栏 / 未启动面板 / 右键菜单），执行设置中的命令（默认 `claude --permission-mode bypassPermissions`）；通过 `--settings` 注入 hooks，本地 HTTP 服务接收事件；侧栏与顶部栏显示 就绪 / 工作中 / 等待确认 / 已完成。
 - 用户反馈修正：应用标志去掉无限旋转，改为悬浮动画，点击弹出「关于」；从 Claude Code 启动时去掉继承的 `NO_COLOR`（终端里 claude 无颜色的原因）；焦点上报不再被当成用户输入。
 - 版本号 0.2.0。
+- M9（迭代 3）：项目记录改存 SQLite（`userData/agent-desk.db`，`node:sqlite`，零新增依赖）；首次启动自动导入 `projects.json` 并改名为 `.migrated-<时间戳>`；数据库损坏时备份并以空库启动。设置仍在 settings.json。版本号 0.3.0，安装包 `dist/agent-desk-0.3.0-setup.exe`。
 
 ## In Progress
 - 无。
 
 ## Next Steps
-- 用户安装 `dist/agent-desk-0.2.0-setup.exe` 试用新界面与 Claude 状态，反馈观感。
+- 用户安装 `dist/agent-desk-0.3.0-setup.exe`（覆盖安装后会自动把 `%APPDATA%\Agent Desk\projects.json` 导入数据库），试用新界面与 Claude 状态，反馈观感。
 - 待人工确认项见下方。
 
 ## Risks
@@ -29,6 +30,13 @@
   - M8：点击「启动 Claude」→ 1.5 秒内 SessionStart →「Claude 就绪」、按钮变「Claude 运行中」禁用；发送最小 prompt → 1 秒内「工作中」（加载指示器）→ 约 3 秒「已完成」；claude 回复不受 hook 影响；切到其他项目「已完成」保留，切回变「就绪」；Ctrl+C 退出 claude → SessionEnd → 状态清除、按钮恢复。
   - 修正后 claude 在 dev 实例中恢复颜色；应用标志静止，点击弹出「关于」。
 - 打包：`npm run build:win` 生成 `dist/agent-desk-0.2.0-setup.exe`（118MB）。`dist/win-unpacked` 在带空格的 userData 路径（`ud prod space`）下：添加项目 →「启动 Claude」→ SessionStart →「Claude 就绪」；默认主题 / Maple Mono 字体 / claude 颜色正常；确认退出后无残留进程。
+- M9（`npm run typecheck` 通过；构建产物保持 `require("node:sqlite")` 外部引用）：
+  - 迁移：测试 userData 中的 projects.json（2 个项目）→ 启动后导入，id / 名称 / 顺序 / 时间戳 / 上次选中项保留，原文件改名为 `projects.json.migrated-20260927-142131`；`PRAGMA user_version = 1`。
+  - 增删改：添加 projB（sort_order 2）、再添加 `PROJB\` 不产生重复、重命名为「后端B」、移除 projA，数据库内容与界面一致。
+  - 正常退出后只剩 `agent-desk.db`（WAL 已合并）；重启后列表一致。
+  - 损坏恢复：把数据库写成垃圾内容 → 启动后备份为 `agent-desk.db.bak-20260927-142238`，空库正常启动。
+  - 打包版（0.3.0，`ud prod sqlite` 带空格路径）：旧 projects.json 自动导入，退出无残留。
+  - 观察：dev 实例在「退出时结束终端」后偶尔以退出码 9 结束（迭代 1 就出现过，清理与落盘均已完成，不影响功能），原因未查明。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。

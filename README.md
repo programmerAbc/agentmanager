@@ -46,7 +46,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 
 `%APPDATA%\Agent Desk\`：
 
-- `projects.json` — 项目列表（损坏时自动备份为 `projects.json.bak-<时间戳>` 并以空列表启动）
+- `agent-desk.db` — 项目列表（SQLite，表 `projects`；损坏时自动备份为 `agent-desk.db.bak-<时间戳>` 并以空库启动）。旧版本的 `projects.json` 会在首次启动时自动导入，并改名为 `projects.json.migrated-<时间戳>`
 - `settings.json` — 侧栏宽度、终端字体 / 字号 / 行高、主题色、Claude 启动命令、最后选中的项目、窗口位置
 - `claude-hooks\` — 「启动 Claude」时生成的会话 hooks 文件（每次启动应用时清空）
 - `logs\main.log` — 主进程日志（PTY 创建 / 退出 / kill / 错误）

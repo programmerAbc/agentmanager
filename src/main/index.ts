@@ -17,7 +17,7 @@ let quitConfirmed = false
 let cleanedUp = false
 
 const userData = app.getPath('userData')
-const projects = new ProjectStore(path.join(userData, 'projects.json'))
+const projects = new ProjectStore(path.join(userData, 'agent-desk.db'), path.join(userData, 'projects.json'))
 const settings = new SettingsStore(path.join(userData, 'settings.json'))
 const ptys = new PtyManager(
   (sessionId, data) => sendToRenderer(IPC.ptyData, sessionId, data),
@@ -179,12 +179,13 @@ function main(): void {
     if (cleanedUp) return
     event.preventDefault()
     const started = Date.now()
-    const cleanup = Promise.all([ptys.killAll(QUIT_CLEANUP_TIMEOUT_MS), projects.flush(), settings.flush()])
+    const cleanup = Promise.all([ptys.killAll(QUIT_CLEANUP_TIMEOUT_MS), settings.flush()])
     void Promise.race([cleanup, delay(QUIT_CLEANUP_TIMEOUT_MS)])
       .catch((err: unknown) => log.error('[app] 退出清理失败', err))
       .finally(() => {
         cleanedUp = true
         hooks.stop()
+        projects.close()
         log.info(`[app] 退出清理完成 用时 ${Date.now() - started}ms`)
         app.quit()
       })

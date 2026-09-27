@@ -55,5 +55,14 @@
   - 结束：`SessionEnd`、终端退出 / 重启 / 移除 → 清除状态。
 - 非目标：快捷键启动、修改全局 claude 配置、系统通知。
 
+## 迭代 3 需求（2026-09-27 用户新增）
+
+### M9 项目记录存入 SQLite（覆盖 PLAN §1「持久化」与 §3 中 projects.json 的约定）
+- 项目列表保存在 `userData/agent-desk.db`（SQLite，使用 Electron 内置 Node 的 `node:sqlite`，不新增依赖），表 `projects`。
+- 行为不变：按添加顺序排列；同一路径（忽略大小写与末尾分隔符）不重复添加；重命名 / 移除 / 更新打开时间立即落盘。
+- 迁移：数据库中没有项目且存在 `projects.json` 时，启动时一次性导入（保留 id、名称、路径、时间与顺序），导入后把原文件改名为 `projects.json.migrated-<时间戳>` 作为备份。
+- 损坏处理：数据库无法打开或完整性检查失败时，把 `agent-desk.db`（及 `-wal` / `-shm`）改名为 `*.bak-<时间戳>`，以空库启动，不崩溃。
+- 设置仍保存在 `settings.json`（本次只迁移项目记录）。
+
 ## Open
 - 用户按 Esc 中断 claude 时 `Stop` 不触发，状态会停留在「工作中」，直到下一次事件或约 60 秒后的 `idle_prompt` 通知。

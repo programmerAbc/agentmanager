@@ -118,6 +118,14 @@ hooks 服务对上报请求回 204（无响应体），`curl -s` 因此不输出
 ### Prevention
 修改 hookServer 响应时保持无响应体。
 
+## Lesson: Electron 44 可以直接用 node:sqlite
+### Problem
+需要 SQLite，但不想再引入一个要针对 Electron 编译、打包时 asarUnpack 的原生模块（better-sqlite3）。
+### Root Cause / Solution
+Electron 44 内置 Node 24.21，`node:sqlite`（`DatabaseSync`，SQLite 3.53）在主进程可用；electron-vite 构建时保持 `require("node:sqlite")` 外部引用，打包后同样可用。
+### Prevention
+升级 Electron 时确认 `process.versions.sqlite` 仍存在；`node:sqlite` 仍标记为实验特性，系统 Node 下使用会打印 ExperimentalWarning（无害）。
+
 ## Lesson: 退出时异步写配置会丢
 ### Problem
 关闭窗口后 settings.json 里 `window` 仍为 null。
