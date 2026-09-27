@@ -28,7 +28,7 @@
   - M7：MD3 界面截图检查；设置页字体下拉列出本机等宽字体（已过滤符号字体与 -Ext 字库），选 Cascadia Mono 后终端即时切换并写入 settings.json；主题色切到紫色后界面与终端配色即时更新；未安装的默认字体显示「当前实际使用 Maple Mono NL NF CN」；关于页显示版本信息。
   - M8：点击「启动 Claude」→ 1.5 秒内 SessionStart →「Claude 就绪」、按钮变「Claude 运行中」禁用；发送最小 prompt → 1 秒内「工作中」（加载指示器）→ 约 3 秒「已完成」；claude 回复不受 hook 影响；切到其他项目「已完成」保留，切回变「就绪」；Ctrl+C 退出 claude → SessionEnd → 状态清除、按钮恢复。
   - 修正后 claude 在 dev 实例中恢复颜色；应用标志静止，点击弹出「关于」。
-- 打包验证见下一次提交记录（build:win + 打包版在带空格的 userData 路径下启动 Claude）。
+- 打包：`npm run build:win` 生成 `dist/agent-desk-0.2.0-setup.exe`（118MB）。`dist/win-unpacked` 在带空格的 userData 路径（`ud prod space`）下：添加项目 →「启动 Claude」→ SessionStart →「Claude 就绪」；默认主题 / Maple Mono 字体 / claude 颜色正常；确认退出后无残留进程。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。
