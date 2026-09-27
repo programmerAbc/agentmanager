@@ -7,6 +7,7 @@ import {
   WINDOW_BACKGROUND,
   type AgentKind,
   type AppInfo,
+  type CursorStyle,
   type DataResult,
   type OpResult,
   type Project,
@@ -243,6 +244,8 @@ function asSettingsPatch(v: unknown): SettingsPatch {
   if (num(r.fontSize)) patch.fontSize = r.fontSize
   if (num(r.lineHeight)) patch.lineHeight = r.lineHeight
   if (typeof r.fontFamily === 'string') patch.fontFamily = r.fontFamily
+  // 取值由 settingsStore 校验
+  if (typeof r.cursorStyle === 'string') patch.cursorStyle = r.cursorStyle as CursorStyle
   if (typeof r.themeSeed === 'string') patch.themeSeed = r.themeSeed
   if (typeof r.claudeCommand === 'string') patch.claudeCommand = r.claudeCommand
   if (typeof r.codexCommand === 'string') patch.codexCommand = r.codexCommand

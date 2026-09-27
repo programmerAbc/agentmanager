@@ -1,8 +1,10 @@
 import {
+  CURSOR_STYLES,
   DEFAULT_FONT_FAMILY,
   FONT_SIZE,
   LINE_HEIGHT,
   type AppSettings,
+  type CursorStyle,
   type SettingsPatch
 } from '../shared/types'
 import { button, openDialog } from './dialog'
@@ -90,9 +92,55 @@ function terminalSection(deps: SettingsDialogDeps): HTMLElement {
       })
     )
   )
+  section.appendChild(
+    row(
+      '光标',
+      '终端光标的形状',
+      segmented(CURSOR_STYLES, CURSOR_LABELS, deps.get().cursorStyle, (style) => deps.change({ cursorStyle: style }))
+    )
+  )
   section.append(preview, hint)
   refreshPreview()
   return section
+}
+
+const CURSOR_LABELS: Record<CursorStyle, string> = { bar: '竖线', underline: '下划线', block: '方块' }
+
+/** MD3 分段按钮（单选）；每项带一个光标形状示意 */
+function segmented<T extends string>(
+  options: readonly T[],
+  labels: Record<T, string>,
+  current: T,
+  onPick: (value: T) => void
+): HTMLElement {
+  const group = document.createElement('div')
+  group.className = 'segmented'
+  group.setAttribute('role', 'radiogroup')
+  const buttons = options.map((value) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'segment'
+    b.setAttribute('role', 'radio')
+    b.dataset.value = value
+    const sample = document.createElement('span')
+    sample.className = `cursor-sample ${value}`
+    b.append(icon('check', 'segment-check'), sample, document.createTextNode(labels[value]))
+    b.addEventListener('click', () => {
+      select(value)
+      onPick(value)
+    })
+    return b
+  })
+  const select = (value: T): void => {
+    for (const b of buttons) {
+      const on = b.dataset.value === value
+      b.classList.toggle('selected', on)
+      b.setAttribute('aria-checked', String(on))
+    }
+  }
+  select(current)
+  group.append(...buttons)
+  return group
 }
 
 /** 字体下拉：首次展开时检测本机等宽字体，每个选项用自身字体渲染 */

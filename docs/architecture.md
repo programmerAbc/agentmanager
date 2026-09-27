@@ -81,6 +81,26 @@ preload (src/preload/index.ts)
 | 防闪烁：主进程按主题设置 `BrowserWindow.backgroundColor`（`WINDOW_BACKGROUND`），设置更新时 `setBackgroundColor`；`<html class="booting">` 期间页面透明、`#app` 隐藏，App 构造完成（已应用主题）后移除 | 窗口在首次绘制（ready-to-show）时显示，那时主题还没应用，CSS 默认深色会先闪一下 |
 | `document.documentElement.style.colorScheme` 随模式切换 | 原生滚动条、颜色选择器等跟随明暗 |
 
+## 迭代 5 设计（M13）
+
+**换行按键**。实测（dev 实例，pwsh 下分别用 Node 原始模式读 stdin 与 `Console.ReadKey` 读控制台记录）：
+
+| 终端发送 | Node / libuv（claude 的读法） | 控制台记录（codex / crossterm、PSReadLine 的读法） |
+|---|---|---|
+| xterm 默认 Shift/Ctrl+Enter：`\r` | `\r`（提交） | Enter，无修饰键 |
+| xterm 默认 Alt+Enter：`ESC \r` | `ESC \r`（claude 换行） | Alt+Enter（codex 不换行） |
+| `\n` | `\n`（claude Ctrl+J 换行） | Ctrl+Enter |
+| CSI u `ESC[13;2u` | 原样字符（claude 认作 Shift+Enter） | 被 ConPTY 丢弃 |
+| win32-input-mode Shift+Enter，字符 CR | `\r` | Shift+Enter |
+| **win32-input-mode Shift+Enter，字符 LF**：`ESC[13;28;10;1;16;1_ESC[13;28;10;0;16;1_` | **`\n`** | **Shift+Enter** |
+
+| 决策 | 原因 |
+|---|---|
+| `Shift` / `Ctrl` / `Alt` + `Enter` 在 `attachCustomKeyEventHandler` 里拦截，发送上表最后一行（按下 + 抬起两条记录），keydown 时 `preventDefault` 且对 keypress / keyup 也返回 false | 唯一在三条路径上都成立的序列：claude 收到 `\n`（Ctrl+J）换行；codex 与 PSReadLine 收到真正的 Shift+Enter（codex 界面提示「Shift+⏎ newline」，PSReadLine 为 AddLine）。已在 claude 2.1.283、codex 0.157.1、pwsh 7.6 实测。不 preventDefault 时 Shift+Enter 还会产生 keypress，被 xterm 当成 `\r` 再发一次 |
+| Windows build < 22000 时退回只发 `\n` | 老版本 ConPTY 是否解析 win32-input-mode 未验证；`\n` 至少在 claude 里是换行 |
+| 光标样式存在设置 `cursorStyle`（bar / underline / block，默认 bar），映射到 xterm `cursorStyle`，`cursorInactiveStyle` 取同一形状（block 失焦为 outline），竖线宽 2px | 用户不喜欢默认方块；xterm 默认失焦时画空心方块，与竖线不一致；1px 在高 DPI 下太细 |
+| 开发模式下环境变量 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口用 `showInactive()` 显示 | 自测时不抢用户的键盘焦点（见 lessons.md）；打包版不受影响 |
+
 ## 打包（electron-builder.yml）
 
 - 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。

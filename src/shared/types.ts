@@ -27,6 +27,8 @@ export interface AppSettings {
   /** 终端首选字体族；渲染进程会在后面接上回退字体 */
   fontFamily: string
   lineHeight: number
+  /** 终端光标样式 */
+  cursorStyle: CursorStyle
   /** MD3 动态配色的种子色，#RRGGBB */
   themeSeed: string
   /** 「启动 Claude」按钮执行的命令 */
@@ -48,6 +50,10 @@ export const SIDEBAR_WIDTH = { default: 240, min: 180, max: 400 } as const
 export const FONT_SIZE = { default: 14, min: 8, max: 32 } as const
 export const LINE_HEIGHT = { default: 1.0, min: 1.0, max: 1.6 } as const
 export const DEFAULT_FONT_FAMILY = 'Maple Mono NF CN'
+/** 竖线（默认）/ 下划线 / 方块 */
+export type CursorStyle = 'bar' | 'underline' | 'block'
+export const CURSOR_STYLES: readonly CursorStyle[] = ['bar', 'underline', 'block']
+export const DEFAULT_CURSOR_STYLE: CursorStyle = 'bar'
 export const DEFAULT_THEME_SEED = '#D97757'
 /** 这两个种子色表示白色（浅色界面）/ 黑色（纯黑界面）主题；其余种子色为动态配色的深色界面 */
 export const THEME_SEED_WHITE = '#FFFFFF'

@@ -50,7 +50,11 @@ function createWindow(): BrowserWindow {
   })
   const getNormalBounds = trackNormalBounds(win, initialBounds)
   if (saved?.maximized) win.maximize()
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    // 自测（仅开发模式）时不激活窗口，避免抢走用户正在使用的键盘焦点（见 lessons.md）
+    if (!app.isPackaged && process.env.AGENTMANAGER_TEST_INACTIVE === '1') win.showInactive()
+    else win.show()
+  })
 
   // 只允许加载应用自己的页面（允许重新加载当前页，dev 下 Vite 整页刷新需要）；
   // 链接一律通过 shell.openExternal 打开

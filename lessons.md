@@ -197,3 +197,24 @@ Chromium 在 Windows 上做原生窗口遮挡检测：窗口被其他窗口完�
 发现后立即按 PID 关闭测试窗口，并告知用户可能丢了一段输入。
 ### Prevention
 只在必要时启动可见的测试窗口，启动前告诉用户「接下来几十秒会弹出测试窗口，先别打字」；测试尽量短，结束立即按 PID 关闭；截图里出现不是测试发出的输入时，立刻停止测试。
+dev 实例用 `AGENTMANAGER_TEST_INACTIVE=1` 启动（窗口 `showInactive()`，不抢焦点），CDP 端开启 `Emulation.setFocusEmulationEnabled`；启动后用 `GetForegroundWindow` 确认前台不是测试窗口。
+
+## Lesson: xterm.js 的 Shift / Ctrl + Enter 与 Enter 发的是同一个 `\r`
+### Problem
+用户在 claude / codex 里无法输入换行：Shift+Enter、Ctrl+Enter 都直接提交，Alt+Enter 在 codex 里也不换行。
+### Root Cause
+xterm.js 对 Shift/Ctrl+Enter 只发 `\r`，Alt+Enter 发 `ESC \r`。Windows 上程序经 ConPTY 读输入有两种方式：Node / libuv（claude）只取字符，crossterm（codex）与 PSReadLine 读控制台按键记录（带修饰键）。同一段字节在两条路径上的含义不同（实测表见 architecture.md「迭代 5 设计」）。
+### Solution
+拦截 Shift/Ctrl/Alt+Enter，发送 win32-input-mode 格式的 Shift+Enter 且字符为 LF：`ESC[13;28;10;1;16;1_ESC[13;28;10;0;16;1_`。ConPTY 还原成 VK_RETURN + SHIFT、字符 `\n` 的记录：libuv 给出 `\n`（claude 的 Ctrl+J 换行），crossterm / PSReadLine 看到 Shift+Enter。keydown 时必须 `preventDefault`，否则 Shift+Enter 的 keypress 会被 xterm 再发一个 `\r`。
+### Prevention
+终端里的按键问题先用两个探针验证（Node 原始模式读 stdin、`[Console]::ReadKey`），再在真实程序里验证；ConPTY 会丢弃不认识的 CSI 序列（如 CSI u），不要假设序列能原样到达程序。
+
+## Lesson: Bash 工具（Git Bash）会把以 / 开头的参数改写成 Windows 路径
+### Problem
+自测时 `node cdp.mjs 9223 type "/exit"` 实际输入的是 `C:/Program Files/Git/exit`，claude 把它当成提示词发出了一次请求。
+### Root Cause
+MSYS 的参数路径转换：传给原生 Windows 程序的、以 `/` 开头的参数会被改写成 Git 安装目录下的路径。
+### Solution
+这类命令前加 `MSYS_NO_PATHCONV=1`；向 claude / codex 输入斜杠命令前先读屏确认输入框内容和补全列表，再按 Enter。
+### Prevention
+凡是经 Bash 工具传给 node / exe 的参数含前导 `/`（斜杠命令、Unix 风格路径），一律加 `MSYS_NO_PATHCONV=1`。

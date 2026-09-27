@@ -33,7 +33,8 @@
 | 里程碑 | 状态 | 任务 |
 |---|---|---|
 | M11 项目列表模糊搜索 | ✅ 完成 | 模糊匹配与打分（纯函数，fuzzy.ts）；侧栏搜索框、过滤 / 排序 / 高亮；键盘（Ctrl+Shift+F、↑↓、Enter、Esc）；输入法组字；无结果提示；dev + CDP 验证 |
-| M12 白色 / 黑色主题 | ✅ 完成 | theme.ts 按种子色选方案（单色浅 / 单色深纯黑 / 原动态深色）；浅色 ANSI 与最小对比度；color-scheme；色块描边；截图检查各界面 |
+| M12 白色 / 黑色主题 | ✅ 完成 |
+| M13 换行按键与光标样式（迭代 5，用户反馈） | ✅ 完成 | 实测 claude / codex / PowerShell 各自如何读 Enter 变体；Shift/Ctrl/Alt+Enter 发 win32-input-mode Shift+Enter（字符 LF）；设置「光标」竖线 / 下划线 / 方块（默认竖线）；dev 自测窗口不抢焦点 | theme.ts 按种子色选方案（单色浅 / 单色深纯黑 / 原动态深色）；浅色 ANSI 与最小对比度；color-scheme；色块描边；截图检查各界面 |
 
 ## 阻塞
 - 无。

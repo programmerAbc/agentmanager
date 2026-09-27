@@ -2,12 +2,31 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { Terminal, type ITheme } from '@xterm/xterm'
+import { Terminal, type ITerminalOptions, type ITheme } from '@xterm/xterm'
+import type { CursorStyle } from '../shared/types'
 import { showContextMenu } from './contextMenu'
 
 const api = window.api
 
 const RESIZE_DEBOUNCE_MS = 50
+
+/**
+ * Shift / Ctrl / Alt + Enter 发给 PTY 的「换行」按键。
+ * xterm.js 对 Shift/Ctrl+Enter 只发 "\r"（与 Enter 相同，claude / codex 会直接提交），Alt+Enter 发 ESC CR（codex 不认）。
+ * 这里改发 win32-input-mode 格式的 Shift+Enter（按下 + 抬起，字符为 LF），ConPTY 会还原成一条
+ * VK_RETURN + SHIFT、字符 '\n' 的控制台按键记录（实测，见 docs/architecture.md）：
+ * - codex（crossterm 按虚拟键码读记录）与 PowerShell / PSReadLine（Console.ReadKey）看到 Shift+Enter → 换行
+ * - claude（Node / libuv 只取字符）收到 "\n"，即 Ctrl+J → 换行
+ * 未验证过的较老 Windows（build < 22000）退回只发 "\n"。
+ */
+const NEWLINE_KEY = api.system.windowsBuild >= 22000 ? '\x1b[13;28;10;1;16;1_\x1b[13;28;10;0;16;1_' : '\n'
+
+/** Shift / Ctrl / Alt + Enter（输入法组字时的 Enter 交给输入法） */
+function isNewlineKey(e: KeyboardEvent): boolean {
+  return (
+    e.key === 'Enter' && (e.shiftKey || e.ctrlKey || e.altKey) && !e.metaKey && !e.isComposing && e.keyCode !== 229
+  )
+}
 
 /** 终端外观，全部终端共用；任一字段变化都会重新 fit */
 export interface TerminalAppearance {
@@ -17,6 +36,17 @@ export interface TerminalAppearance {
   lineHeight: number
   theme: ITheme
   minimumContrastRatio: number
+  cursorStyle: CursorStyle
+}
+
+/** 光标样式对应的 xterm 选项；失焦时保持同一形状（xterm 默认失焦画空心方块） */
+function cursorOptions(style: CursorStyle): Pick<ITerminalOptions, 'cursorStyle' | 'cursorInactiveStyle' | 'cursorWidth'> {
+  return {
+    cursorStyle: style,
+    cursorInactiveStyle: style === 'block' ? 'outline' : style,
+    // 竖线用 2px，1px 在高 DPI 下太细
+    cursorWidth: 2
+  }
 }
 
 export type ZoomAction = 'in' | 'out' | 'reset'
@@ -90,6 +120,7 @@ class TerminalView {
       lineHeight: appearance.lineHeight,
       scrollback: 10000,
       cursorBlink: true,
+      ...cursorOptions(appearance.cursorStyle),
       allowProposedApi: true,
       theme: appearance.theme,
       minimumContrastRatio: appearance.minimumContrastRatio,
@@ -246,6 +277,7 @@ class TerminalView {
     if (o.minimumContrastRatio !== appearance.minimumContrastRatio) {
       o.minimumContrastRatio = appearance.minimumContrastRatio
     }
+    if (o.cursorStyle !== appearance.cursorStyle) Object.assign(o, cursorOptions(appearance.cursorStyle))
     // 隐藏的终端等下次显示时再 fit
     if (this.fit()) this.syncPtySize()
   }
@@ -256,9 +288,19 @@ class TerminalView {
    * - Ctrl+Shift+C：始终复制
    * - Ctrl+V / Ctrl+Shift+V：通过 term.paste() 粘贴，保证 bracketed paste 生效
    * - Ctrl+= / Ctrl+- / Ctrl+0、Ctrl+,、Ctrl+Shift+F：应用快捷键由全局监听处理，这里只阻止它们发给 PTY
+   * - Shift / Ctrl / Alt + Enter：发送换行按键（见 NEWLINE_KEY）
    * 返回 false 表示 xterm 不再处理该按键。
    */
   private handleKey(e: KeyboardEvent): boolean {
+    if (isNewlineKey(e)) {
+      // keydown 时发送并阻止默认行为：否则 Shift+Enter 还会产生 keypress，被 xterm 当成 "\r" 再发一次；
+      // Alt+Enter 在 Windows 上还会响系统提示音
+      if (e.type === 'keydown') {
+        e.preventDefault()
+        this.handleInput(NEWLINE_KEY)
+      }
+      return false
+    }
     if (e.type !== 'keydown') return true
     if (!e.ctrlKey || e.altKey || e.metaKey) return true
     if (zoomActionOf(e) || isSettingsShortcut(e) || isSearchShortcut(e)) return false

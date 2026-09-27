@@ -15,6 +15,7 @@
 - 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main，含 1.1.0）。以后的推送需用户要求。
 - M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
 - M12（迭代 4）：主题色新增「白色」（单色浅色界面，白底终端 + 浅色 ANSI + 最小对比度 4.5）与「黑色」（单色纯黑界面）；色块描边；启动时窗口底色与主题一致、主题应用前页面透明，避免闪烁。
+- M13（用户实际使用中反馈，尚未打包 / 推送）：`Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` 在 claude、codex 输入框里换行，在 PowerShell 里续行；设置新增「光标」竖线（默认）/ 下划线 / 方块。开发模式 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口不激活显示（自测不抢焦点）。
 - 1.1.0（M11 + M12）：按用户要求版本号改为 1.1.0，安装包 `D:\agnent_manager_release\agentmanager-1.1.0-setup.exe`（SHA256 0FE53C70…58A2A8FA，与 dist 中一致；同目录的 1.0.0 安装包保留）。已推送到 GitHub。
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
@@ -37,6 +38,7 @@
 - M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
 - 1.0.0 改名：electron-builder.yml、package.json、package-lock.json、scripts/postinstall.mjs、src/main/{index,projectStore,ptyManager,settingsStore}.ts、src/shared/types.ts（删除 ProjectsFile）、src/renderer/{index.html,main,settingsDialog,sidebar}.ts；README、docs、plans、handoff。
 - M11：src/renderer/fuzzy.ts（新）、sidebar.ts、main.ts、terminalView.ts、icons.ts、styles.css；spec、architecture、README、plans、handoff、lessons。
+- M13：src/renderer/terminalView.ts（NEWLINE_KEY、cursorOptions）、src/shared/types.ts（CursorStyle）、src/main/{settingsStore,ipc,index}.ts、src/renderer/{main,settingsDialog}.ts、styles.css（分段按钮）；spec、architecture、README、plans、handoff、lessons。
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
@@ -70,6 +72,14 @@
   - 关闭流程：有终端时单次 WM_CLOSE 后 0.5 秒内出现退出确认框（之前两次「找不到对话框」是测试脚本的 UI Automation 问题，已改用 Win32 枚举，见 lessons.md）。
   - 未测：启动瞬间是否闪烁无法用 CDP 截到，只验证了窗口底色 / booting 的代码路径与最终状态；请用户实际启动时留意。
 - 1.1.0 打包：`npm run build:win`（含 typecheck）通过。`dist/win-unpacked/AgentManager.exe` 在隔离的带空格 userData（7 个测试项目、settings 仅含 `themeSeed: #FFFFFF`）下启动：日志 `version=1.1.0`，白色主题直接生效（`color-scheme: light`，body 白色），生产构建没有 `window.__agentDesk`；`Ctrl+Shift+F` + `api` → 只剩 api-server 并高亮。随后测试窗口因抢到键盘焦点收到了用户的键入（见 lessons.md），立即按 PID 关闭，Enter 打开终端这一步未在打包版上完成（dev 已验证）。
+- M13（`npm run typecheck` 通过；dev 实例以 `AGENTMANAGER_TEST_INACTIVE=1` 启动，确认前台窗口仍是用户的 AgentManager；全程未碰用户进程）：
+  - 探针：Node 原始模式读 stdin / `Console.ReadKey` 读控制台记录，各候选序列结果见 architecture.md 表格。
+  - 选定序列直接写 PTY：claude 2.1.283 输入框 abc / def 两行；codex 0.157.1（用临时 CODEX_HOME，复制 config.toml 与 auth.json，`--no-daemon`，测试后已删除；用户真实 config.toml 未写入信任记录）输入框 abc / def 两行。
+  - 真实按键（CDP）：Enter → `\r`；Shift / Ctrl / Alt+Enter → 各一次 `\n`（Node）/ Shift+Enter 字符 0x0a（ReadKey），无重复发送；PowerShell 里 `echo one` Shift+Enter `echo two` Enter → `>>` 续行后两条都执行；claude 中三种组合依次得到 abc / def / ghi / jkl 四行，未提交。
+  - 光标：设置页分段按钮（竖线默认选中）；依次切到下划线 / 方块 / 竖线，settings.json 同步保存，截图裁剪对比三种形状正确；claude 输入框使用的是终端光标（竖线）。
+  - 顺带验证：按钮启动的 claude 用 `/exit` 或两次 Ctrl+C 退出，SessionEnd 均到达、按钮恢复；此前「状态卡在就绪」是测试时第三次 Ctrl+C 打断了 hook 的 curl（已记入 spec Open）。
+  - 事故：一次用 Bash 工具传 `/exit` 参数时被 MSYS 改写成 `C:/Program Files/Git/exit`，作为提示词发给了 claude（一次很小的请求，claude 只回复了说明，没有执行操作）。见 lessons.md。
+  - 未测：真实键盘上的输入法状态下按 Shift+Enter；Windows 10 上的回退分支。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。
@@ -78,5 +88,5 @@
 
 ## Resume Context
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
-- 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
+- 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

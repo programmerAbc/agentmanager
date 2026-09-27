@@ -85,6 +85,7 @@ class App {
         fontFamily: fontStack(settings.fontFamily),
         fontSize: settings.fontSize,
         lineHeight: settings.lineHeight,
+        cursorStyle: settings.cursorStyle,
         ...terminalColors
       },
       {
@@ -282,6 +283,9 @@ class App {
     }
     if (patch.fontSize !== undefined || patch.lineHeight !== undefined) {
       this.terminals.setAppearance({ fontSize: s.fontSize, lineHeight: s.lineHeight })
+    }
+    if (patch.cursorStyle !== undefined && patch.cursorStyle !== prev.cursorStyle) {
+      this.terminals.setAppearance({ cursorStyle: s.cursorStyle })
     }
 
     this.pendingPatch = { ...this.pendingPatch, ...patch }

@@ -1,6 +1,8 @@
 import {
+  CURSOR_STYLES,
   DEFAULT_CLAUDE_COMMAND,
   DEFAULT_CODEX_COMMAND,
+  DEFAULT_CURSOR_STYLE,
   DEFAULT_FONT_FAMILY,
   DEFAULT_THEME_SEED,
   FONT_FAMILY_PATTERN,
@@ -9,6 +11,7 @@ import {
   SIDEBAR_WIDTH,
   THEME_SEED_PATTERN,
   type AppSettings,
+  type CursorStyle,
   type SettingsFile,
   type SettingsPatch,
   type WindowState
@@ -21,6 +24,7 @@ const DEFAULTS: AppSettings = {
   fontSize: FONT_SIZE.default,
   fontFamily: DEFAULT_FONT_FAMILY,
   lineHeight: LINE_HEIGHT.default,
+  cursorStyle: DEFAULT_CURSOR_STYLE,
   themeSeed: DEFAULT_THEME_SEED,
   claudeCommand: DEFAULT_CLAUDE_COMMAND,
   codexCommand: DEFAULT_CODEX_COMMAND,
@@ -56,6 +60,10 @@ export class SettingsStore {
       next.fontSize = clampInt(patch.fontSize, FONT_SIZE.min, FONT_SIZE.max)
     }
     if (patch.lineHeight !== undefined) next.lineHeight = clampLineHeight(patch.lineHeight)
+    if (patch.cursorStyle !== undefined) {
+      if (!isCursorStyle(patch.cursorStyle)) throw new Error('光标样式不合法')
+      next.cursorStyle = patch.cursorStyle
+    }
     if (patch.fontFamily !== undefined) {
       const family = patch.fontFamily.trim()
       if (!FONT_FAMILY_PATTERN.test(family)) throw new Error('字体名称不合法')
@@ -124,6 +132,7 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
         ? r.fontFamily
         : DEFAULTS.fontFamily,
     lineHeight: typeof r.lineHeight === 'number' ? clampLineHeight(r.lineHeight) : DEFAULTS.lineHeight,
+    cursorStyle: isCursorStyle(r.cursorStyle) ? r.cursorStyle : DEFAULTS.cursorStyle,
     themeSeed:
       typeof r.themeSeed === 'string' && THEME_SEED_PATTERN.test(r.themeSeed)
         ? r.themeSeed.toUpperCase()
@@ -133,6 +142,10 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
     lastProjectId: typeof r.lastProjectId === 'string' ? r.lastProjectId : null,
     window: parseWindowState(r.window)
   }
+}
+
+function isCursorStyle(v: unknown): v is CursorStyle {
+  return typeof v === 'string' && (CURSOR_STYLES as readonly string[]).includes(v)
 }
 
 function parseCommand(raw: unknown, fallback: string): string {
