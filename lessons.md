@@ -80,6 +80,16 @@ Agent Desk 终端里运行的 claude 提示 "Transcript saving is off — inheri
 ### Prevention
 新增环境变量处理时区分「会话标记」与「用户配置」。
 
+## Lesson: will-navigate 全拦截会挡住页面刷新，did-start-navigation 会误报
+### Problem
+dev 下改渲染进程代码后页面并没有刷新，但主进程日志显示「渲染进程重新加载，清理全部 PTY」，渲染进程仍以为终端在运行；之后该实例退出时卡住。
+### Root Cause
+`will-navigate` 对所有导航 `preventDefault`，连 `location.reload()` 也被取消；而 `did-start-navigation` 在导航被取消之前就触发，据此清理 PTY 造成状态不一致。
+### Solution
+`will-navigate` 放行与当前页面相同（忽略 hash）的 URL；清理 PTY 改为监听 `did-navigate`（导航已提交）。
+### Prevention
+基于导航事件做清理时，用「已提交」类事件；验证时对比 `performance.timeOrigin` 确认页面是否真的重载。
+
 ## Lesson: 退出时异步写配置会丢
 ### Problem
 关闭窗口后 settings.json 里 `window` 仍为 null。

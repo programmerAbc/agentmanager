@@ -46,6 +46,25 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 内置更纱黑体 Sarasa Term SC Regular（`resources/fonts/`，v1.0.42，SIL OFL 1.1，许可证见同目录）。
 若字体文件缺失，终端回退到 `Consolas, 'Microsoft YaHei UI', monospace`。
 
+## 终端快捷键
+
+| 操作 | 快捷键 |
+|---|---|
+| 复制 | 有选中内容时 `Ctrl+C`（复制后清除选区）；`Ctrl+Shift+C` 始终复制 |
+| 中断 | 没有选中内容时 `Ctrl+C` 照常发送给终端 |
+| 粘贴 | `Ctrl+V` / `Ctrl+Shift+V`（经 `term.paste()`，支持 bracketed paste） |
+| 字号 | `Ctrl+=` 放大、`Ctrl+-` 缩小、`Ctrl+0` 重置（全局生效并持久化） |
+| 重启已退出的终端 | 进程退出后按 `Enter` |
+
+终端内右键菜单提供「复制」「粘贴」；侧栏项目右键菜单提供「重命名 / 在资源管理器中打开 / 重启终端 / 移除项目」，选中项目时 `F2` 重命名。
+
+## 中文输入法测试记录
+
+| 日期 | 输入法 | 场景 | 结果 |
+|---|---|---|---|
+| 2026-09-27 | CDP 模拟组合输入（`Input.imeSetComposition` + `insertText`） | pwsh 中依次输入「中」「文」「测试」 | 上屏一次、不重复、不丢字 |
+| 待填写 | 微软拼音 | pwsh / claude 中输入中文，观察候选框位置、上屏是否重复或丢字 | **待人工确认** |
+
 ## 人工验证记录
 
 需要人工确认的项（输入法、显示效果等）见 [handoff.md](handoff.md) 的 Verification 一节。

@@ -3,10 +3,30 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal, type ITheme } from '@xterm/xterm'
+import { showContextMenu } from './contextMenu'
 
 const api = window.api
 
 export const FONT_FAMILY = "'Sarasa Term SC', Consolas, 'Microsoft YaHei UI', monospace"
+const RESIZE_DEBOUNCE_MS = 50
+
+export type ZoomAction = 'in' | 'out' | 'reset'
+
+/** Ctrl+= / Ctrl+- / Ctrl+0（含小键盘）→ 字号操作；其他按键返回 null */
+export function zoomActionOf(e: KeyboardEvent): ZoomAction | null {
+  if (!e.ctrlKey || e.altKey || e.metaKey) return null
+  if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.key === '=' || e.key === '+') return 'in'
+  if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === '-' || e.key === '_') return 'out'
+  if (e.code === 'Digit0' || e.code === 'Numpad0' || e.key === '0') return 'reset'
+  return null
+}
+
+/** 取按键对应的字母（小写）。非拉丁键盘布局下 e.key 不是字母时，按物理键位回退。 */
+function letterOf(e: KeyboardEvent): string {
+  if (/^[a-z]$/i.test(e.key)) return e.key.toLowerCase()
+  const m = /^Key([A-Z])$/.exec(e.code)
+  return m ? m[1].toLowerCase() : ''
+}
 
 const THEME: ITheme = {
   background: '#181818',
@@ -93,6 +113,14 @@ class TerminalView {
     this.loadWebgl()
 
     this.term.onData((data) => this.handleInput(data))
+    this.term.attachCustomKeyEventHandler((e) => this.handleKey(e))
+    this.pane.addEventListener('contextmenu', (e) => {
+      e.preventDefault()
+      showContextMenu(e.clientX, e.clientY, [
+        { label: '复制', disabled: !this.term.hasSelection(), action: () => this.copySelection(false) },
+        { label: '粘贴', action: () => void this.pasteFromClipboard() }
+      ])
+    })
   }
 
   get visible(): boolean {
@@ -196,6 +224,53 @@ class TerminalView {
     this.pane.remove()
   }
 
+  setFontSize(fontSize: number): void {
+    this.term.options.fontSize = fontSize
+    // 隐藏的终端等下次显示时再 fit
+    if (this.fit()) this.syncPtySize()
+  }
+
+  /**
+   * 复制 / 粘贴快捷键，只处理 keydown：
+   * - Ctrl+C：有选区时复制并清除选区；没有选区时照常发给 PTY（中断信号）
+   * - Ctrl+Shift+C：始终复制
+   * - Ctrl+V / Ctrl+Shift+V：通过 term.paste() 粘贴，保证 bracketed paste 生效
+   * - Ctrl+= / Ctrl+- / Ctrl+0：字号快捷键由全局监听处理，这里只阻止它们发给 PTY
+   * 返回 false 表示 xterm 不再处理该按键。
+   */
+  private handleKey(e: KeyboardEvent): boolean {
+    if (e.type !== 'keydown') return true
+    if (!e.ctrlKey || e.altKey || e.metaKey) return true
+    if (zoomActionOf(e)) return false
+    const letter = letterOf(e)
+    if (letter === 'c') {
+      if (!e.shiftKey && !this.term.hasSelection()) return true
+      e.preventDefault()
+      this.copySelection(!e.shiftKey)
+      return false
+    }
+    if (letter === 'v') {
+      // 阻止浏览器原生 paste 事件，否则 xterm 会再粘贴一次
+      e.preventDefault()
+      void this.pasteFromClipboard()
+      return false
+    }
+    return true
+  }
+
+  private copySelection(clearAfterCopy: boolean): void {
+    const text = this.term.getSelection()
+    if (text) void api.clipboard.writeText(text)
+    if (clearAfterCopy) this.term.clearSelection()
+    this.term.focus()
+  }
+
+  private async pasteFromClipboard(): Promise<void> {
+    const text = await api.clipboard.readText()
+    if (text && !this.disposed) this.term.paste(text)
+    this.term.focus()
+  }
+
   private handleInput(data: string): void {
     if (this.state === 'running') {
       api.pty.write(this.sessionId, data)
@@ -237,6 +312,7 @@ class TerminalView {
 export class TerminalManager {
   private readonly views = new Map<string, TerminalView>()
   private activeId: string | null = null
+  private resizeTimer: number | undefined
 
   constructor(
     private readonly host: HTMLElement,
@@ -245,6 +321,22 @@ export class TerminalManager {
   ) {
     api.pty.onData((id, data) => this.views.get(id)?.write(data))
     api.pty.onExit((id, exitCode) => this.views.get(id)?.handleExit(exitCode))
+
+    // 终端区域尺寸变化（窗口缩放、拖动侧栏）→ 防抖后只 fit 当前可见的终端
+    new ResizeObserver(() => {
+      window.clearTimeout(this.resizeTimer)
+      this.resizeTimer = window.setTimeout(() => this.fitActive(), RESIZE_DEBOUNCE_MS)
+    }).observe(host)
+  }
+
+  setFontSize(fontSize: number): void {
+    this.fontSize = fontSize
+    for (const view of this.views.values()) view.setFontSize(fontSize)
+  }
+
+  private fitActive(): void {
+    const view = this.activeId ? this.views.get(this.activeId) : undefined
+    if (view?.fit()) view.syncPtySize()
   }
 
   has(sessionId: string): boolean {

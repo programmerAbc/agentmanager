@@ -46,13 +46,17 @@ function createWindow(): BrowserWindow {
   if (saved?.maximized) win.maximize()
   win.once('ready-to-show', () => win.show())
 
-  // 只允许加载应用自己的页面；链接一律通过 shell.openExternal 打开
+  // 只允许加载应用自己的页面（允许重新加载当前页，dev 下 Vite 整页刷新需要）；
+  // 链接一律通过 shell.openExternal 打开
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  win.webContents.on('will-navigate', (event) => event.preventDefault())
+  win.webContents.on('will-navigate', (event, url) => {
+    if (stripHash(url) !== stripHash(win.webContents.getURL())) event.preventDefault()
+  })
 
-  // 渲染进程重新加载或崩溃后，旧的 xterm 实例已经没了，对应的 PTY 也一并清理
-  win.webContents.on('did-start-navigation', (details) => {
-    if (details.isMainFrame && !details.isSameDocument && ptys.size > 0) {
+  // 渲染进程重新加载（导航已提交）或崩溃后，旧的 xterm 实例已经没了，对应的 PTY 也一并清理。
+  // 不用 did-start-navigation：它在导航可能被取消之前就触发。
+  win.webContents.on('did-navigate', () => {
+    if (ptys.size > 0) {
       log.info('[app] 渲染进程重新加载，清理全部 PTY')
       void ptys.killAll(QUIT_CLEANUP_TIMEOUT_MS)
     }
@@ -118,6 +122,11 @@ function restoreBounds(saved: WindowState | null): Partial<Rectangle> {
   const rect = { x: saved.x, y: saved.y, width, height }
   const visible = screen.getAllDisplays().some((d) => overlapArea(d.workArea, rect) >= 100 * 100)
   return visible ? rect : { width, height }
+}
+
+function stripHash(url: string): string {
+  const i = url.indexOf('#')
+  return i < 0 ? url : url.slice(0, i)
 }
 
 function delay(ms: number): Promise<void> {

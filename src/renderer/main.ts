@@ -1,11 +1,12 @@
 import '@xterm/xterm/css/xterm.css'
 import './styles.css'
-import type { AppSettings, Project, SettingsPatch } from '../shared/types'
+import { FONT_SIZE, type AppSettings, type Project, type SettingsPatch } from '../shared/types'
 import { Sidebar } from './sidebar'
-import { TerminalManager } from './terminalView'
+import { TerminalManager, zoomActionOf, type ZoomAction } from './terminalView'
 import { toast } from './toast'
 
 const api = window.api
+const FONT_SIZE_SAVE_DELAY_MS = 400
 
 /** 渲染进程的总控：持有项目列表和当前选中项，协调侧栏与终端区域。 */
 class App {
@@ -16,9 +17,12 @@ class App {
   private readonly emptyState: HTMLElement
   /** 选中了项目但终端还没启动时显示（启动时恢复上次选中的项目，不自动启动 PTY） */
   private readonly idlePanel: HTMLElement
+  private fontSize: number
+  private fontSizeSaveTimer: number | undefined
 
   constructor(settings: AppSettings, projects: Project[]) {
     this.projects = projects
+    this.fontSize = settings.fontSize
 
     const sidebarEl = mustGet('sidebar')
     const resizer = mustGet('resizer')
@@ -62,6 +66,18 @@ class App {
     this.sidebar.setWidth(settings.sidebarWidth)
     this.sidebar.setProjects(this.projects)
 
+    // 字号快捷键全局生效（焦点在侧栏时也可用）；终端内的同一组合键不会发给 PTY
+    document.addEventListener(
+      'keydown',
+      (e) => {
+        const action = zoomActionOf(e)
+        if (!action) return
+        e.preventDefault()
+        this.zoom(action)
+      },
+      true
+    )
+
     const last = settings.lastProjectId
     this.select(last && this.projects.some((p) => p.id === last) ? last : null, false)
 
@@ -89,6 +105,21 @@ class App {
       void this.saveSettings({ lastProjectId: id })
       if (id) void api.projects.touch(id)
     }
+  }
+
+  private zoom(action: ZoomAction): void {
+    const next =
+      action === 'reset'
+        ? FONT_SIZE.default
+        : Math.min(FONT_SIZE.max, Math.max(FONT_SIZE.min, this.fontSize + (action === 'in' ? 1 : -1)))
+    if (next === this.fontSize) return
+    this.fontSize = next
+    this.terminals.setFontSize(next)
+    window.clearTimeout(this.fontSizeSaveTimer)
+    this.fontSizeSaveTimer = window.setTimeout(
+      () => void this.saveSettings({ fontSize: this.fontSize }),
+      FONT_SIZE_SAVE_DELAY_MS
+    )
   }
 
   private async addProject(): Promise<void> {
