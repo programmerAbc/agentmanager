@@ -12,10 +12,19 @@
 | M3 切换保活 | ✅ 完成 | 行为在 M2 的 TerminalView 设计中实现；后台输出、claude 保活、切回时 fit→resize 已自测 |
 | M4 终端交互细节 | ✅ 完成 | 复制/粘贴/中断/字号/ResizeObserver 已自测；微软拼音实测待用户确认 |
 | M5 生命周期与清理 | ✅ 完成 | 移除/重启/退出均清理整棵进程树；退出确认；窗口与选中项持久化；退出后零残留已自测 |
-| M6 打包 | ⏳ | |
+| M6 打包 | ✅ 完成 | NSIS 安装包 118MB；本机安装→运行→退出→卸载已自测；「干净机器」验证待用户执行 |
 
 ## 阻塞
 - 无。
+
+## 待用户确认
+- 微软拼音输入法实测（候选框位置、上屏不重复不丢字）→ 填写 README「中文输入法测试记录」。
+- claude TUI 长时间对话下有无错位/闪烁。
+- 在未安装 Node 的干净 Windows 机器上安装 `dist/agent-desk-0.1.0-setup.exe` 并走一遍 M1–M5。
+
+## 可选改进（未排期）
+- 应用图标（目前为 Electron 默认图标）。
+- 升级 node-pty 后复查 conhost 残留问题（见 lessons.md），修复后在 shell 退出时释放 pseudoconsole。
 
 ## 延后（PLAN §9，本期不做）
 - 打开时自动运行命令；Claude Code hooks 状态显示与通知；一个项目多个终端 tab；WSL shell；PTY 守护进程化与输出回放。

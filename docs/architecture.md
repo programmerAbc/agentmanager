@@ -49,6 +49,14 @@ preload (src/preload/index.ts)
 | 字体 TTF 直接提交在 `resources/fonts/`（约 25MB），CSS `@font-face` 相对路径引用，由 Vite 作为资源打包 | 离线可构建；启动时先 `document.fonts.load` 再创建 xterm，避免用回退字体测量字符宽度。 |
 | 终端容器两层：外层 `.term-pane` 带 8px padding，内层 `.term-mount` 挂 xterm | FitAddon 用 xterm 父元素的计算尺寸；padding 不能放在 xterm 元素或其直接父元素上（PLAN §6）。 |
 
+## 打包（electron-builder.yml）
+
+- 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。
+- `files`：`out/**` + `package.json`；生产依赖自动带上。node-pty 排除 `src/deps/third_party/scripts/typings`、编译中间文件、`*.pdb`、`*.test.js` 以及非 win32-x64 的 prebuilds。
+- `asarUnpack: node_modules/node-pty/**`：原生 `.node` 需要在磁盘上加载；node-pty 的 conout Worker 和 console list agent 通过 `__dirname` 定位脚本（已验证打包后可正常工作）。
+- `npmRebuild: false`：避免 electron-builder 再次编译 node-pty（postinstall 已编译）。
+- 生产构建里 `import.meta.env.DEV` 为 false，渲染进程的自测钩子 `window.__agentDesk` 被移除。
+
 ## 存储
 
 - `userData/projects.json`：`{version:1, projects: Project[]}`。读取时任一项不合法即视为损坏 → 改名为 `projects.json.bak-YYYYMMDD-HHmmss` → 空列表启动。

@@ -33,6 +33,15 @@ npm run build        # 类型检查 + 构建到 out/
 npm run build:win    # 打包 NSIS 安装包到 dist/
 ```
 
+## 打包与安装
+
+- `npm run build:win` 生成 `dist/agent-desk-<版本>-setup.exe`（NSIS，按用户安装，可选安装目录，创建桌面与开始菜单快捷方式）。
+- node-pty 整体放在 `app.asar.unpacked`（原生模块、conout Worker 脚本、console list agent 都需要在 asar 外）。
+- `npmRebuild: false`：postinstall 已针对同一 Electron 版本编译过 node-pty，打包时不再重复编译。
+- 原生模块只依赖系统 DLL（静态链接 CRT），目标机器不需要安装 Node 或 VC++ 运行库。
+- 静默安装 / 卸载：`agent-desk-0.1.0-setup.exe /S /D=<目录>`；`"<目录>\Uninstall agent-desk.exe" /S /currentuser`。
+- 目前使用 Electron 默认图标（未提供应用图标）。
+
 ## 数据位置
 
 `%APPDATA%\Agent Desk\`：

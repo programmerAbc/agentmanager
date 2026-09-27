@@ -1,0 +1,44 @@
+appId: com.agentdesk.app
+productName: Agent Desk
+copyright: Copyright © 2026 consul
+
+directories:
+  buildResources: build
+  output: dist
+
+# 主进程 / preload / 渲染进程的构建产物都在 out/ 下；生产依赖（node-pty、electron-log）由 electron-builder 自动带上
+files:
+  - out/**/*
+  - package.json
+  # node-pty 只保留运行时需要的文件
+  - '!node_modules/node-pty/{src,deps,third_party,scripts,typings,node-addon-api}/**'
+  - '!node_modules/node-pty/build/{deps,obj,Release/obj}/**'
+  - '!node_modules/node-pty/build/*.{sln,vcxproj,filters,gypi}'
+  - '!node_modules/node-pty/prebuilds/{darwin-arm64,darwin-x64,win32-arm64}/**'
+  - '!node_modules/node-addon-api/**'
+  - '!**/*.{pdb,lib,exp,iobj,ipdb,tlog,lastbuildstate,map}'
+  - '!**/*.test.js'
+
+# 原生模块、conout Worker 脚本、console list agent 都必须在 asar 外
+asarUnpack:
+  - node_modules/node-pty/**
+
+# postinstall 已用 @electron/rebuild 针对同一 Electron 版本编译过 node-pty
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  executableName: agent-desk
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: Agent Desk
+  uninstallDisplayName: Agent Desk
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
