@@ -15,8 +15,9 @@
 - 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main，含 1.1.0）。以后的推送需用户要求。
 - M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
 - M12（迭代 4）：主题色新增「白色」（单色浅色界面，白底终端 + 浅色 ANSI + 最小对比度 4.5）与「黑色」（单色纯黑界面）；色块描边；启动时窗口底色与主题一致、主题应用前页面透明，避免闪烁。
-- M14（用户要求，尚未推送 / 打包）：设置「默认终端」自动 / PowerShell 7 / Windows PowerShell / 命令提示符 / Git Bash（只列本机已安装的），对新开或重启的终端生效；助手启动命令按 shell 家族生成。
-- M15（用户反馈，尚未推送 / 打包）：助手运行时隐藏顶部栏两个启动按钮；终端里 Ctrl+单击打开 OSC 8 链接（claude 的图片附件 / 文件引用，靠 `FORCE_HYPERLINK=1` 让 claude 输出）、网址和识别出的本机文件路径；可执行文件只定位、网络位置不打开。
+- 1.3.0（M14 + M15）：按用户要求推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.3.0-setup.exe`（SHA256 DC0C685B…09EC03555，与 dist 中一致）。同样为不抢焦点未启动打包版 GUI，改为解包 app.asar 静态检查（版本 1.3.0；主进程含 FORCE_HYPERLINK、CHERE_INVOKING、cmd 版 codex 启动命令、link:resolve-paths、showItemInFolder、「可用终端」日志；渲染进程含 allowNonHttpProtocols、「按住 Ctrl 单击打开」、换行序列、Git Bash 选项）。请用户安装后实测：Ctrl+单击 claude 对话里的「[Image #N]」。
+- M14（用户要求）：设置「默认终端」自动 / PowerShell 7 / Windows PowerShell / 命令提示符 / Git Bash（只列本机已安装的），对新开或重启的终端生效；助手启动命令按 shell 家族生成。
+- M15（用户反馈）：助手运行时隐藏顶部栏两个启动按钮；终端里 Ctrl+单击打开 OSC 8 链接（claude 的图片附件 / 文件引用，靠 `FORCE_HYPERLINK=1` 让 claude 输出）、网址和识别出的本机文件路径；可执行文件只定位、网络位置不打开。
 - 自测工具与数据改放在项目内 `.devtest/`（已加入 .gitignore，不提交）：cdp.mjs、hover.mjs（把鼠标移到终端文字上、可 Ctrl+单击）、pick-shell.mjs、close-dev.ps1、seed.mjs（测试项目 / userData / 假 codex）。原会话 scratchpad 已不可用。
 - 1.2.0（M13）：按用户要求推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.2.0-setup.exe`（SHA256 5435C3B2…38F6CDA8，与 dist 中一致）。为不抢用户焦点，打包版未启动 GUI 冒烟，改为静态检查（见 Verification）。
 - M13（用户实际使用中反馈）：`Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` 在 claude、codex 输入框里换行，在 PowerShell 里续行；设置新增「光标」竖线（默认）/ 下划线 / 方块。开发模式 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口不激活显示（自测不抢焦点）。

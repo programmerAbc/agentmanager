@@ -111,6 +111,8 @@
 - **换行**：在终端里按 `Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` 输入换行而不是提交——claude 与 codex 的输入框里换行，PowerShell 里续行（`>>`）。`Enter` 行为不变。输入法组字时的 Enter 交给输入法。
 - **光标样式**：设置 → 终端 →「光标」三选一：竖线（默认，用户偏好「普通的光标」）/ 下划线 / 方块；立即作用于所有终端并保存。失焦时保持同一形状（方块失焦为空心）。程序自己用转义序列设置的光标形状（DECSCUSR）优先。claude 输入框使用的就是终端光标，因此同样生效。
 
+应用版本号 1.3.0（M14 + M15）。
+
 ### M14 默认终端（用户要求）
 - 设置 → 终端 →「默认终端」：**自动**（默认，保持原行为：有 PowerShell 7 用 pwsh，否则 Windows PowerShell）/ **PowerShell 7**（pwsh）/ **Windows PowerShell**（5.1）/ **命令提示符**（cmd）/ **Git Bash**。
 - 只列出本机检测到的（未安装的显示为不可选并标注「未安装」）。Git Bash 从 Git for Windows 的安装位置找 `bin\bash.exe`（不用 PATH 里的 `bash.exe`，那可能是 WSL 的启动器）。
