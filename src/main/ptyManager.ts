@@ -268,9 +268,14 @@ function buildEnv(): Record<string, string> {
   }
   // 如果 Agent Desk 本身是从某个 Claude Code 会话里启动的，去掉那个会话的会话级标记，
   // 否则终端里运行的 claude 会把自己当成子会话（例如关闭会话记录、连到父会话的消息管道）。
-  // 只去掉会话标记，ANTHROPIC_API_KEY、CLAUDE_CONFIG_DIR 等用户配置保持不变。
+  // Claude Code 还会给它的工具 shell 设置 NO_COLOR=1，一并去掉，否则终端里的程序都没有颜色。
+  // 只去掉会话标记，ANTHROPIC_API_KEY、CLAUDE_CONFIG_DIR 等用户配置保持不变；
+  // 不是从 Claude Code 里启动时，用户自己设置的 NO_COLOR 保留。
+  const launchedFromClaudeCode = Object.keys(env).some((k) => k.toUpperCase() === 'CLAUDECODE')
   for (const key of Object.keys(env)) {
-    if (isClaudeSessionMarker(key)) delete env[key]
+    if (isClaudeSessionMarker(key) || (launchedFromClaudeCode && key.toUpperCase() === 'NO_COLOR')) {
+      delete env[key]
+    }
   }
   env.TERM = 'xterm-256color'
   env.COLORTERM = 'truecolor'

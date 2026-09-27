@@ -90,6 +90,34 @@ dev 下改渲染进程代码后页面并没有刷新，但主进程日志显示�
 ### Prevention
 基于导航事件做清理时，用「已提交」类事件；验证时对比 `performance.timeOrigin` 确认页面是否真的重载。
 
+## Lesson: 从 Claude Code 里启动时终端全无颜色（NO_COLOR）
+### Problem
+dev 实例终端里的 claude 全是白字，而开始菜单启动的安装版是彩色的。
+### Root Cause
+Claude Code 给自己的工具 shell 设置了 `NO_COLOR=1`，在其中执行 `npm run dev` 时一路继承到 PTY。
+### Solution
+`buildEnv` 在检测到 `CLAUDECODE` 标记时一并去掉 `NO_COLOR`；否则保留用户自己的设置。
+### Prevention
+排查终端颜色 / 行为差异时先对比环境变量（dev 与安装版的启动来源不同）。
+
+## Lesson: 焦点上报会被误当成用户输入
+### Problem
+项目 A 的 claude 显示「已完成」，切到项目 B 时 A 的状态立刻变成「就绪」。
+### Root Cause
+claude 开启了焦点上报（DECSET 1004），xterm 失焦时自动通过 onData 发送 `ESC[O`，被当作用户输入触发了「已查看」。
+### Solution
+`handleInput` 中 `ESC[I` / `ESC[O` 不触发 `onInput`。
+### Prevention
+凡是用 onData 推断「用户行为」的逻辑，都要排除终端自动回报的序列（焦点、光标位置、设备属性等）。
+
+## Lesson: claude hooks 的输出会进入上下文
+### Problem / Root Cause
+`SessionStart`、`UserPromptSubmit` 的 hook 标准输出会被加进 claude 的上下文。
+### Solution
+hooks 服务对上报请求回 204（无响应体），`curl -s` 因此不输出任何内容。
+### Prevention
+修改 hookServer 响应时保持无响应体。
+
 ## Lesson: 退出时异步写配置会丢
 ### Problem
 关闭窗口后 settings.json 里 `window` 仍为 null。

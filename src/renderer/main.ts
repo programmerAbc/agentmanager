@@ -1,10 +1,17 @@
 import '@xterm/xterm/css/xterm.css'
 import './styles.css'
-import { FONT_SIZE, type AppSettings, type Project, type SettingsPatch } from '../shared/types'
+import {
+  DEFAULT_CLAUDE_COMMAND,
+  FONT_SIZE,
+  type AppSettings,
+  type Project,
+  type SettingsPatch
+} from '../shared/types'
+import { ALL_STATUSES, ClaudeStatusTracker, STATUS_TEXT, statusIndicator } from './claudeStatus'
 import { confirmDialog, iconButton, button } from './dialog'
 import { ensureFontLoaded, fontStack } from './fonts'
 import { icon, type IconName } from './icons'
-import { openSettingsDialog } from './settingsDialog'
+import { openAboutDialog, openSettingsDialog, row, sectionEl } from './settingsDialog'
 import { shapeSvg, type ShapeName } from './shapes'
 import { Sidebar } from './sidebar'
 import { TerminalManager, isSettingsShortcut, zoomActionOf, type ZoomAction } from './terminalView'
@@ -27,8 +34,11 @@ class App {
   private readonly topbar: {
     title: HTMLElement
     subtitle: HTMLElement
+    status: HTMLElement
+    launch: HTMLButtonElement
     actions: HTMLElement
   }
+  private readonly claude: ClaudeStatusTracker
   private pendingPatch: SettingsPatch = {}
   private saveTimer: number | undefined
 
@@ -59,6 +69,12 @@ class App {
 
     this.topbar = this.buildTopbar(mustGet('topbar'))
 
+    this.claude = new ClaudeStatusTracker((id, status) => {
+      this.sidebar.setClaudeStatus(id, status)
+      if (id === this.selectedId) this.render()
+    })
+    api.claude.onEvent((id, event) => this.claude.handleEvent(id, event))
+
     this.terminals = new TerminalManager(
       host,
       {
@@ -68,7 +84,12 @@ class App {
         theme: terminalTheme
       },
       {
-        onRunningChange: (id, running) => this.sidebar.setRunning(id, running),
+        onRunningChange: (id, running) => {
+          this.sidebar.setRunning(id, running)
+          // 终端退出 / 重启 / 被结束，里面的 claude 也就没了
+          if (!running) this.claude.reset(id)
+        },
+        onInput: (id) => this.claude.markSeen(id),
         onError: (message) => toast(message)
       }
     )
@@ -76,7 +97,9 @@ class App {
     this.sidebar = new Sidebar(mustGet('sidebar'), mustGet('resizer'), {
       onAdd: () => void this.addProject(),
       onOpenSettings: () => this.openSettings(),
+      onOpenAbout: () => openAboutDialog(() => this.openSettings()),
       onSelect: (id) => this.select(id, true),
+      onLaunchClaude: (id) => void this.launchClaude(id),
       onRename: (id, name) => void this.renameProject(id, name),
       onRemove: (id) => void this.removeProject(id),
       onOpenInExplorer: (id) => void this.openInExplorer(id),
@@ -129,8 +152,68 @@ class App {
 
     if (changed) {
       this.changeSettings({ lastProjectId: id })
-      if (id) void api.projects.touch(id)
+      if (id) {
+        void api.projects.touch(id)
+        this.claude.markSeen(id)
+      }
     }
+  }
+
+  // ---------------- Claude ----------------
+
+  /** 在项目终端里执行设置中的 Claude 启动命令；终端未启动 / 已退出时先启动 */
+  private async launchClaude(id: string): Promise<void> {
+    if (this.selectedId !== id) this.select(id, true)
+    if (this.claude.get(id) !== 'none') {
+      toast('Claude 已经在这个终端里运行', 'info')
+      this.terminals.focus(id)
+      return
+    }
+    const running = await this.terminals.ensureRunning(id)
+    this.render()
+    if (!running) return
+    this.claude.markStarting(id)
+    const result = await api.claude.launch(id)
+    if (!result.ok) {
+      this.claude.reset(id)
+      toast(result.error)
+    }
+    this.terminals.focus(id)
+  }
+
+  private claudeSection(): HTMLElement {
+    const section = sectionEl('Claude', 'rocketLaunch')
+    const input = document.createElement('input')
+    input.className = 'text-field'
+    input.spellcheck = false
+    input.value = this.settings.claudeCommand
+    const commit = (): void => {
+      const value = input.value.trim()
+      if (!value) {
+        input.value = this.settings.claudeCommand
+        return
+      }
+      if (value !== this.settings.claudeCommand) this.changeSettings({ claudeCommand: value })
+    }
+    input.addEventListener('change', commit)
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur()
+    })
+    const reset = button('恢复默认', 'text')
+    reset.addEventListener('click', () => {
+      input.value = DEFAULT_CLAUDE_COMMAND
+      commit()
+    })
+    const field = document.createElement('div')
+    field.className = 'field-row'
+    field.append(input, reset)
+    const help = document.createElement('div')
+    help.className = 'field-help'
+    help.textContent =
+      '点击「启动 Claude」时在当前项目的终端里执行。命令以 claude 开头时会自动追加 --settings，' +
+      '用于在侧栏显示工作状态（不会修改 ~/.claude/settings.json）；手动输入的 claude 没有状态。'
+    section.append(row('启动命令', '「启动 Claude」按钮执行的命令'), field, help)
+    return section
   }
 
   // ---------------- 设置 ----------------
@@ -138,7 +221,8 @@ class App {
   private openSettings(): void {
     openSettingsDialog({
       get: () => this.settings,
-      change: (patch) => this.changeSettings(patch)
+      change: (patch) => this.changeSettings(patch),
+      extraSections: [() => this.claudeSection()]
     })
   }
 
@@ -255,9 +339,21 @@ class App {
     subtitle.className = 'topbar-subtitle'
     titles.append(title, subtitle)
 
+    const status = document.createElement('div')
+    status.className = 'status-chip'
+
+    const launch = button('启动 Claude', 'filled', 'rocketLaunch')
+    launch.classList.add('launch-claude')
+    launch.title = '在当前项目的终端里运行设置中的 Claude 启动命令'
+    launch.addEventListener('click', () => {
+      if (this.selectedId) void this.launchClaude(this.selectedId)
+    })
+
     const actions = document.createElement('div')
     actions.className = 'topbar-actions'
     actions.append(
+      status,
+      launch,
       iconButton('restartAlt', '重启终端', () => {
         if (this.selectedId) void this.restartTerminal(this.selectedId)
       }),
@@ -266,7 +362,25 @@ class App {
       })
     )
     root.append(titles, actions)
-    return { title, subtitle, actions }
+    return { title, subtitle, status, launch, actions }
+  }
+
+  private renderClaudeStatus(project: Project | null): void {
+    const status = project ? this.claude.get(project.id) : 'none'
+    const chip = this.topbar.status
+    chip.hidden = status === 'none'
+    for (const s of ALL_STATUSES) chip.classList.toggle(`claude-${s}`, s === status)
+    if (status !== 'none' && chip.dataset.status !== status) {
+      const text = document.createElement('span')
+      text.textContent = STATUS_TEXT[status]
+      chip.replaceChildren(statusIndicator(status), text)
+    }
+    chip.dataset.status = status
+
+    const launch = this.topbar.launch
+    launch.disabled = status !== 'none'
+    const label = launch.querySelector('span:last-child')
+    if (label) label.textContent = status === 'none' ? '启动 Claude' : 'Claude 运行中'
   }
 
   private render(): void {
@@ -277,6 +391,7 @@ class App {
     this.topbar.subtitle.textContent = project ? project.path : '项目终端管理器'
     this.topbar.subtitle.title = project?.path ?? ''
     this.topbar.actions.hidden = project === null
+    this.renderClaudeStatus(project)
 
     const terminalShown = project !== null && this.terminals.has(project.id)
     this.emptyState.hidden = project !== null
@@ -289,7 +404,19 @@ class App {
         title: project.name,
         path: project.path,
         hint: '终端尚未启动，点击此处或按 Enter 启动。',
-        buttons: [{ label: '启动终端', variant: 'filled', icon: 'playArrowFill' }]
+        buttons: [
+          { label: '启动终端', variant: 'tonal', icon: 'playArrowFill' },
+          {
+            label: '启动 Claude',
+            variant: 'filled',
+            icon: 'rocketLaunch',
+            action: (e) => {
+              // 不冒泡给面板（面板点击只启动终端）
+              e.stopPropagation()
+              void this.launchClaude(project.id)
+            }
+          }
+        ]
       })
     } else if (!project && this.projects.length === 0) {
       renderPanel(this.emptyState, {
@@ -317,7 +444,7 @@ interface PanelOptions {
   path?: string
   hint?: string
   /** 没有 action 的按钮点击会冒泡给面板处理 */
-  buttons?: { label: string; variant: 'filled' | 'tonal'; icon: IconName; action?: () => void }[]
+  buttons?: { label: string; variant: 'filled' | 'tonal'; icon: IconName; action?: (e: MouseEvent) => void }[]
 }
 
 function renderPanel(panel: HTMLElement, o: PanelOptions): void {

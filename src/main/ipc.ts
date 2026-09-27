@@ -2,6 +2,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import os from 'node:os'
 import path from 'node:path'
 import { IPC, type AppInfo, type DataResult, type OpResult, type Project, type SettingsPatch } from '../shared/types'
+import type { ClaudeHookServer } from './hookServer'
 import log from './log'
 import type { ProjectStore } from './projectStore'
 import type { PtyManager } from './ptyManager'
@@ -11,6 +12,7 @@ export interface IpcDeps {
   projects: ProjectStore
   settings: SettingsStore
   ptys: PtyManager
+  hooks: ClaudeHookServer
 }
 
 /** 目前一个项目一个会话，sessionId 就是 projectId。以后支持多会话时只需要改这里。 */
@@ -18,7 +20,7 @@ function projectIdOfSession(sessionId: string): string {
   return sessionId
 }
 
-export function registerIpc({ projects, settings, ptys }: IpcDeps): void {
+export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void {
   // ---------- projects ----------
   ipcMain.handle(IPC.projectsList, (): Project[] => projects.list())
 
@@ -113,6 +115,23 @@ export function registerIpc({ projects, settings, ptys }: IpcDeps): void {
         throw new Error(`不支持的链接：${parsed.protocol}`)
       }
       await shell.openExternal(parsed.toString())
+    })
+  )
+
+  // ---------- claude ----------
+  ipcMain.handle(IPC.claudeLaunch, (_e, id: unknown) =>
+    guard('启动 Claude', async () => {
+      const sessionId = asString(id)
+      if (!ptys.has(sessionId)) throw new Error('终端未启动')
+      const command = settings.get().claudeCommand
+      let line = command
+      // 只有真正启动 claude 时才注入 hooks；终端里的 shell 固定是 PowerShell，用单引号避免 $ 被展开
+      if (/^claude(\.exe|\.cmd)?(\s|$)/i.test(command)) {
+        const file = await hooks.writeSessionSettings(sessionId)
+        line = `${command} --settings '${file.replace(/'/g, "''")}'`
+      }
+      ptys.write(sessionId, `${line}\r`)
+      log.info(`[claude] 启动 session=${sessionId} command=${command}`)
     })
   )
 

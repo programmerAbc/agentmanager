@@ -89,8 +89,34 @@ export const IPC = {
   clipboardWriteText: 'clipboard:write-text',
   shellOpenExternal: 'shell:open-external',
   appInfo: 'app:info',
-  appOpenDir: 'app:open-dir'
+  appOpenDir: 'app:open-dir',
+  claudeLaunch: 'claude:launch',
+  claudeEvent: 'claude:event'
 } as const
+
+/** Agent Desk 注入给 claude 的 hooks 会上报的事件 */
+export type ClaudeHookEvent =
+  | 'SessionStart'
+  | 'UserPromptSubmit'
+  | 'PostToolUse'
+  | 'Notification'
+  | 'Stop'
+  | 'SessionEnd'
+
+export const CLAUDE_HOOK_EVENTS: readonly ClaudeHookEvent[] = [
+  'SessionStart',
+  'UserPromptSubmit',
+  'PostToolUse',
+  'Notification',
+  'Stop',
+  'SessionEnd'
+]
+
+export interface ClaudeEvent {
+  name: ClaudeHookEvent
+  /** 仅 Notification：permission_prompt / idle_prompt / elicitation_dialog / auth_success … */
+  notificationType?: string
+}
 
 /**
  * preload 通过 contextBridge 暴露的 window.api。
@@ -134,5 +160,10 @@ export interface Api {
   app: {
     info(): Promise<AppInfo>
     openDir(kind: 'userData' | 'logs'): Promise<OpResult>
+  }
+  claude: {
+    /** 在该会话的终端里执行设置中的 Claude 启动命令（命令以 claude 开头时追加 Agent Desk 的 hooks） */
+    launch(sessionId: string): Promise<OpResult>
+    onEvent(cb: (sessionId: string, event: ClaudeEvent) => void): () => void
   }
 }

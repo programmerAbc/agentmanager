@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type Api } from '../shared/types'
+import { IPC, type Api, type ClaudeEvent } from '../shared/types'
 
 // 沙箱 preload：只能用 electron 的少数模块，其余能力全部经 IPC 由主进程提供
 
@@ -51,6 +51,10 @@ const api: Api = {
   app: {
     info: () => ipcRenderer.invoke(IPC.appInfo),
     openDir: (kind) => ipcRenderer.invoke(IPC.appOpenDir, kind)
+  },
+  claude: {
+    launch: (sessionId) => ipcRenderer.invoke(IPC.claudeLaunch, sessionId),
+    onEvent: (cb) => subscribe<[string, ClaudeEvent]>(IPC.claudeEvent, cb)
   }
 }
 

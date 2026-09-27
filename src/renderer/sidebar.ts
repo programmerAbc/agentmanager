@@ -1,4 +1,5 @@
 import { SIDEBAR_WIDTH, type Project } from '../shared/types'
+import { ALL_STATUSES, STATUS_TEXT, statusIndicator, type ClaudeStatus } from './claudeStatus'
 import { showContextMenu } from './contextMenu'
 import { icon } from './icons'
 import { shapeSvg } from './shapes'
@@ -6,7 +7,9 @@ import { shapeSvg } from './shapes'
 export interface SidebarCallbacks {
   onAdd(): void
   onOpenSettings(): void
+  onOpenAbout(): void
   onSelect(id: string): void
+  onLaunchClaude(id: string): void
   onRename(id: string, name: string): void
   onRemove(id: string): void
   onOpenInExplorer(id: string): void
@@ -20,6 +23,7 @@ export class Sidebar {
   private projects: Project[] = []
   private selectedId: string | null = null
   private readonly running = new Set<string>()
+  private readonly claude = new Map<string, ClaudeStatus>()
   private readonly list: HTMLUListElement
   private width: number = SIDEBAR_WIDTH.default
 
@@ -31,9 +35,12 @@ export class Sidebar {
     // 抽屉头部：应用名 + 扩展 FAB
     const header = document.createElement('div')
     header.className = 'drawer-header'
-    const title = document.createElement('div')
+    const title = document.createElement('button')
+    title.type = 'button'
     title.className = 'app-title'
+    title.title = '关于 Agent Desk'
     title.append(shapeSvg('cookie9', 'app-logo'), document.createTextNode('Agent Desk'))
+    title.addEventListener('click', () => cb.onOpenAbout())
     const addButton = document.createElement('button')
     addButton.type = 'button'
     addButton.className = 'fab add-project'
@@ -88,6 +95,23 @@ export class Sidebar {
     if (running) this.running.add(id)
     else this.running.delete(id)
     this.itemById(id)?.classList.toggle('running', running)
+  }
+
+  setClaudeStatus(id: string, status: ClaudeStatus): void {
+    if (status === 'none') this.claude.delete(id)
+    else this.claude.set(id, status)
+    const li = this.itemById(id)
+    const project = this.projects.find((p) => p.id === id)
+    if (li && project) this.applyClaudeStatus(li, project)
+  }
+
+  /** 状态图形放在名称前；有状态时第二行显示状态文字，否则显示路径 */
+  private applyClaudeStatus(li: HTMLLIElement, project: Project): void {
+    const status = this.claude.get(project.id) ?? 'none'
+    for (const s of ALL_STATUSES) li.classList.toggle(`claude-${s}`, s === status)
+    li.querySelector('.status-slot')?.replaceChildren(statusIndicator(status))
+    const pathEl = li.querySelector('.project-path')
+    if (pathEl) pathEl.textContent = status === 'none' ? shortenPath(project.path) : STATUS_TEXT[status]
   }
 
   setWidth(width: number): void {
@@ -146,9 +170,6 @@ export class Sidebar {
 
       const slot = document.createElement('span')
       slot.className = 'status-slot'
-      const dot = document.createElement('span')
-      dot.className = 'status-dot'
-      slot.appendChild(dot)
       const text = document.createElement('div')
       text.className = 'project-text'
       const name = document.createElement('div')
@@ -159,6 +180,7 @@ export class Sidebar {
       pathEl.textContent = shortenPath(project.path)
       text.append(name, pathEl)
       li.append(slot, text)
+      this.applyClaudeStatus(li, project)
       fragment.appendChild(li)
     }
     this.list.replaceChildren(fragment)
@@ -166,6 +188,13 @@ export class Sidebar {
 
   private openItemMenu(id: string, x: number, y: number): void {
     showContextMenu(x, y, [
+      {
+        label: '启动 Claude',
+        icon: 'rocketLaunch',
+        disabled: this.claude.has(id),
+        action: () => this.cb.onLaunchClaude(id)
+      },
+      { separator: true },
       { label: '重命名', icon: 'edit', action: () => this.beginRename(id) },
       { label: '在资源管理器中打开', icon: 'folderOpen', action: () => this.cb.onOpenInExplorer(id) },
       { label: '重启终端', icon: 'restartAlt', action: () => this.cb.onRestartTerminal(id) },

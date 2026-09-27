@@ -152,6 +152,7 @@ select {
 
 .btn::before,
 .icon-btn::before,
+.app-title::before,
 .fab::before,
 .project-item::before,
 .menu-item::before,
@@ -170,6 +171,7 @@ select {
 
 .btn:hover::before,
 .icon-btn:hover::before,
+.app-title:hover::before,
 .fab:hover::before,
 .project-item:hover::before,
 .menu-item:hover:not(:disabled)::before,
@@ -216,29 +218,46 @@ select {
   padding: 8px 4px 12px;
 }
 
+/* 应用名：点击打开「关于」；悬浮时标志转动并放大（弹簧曲线） */
 .app-title {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 8px;
+  align-self: flex-start;
+  height: 44px;
+  padding: 0 14px 0 8px;
+  border: none;
+  border-radius: var(--md-shape-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
   font-family: var(--md-font-display);
   font-size: 20px;
   line-height: 28px;
   font-weight: 650;
   letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: border-radius var(--md-duration-fast) var(--md-motion-fast-spatial);
+}
+
+.app-title:active {
+  border-radius: var(--md-shape-md);
 }
 
 .app-logo {
   width: 28px;
   height: 28px;
   color: var(--md-sys-color-primary);
-  animation: logo-spin 18s linear infinite;
+  transition: transform var(--md-duration-default) var(--md-motion-default-spatial);
 }
 
-@keyframes logo-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.app-title:hover .app-logo {
+  transform: rotate(80deg) scale(1.15);
+}
+
+.app-title:active .app-logo {
+  transform: rotate(140deg) scale(0.9);
 }
 
 /* 扩展 FAB：按下时圆角收紧（形状变化） */
@@ -343,6 +362,125 @@ select {
 .project-item.running .status-dot {
   background: var(--md-sys-color-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 22%, transparent);
+}
+
+/* Claude 状态 */
+.loading-indicator {
+  width: 22px;
+  height: 22px;
+  color: var(--md-sys-color-primary);
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.status-icon.waiting {
+  color: var(--md-sys-color-tertiary);
+  animation: wave 1.4s var(--md-motion-default-spatial) infinite;
+}
+
+.status-icon.done {
+  color: var(--md-sys-color-primary);
+  animation: pop var(--md-duration-default) var(--md-motion-fast-spatial);
+}
+
+@keyframes wave {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(-16deg);
+  }
+  40% {
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+}
+
+.project-item.claude-idle .status-dot {
+  background: var(--md-sys-color-secondary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-secondary) 25%, transparent);
+}
+
+.project-item.claude-starting .project-path,
+.project-item.claude-working .project-path {
+  color: var(--md-sys-color-primary);
+  opacity: 1;
+}
+
+.project-item.claude-waiting .project-path {
+  color: var(--md-sys-color-tertiary);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.project-item.claude-done .project-path {
+  color: var(--md-sys-color-primary);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin-right: 4px;
+  padding: 0 14px 0 10px;
+  border-radius: var(--md-shape-md);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  animation: pop var(--md-duration-fast) var(--md-motion-fast-spatial);
+}
+
+.status-chip[hidden] {
+  display: none;
+}
+
+.status-chip.claude-working,
+.status-chip.claude-starting {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.status-chip.claude-working .loading-indicator,
+.status-chip.claude-starting .loading-indicator {
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.status-chip.claude-waiting {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+.status-chip.claude-waiting .status-icon {
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+.status-chip .status-dot {
+  background: var(--md-sys-color-secondary);
+}
+
+.status-chip.claude-done {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.launch-claude {
+  margin-right: 8px;
 }
 
 .project-text {
@@ -559,7 +697,11 @@ select {
   width: 112px;
   height: 112px;
   color: var(--md-sys-color-primary-container);
-  animation: logo-spin 24s linear infinite;
+  transition: transform var(--md-duration-default) var(--md-motion-default-spatial);
+}
+
+.center-panel:hover .hero-shape svg.shape {
+  transform: rotate(40deg) scale(1.06);
 }
 
 .hero-shape .icon {
@@ -1174,6 +1316,14 @@ select {
   width: 52px;
   height: 52px;
   margin: 0;
+}
+
+.about-app:hover .about-logo svg.shape {
+  transform: rotate(80deg) scale(1.1);
+}
+
+.dialog:has(.about-dialog-content) {
+  width: min(520px, 100%);
 }
 
 .hero-shape.about-logo svg.shape {

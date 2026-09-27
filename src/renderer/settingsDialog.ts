@@ -278,6 +278,27 @@ function appearanceSection(deps: SettingsDialogDeps): HTMLElement {
 
 function aboutSection(): HTMLElement {
   const section = sectionEl('关于', 'info')
+  section.append(...aboutContent())
+  return section
+}
+
+/** 「关于」对话框（点击侧栏顶部的应用名打开） */
+export function openAboutDialog(onOpenSettings: () => void): void {
+  const content = document.createElement('div')
+  content.className = 'about-dialog-content'
+  content.append(...aboutContent())
+  openDialog({
+    title: '关于',
+    icon: 'info',
+    content,
+    actions: [
+      { label: '打开设置', variant: 'text', action: () => onOpenSettings() },
+      { label: '好', variant: 'filled' }
+    ]
+  })
+}
+
+function aboutContent(): HTMLElement[] {
   const head = document.createElement('div')
   head.className = 'about-app'
   const logo = document.createElement('span')
@@ -302,7 +323,6 @@ function aboutSection(): HTMLElement {
   openData.addEventListener('click', () => void openDir('userData'))
   openLogs.addEventListener('click', () => void openDir('logs'))
   actions.append(openData, openLogs)
-  section.append(head, grid, actions)
 
   void api.app.info().then((info) => {
     version.textContent = `版本 ${info.appVersion}`
@@ -325,7 +345,7 @@ function aboutSection(): HTMLElement {
       grid.append(kEl, vEl)
     }
   })
-  return section
+  return [head, grid, actions]
 }
 
 async function openDir(kind: 'userData' | 'logs'): Promise<void> {

@@ -49,6 +49,8 @@ type ViewState = 'idle' | 'starting' | 'running' | 'exited' | 'failed'
 
 export interface TerminalHooks {
   onRunningChange(sessionId: string, running: boolean): void
+  /** 用户向运行中的终端输入 */
+  onInput(sessionId: string): void
   onError(message: string): void
 }
 
@@ -282,6 +284,8 @@ class TerminalView {
   private handleInput(data: string): void {
     if (this.state === 'running') {
       api.pty.write(this.sessionId, data)
+      // 程序开启焦点上报（DECSET 1004）时，xterm 在获得 / 失去焦点时会自动发送 ESC[I / ESC[O，不算用户输入
+      if (data !== '\x1b[I' && data !== '\x1b[O') this.hooks.onInput(this.sessionId)
     } else if ((this.state === 'exited' || this.state === 'failed') && data === '\r') {
       this.term.reset()
       void this.start()
@@ -375,6 +379,10 @@ export class TerminalManager {
     view.fit()
     void view.start()
     view.focus()
+  }
+
+  focus(sessionId: string): void {
+    this.views.get(sessionId)?.focus()
   }
 
   hideActive(): void {

@@ -1,43 +1,41 @@
 ## Completed
-- M0：electron-vite + TS 工程骨架；node-pty 通过 @electron/rebuild 源码编译（补装 VS Spectre 缓解库）；最小页面。
-- M1：项目列表（添加 / 同路径去重 / 行内重命名 / 移除确认 / 在资源管理器中打开 / 侧栏宽度拖拽持久化 / 最后选中项持久化 / 窗口标题）。
-- M2：每项目一个 xterm + 容器；pwsh 优先；WebGL / Unicode11 / web-links；启动时只选中不启动 PTY；重启终端；退出提示 + Enter 重启；taskkill 整棵树。
-- M3：切换只改可见性；显示时 fit → pty.resize → focus；隐藏时不 fit；后台输出照常写入。
-- M4：复制/粘贴快捷键与右键菜单、ResizeObserver 50ms 防抖、字号快捷键（全局、持久化）；修复 dev 下页面刷新被拦截且 PTY 被误清理。
-- M5：移除/重启/退出清理整棵进程树；退出确认；before-quit ≤2 秒；窗口状态与最后选中项持久化（修复高 DPI 尺寸漂移）。
-- M6：electron-builder NSIS 安装包（`dist/agent-desk-0.1.0-setup.exe`，118MB），node-pty asarUnpack。
+- 迭代 1（M0–M6）：项目列表、每项目保活终端、复制粘贴 / 字号 / 自适应、生命周期与进程树清理、NSIS 打包。详见 git 历史与 plans.md。
+- M7：设置页（`Ctrl+,` / 侧栏底部）——终端字体（本机等宽字体检测，默认 Maple Mono NF CN）、字号、行高、预览；主题色（预设 + 自定义）；关于。MD3 Expressive 界面（动态配色、Material Symbols 图标、导航抽屉 + FAB、顶部栏、圆角终端卡片、形状变化与弹簧动效、MD3 菜单 / 对话框 / Snackbar / 滑块）；移除项目改为应用内对话框。
+- M8：「启动 Claude」按钮（顶部栏 / 未启动面板 / 右键菜单），执行设置中的命令（默认 `claude --permission-mode bypassPermissions`）；通过 `--settings` 注入 hooks，本地 HTTP 服务接收事件；侧栏与顶部栏显示 就绪 / 工作中 / 等待确认 / 已完成。
+- 用户反馈修正：应用标志去掉无限旋转，改为悬浮动画，点击弹出「关于」；从 Claude Code 启动时去掉继承的 `NO_COLOR`（终端里 claude 无颜色的原因）；焦点上报不再被当成用户输入。
+- 版本号 0.2.0。
 
 ## In Progress
-- 无。本期 M0–M6 全部完成，等待用户人工确认项。
+- 无。
 
 ## Next Steps
-- 用户确认下方「待人工确认」三项；输入法结果填入 README。
-- 后续迭代见 PLAN §9 与 plans.md「可选改进」。
+- 用户安装 `dist/agent-desk-0.2.0-setup.exe` 试用新界面与 Claude 状态，反馈观感。
+- 待人工确认项见下方。
 
 ## Risks
 - node-pty 源码编译依赖 VS Build Tools + Spectre 缓解库 + Python（README 已写明）。
 - 字体文件 25MB 直接提交在仓库中。
-- 已知限制：shell 退出（自然退出 / 重启 / 移除）后该会话的 conhost.exe 留到应用退出（node-pty 1.1 缺陷，见 lessons.md）；应用退出后无残留。
-- `npm run dev` 在 shell 已死时调用 `pty.kill()` 的兜底路径会在 dev 输出打印 `AttachConsole failed`（node-pty agent 的无害噪音）。
+- 已知限制：shell 退出后该会话的 conhost.exe 留到应用退出（node-pty 1.1 缺陷，见 lessons.md）。
+- Claude 状态依赖 `curl.exe`（Win10 1803+ 自带）与 claude 的 hooks 机制；用户按 Esc 中断时没有 Stop 事件，「工作中」要等约 60 秒后的 idle_prompt 通知或下一次事件才会回落。
+- 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
-- M6：electron-builder.yml（新增）、README.md、docs/architecture.md、plans.md、handoff.md。
-- 全部源码：src/main/{index,ipc,ptyManager,projectStore,settingsStore,jsonFile,log}.ts、src/preload/index.ts、src/renderer/{main,sidebar,terminalView,contextMenu,toast}.ts、styles.css、index.html、env.d.ts、src/shared/types.ts、scripts/postinstall.mjs。
+- M7：src/shared/types.ts、src/main/{settingsStore,ipc}.ts、src/preload/index.ts、src/renderer/{main,sidebar,terminalView,contextMenu,dialog,settingsDialog,theme,fonts,icons,shapes}.ts、styles.css、index.html、env.d.ts；package.json（新增 @material/material-color-utilities、@material-symbols/svg-400）。
+- M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
 
 ## Verification
-- 每个里程碑：`npm run typecheck` 通过；`npm run dev` 启动正常。自测方式为 dev + CDP（操作、截图、读取终端缓冲区）+ UI Automation（原生对话框）+ 按 PID 检查进程。
-- M0：`npm install` 通过（`✔ Rebuild Complete`）；`dir`、`echo 中文测试` 正常。
-- M1：原生对话框添加 3 个项目；`PROJA\` 不重复；重命名 Enter/Esc；侧栏 180–400 并持久化；移除确认取消/确认；关闭后重启全部恢复。
-- M2：启动时不创建 PTY；`pwd` 为项目目录；中文/emoji 对齐；WebGL 生效；claude 信任框与主界面正常；exit 后 Enter 重启；重启终端结束 shell + 子进程 + 隐藏控制台孙进程。
-- M3：后台 30 行输出切回后完整；claude 切走切回完整；隐藏期间宽度变化，切回后 xterm 与 pwsh 都是 160 列。
-- M4：Ctrl+C 有选区复制并清除选区、无选区中断；Ctrl+Shift+C 始终复制；Ctrl+V / Ctrl+Shift+V 粘贴一次；claude 中多行粘贴为一次整体输入、未提交；claude 中 Ctrl+C 清空输入并可退出；字号 ±/重置并持久化，焦点在侧栏时也生效；拖动侧栏后 xterm 与 pwsh 都是 131 列；模拟 IME 组合上屏不重复不丢字。
-- M5：claude 多级子进程（cmd → node → cmd → node → node）场景下关闭 → 确认退出，记录的 17 个 PID 与主进程全部消失（233ms）；重启后最大化、选中项恢复且不启动 PTY；窗口尺寸 5 轮重启稳定。
-- M6：`npm run build:win` 成功；`dist/win-unpacked` 与静默安装后的程序：添加项目、pwsh、claude、中文/emoji、更纱字体、重启终端、退出零残留均正常；日志写入 userData/logs/main.log；静默卸载后安装目录、卸载项、快捷方式全部清除；原生模块只依赖系统 DLL（dumpbin）。所有测试都使用隔离的 `--user-data-dir`，未写入真实 `%APPDATA%\Agent Desk`。
+- `npm run typecheck`：通过。dev + CDP 自测（隔离 userData）：
+  - M7：MD3 界面截图检查；设置页字体下拉列出本机等宽字体（已过滤符号字体与 -Ext 字库），选 Cascadia Mono 后终端即时切换并写入 settings.json；主题色切到紫色后界面与终端配色即时更新；未安装的默认字体显示「当前实际使用 Maple Mono NL NF CN」；关于页显示版本信息。
+  - M8：点击「启动 Claude」→ 1.5 秒内 SessionStart →「Claude 就绪」、按钮变「Claude 运行中」禁用；发送最小 prompt → 1 秒内「工作中」（加载指示器）→ 约 3 秒「已完成」；claude 回复不受 hook 影响；切到其他项目「已完成」保留，切回变「就绪」；Ctrl+C 退出 claude → SessionEnd → 状态清除、按钮恢复。
+  - 修正后 claude 在 dev 实例中恢复颜色；应用标志静止，点击弹出「关于」。
+- 打包验证见下一次提交记录（build:win + 打包版在带空格的 userData 路径下启动 Claude）。
 - 待人工确认：
-  1. 微软拼音在 pwsh / claude 中输入：候选框位置是否跟随光标、上屏是否重复或丢字（结果填到 README「中文输入法测试记录」）。
-  2. claude TUI 长时间对话中有无错位/闪烁（自测只覆盖启动画面、空闲界面和输入框）。
-  3. 在未安装 Node 的干净 Windows 机器上安装并走一遍 M1–M5。
+  1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
+  2. claude 长时间对话显示有无错位 / 闪烁。
+  3. 干净机器安装。
+  4. 新界面（MD3 Expressive）整体观感、默认字体效果。
 
 ## Resume Context
-- 项目根目录即仓库根；需求在 PLAN.md，补充澄清在 docs/spec.md，设计在 docs/architecture.md，坑在 lessons.md。
-- 自测方式：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录>`，再用 CDP（Runtime.evaluate / Input.* / Page.captureScreenshot）操作和截图；dev 模式下 `window.__agentDesk.terminals()` 返回各终端状态与缓冲区文本；原生对话框用 UI Automation 找窗口 + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`（渲染进程 `window.close()` 不触发 close 事件）。打包版同理：`dist\win-unpacked\agent-desk.exe --user-data-dir=<临时目录> --remote-debugging-port=<端口>`。
+- 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
+- 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录>` + CDP；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
+- 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

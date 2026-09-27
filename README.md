@@ -47,13 +47,26 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 `%APPDATA%\Agent Desk\`：
 
 - `projects.json` — 项目列表（损坏时自动备份为 `projects.json.bak-<时间戳>` 并以空列表启动）
-- `settings.json` — 侧栏宽度、字号、最后选中的项目、窗口位置
+- `settings.json` — 侧栏宽度、终端字体 / 字号 / 行高、主题色、Claude 启动命令、最后选中的项目、窗口位置
+- `claude-hooks\` — 「启动 Claude」时生成的会话 hooks 文件（每次启动应用时清空）
 - `logs\main.log` — 主进程日志（PTY 创建 / 退出 / kill / 错误）
 
 ## 字体
 
-内置更纱黑体 Sarasa Term SC Regular（`resources/fonts/`，v1.0.42，SIL OFL 1.1，许可证见同目录）。
-若字体文件缺失，终端回退到 `Consolas, 'Microsoft YaHei UI', monospace`。
+- 终端默认字体 `Maple Mono NF CN`（需自行安装），未安装时依次回退 `Maple Mono NL NF CN` → `Cascadia Mono` → `Consolas` / 微软雅黑。可在设置里换成本机任意等宽字体。
+- 内置更纱黑体 Sarasa Term SC Regular（`resources/fonts/`，v1.0.42，SIL OFL 1.1，许可证见同目录），可在设置中选择。
+
+## 第三方资源
+
+- Material Symbols 图标（`@material-symbols/svg-400`，Apache-2.0）
+- Material Color Utilities（`@material/material-color-utilities`，Apache-2.0）
+
+## 界面与功能
+
+- **启动 Claude**：顶部栏按钮（也在「点击启动」面板和项目右键菜单里）。在当前项目终端里执行设置中的命令，默认 `claude --permission-mode bypassPermissions`；终端未启动时先启动。
+- **Claude 状态**：通过按钮启动的 claude 会在侧栏和顶部栏显示「就绪 / 工作中（形状变换动画）/ 等待确认 / 已完成」。「已完成」会一直保留，直到你切换到该项目或在它的终端里输入。实现方式是给这次启动追加 `--settings <userData>\claude-hooks\<会话>.json`（hooks 用 `curl.exe` 上报到本机端口），**不修改** `~/.claude/settings.json`；手动输入的 `claude` 没有状态。
+- **设置**（侧栏底部，或 `Ctrl+,`）：终端字体（列出本机等宽字体，默认 Maple Mono NF CN）、字号、行高、主题色（Material 3 动态配色）、Claude 启动命令。点击左上角的应用名可查看版本信息。
+- 界面采用 Material Design 3 Expressive 风格。
 
 ## 终端快捷键
 
@@ -63,6 +76,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 | 中断 | 没有选中内容时 `Ctrl+C` 照常发送给终端 |
 | 粘贴 | `Ctrl+V` / `Ctrl+Shift+V`（经 `term.paste()`，支持 bracketed paste） |
 | 字号 | `Ctrl+=` 放大、`Ctrl+-` 缩小、`Ctrl+0` 重置（全局生效并持久化） |
+| 设置 | `Ctrl+,` |
 | 重启已退出的终端 | 进程退出后按 `Enter` |
 
 终端内右键菜单提供「复制」「粘贴」；侧栏项目右键菜单提供「重命名 / 在资源管理器中打开 / 重启终端 / 移除项目」，选中项目时 `F2` 重命名。
