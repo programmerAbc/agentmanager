@@ -60,6 +60,26 @@ Vite 把 `localhost` 解析为 `::1` 只监听 IPv6，Electron 以 IPv4 访问�
 ### Prevention
 命令里使用绝对路径，避免 `cd`；必要时在命令开头显式 `Set-Location` 到项目根目录。commit 被陌生 hook 拦截时先查 hook 来源，不要用 `--no-verify` 绕过。
 
+## Lesson: node-pty 1.1 的 kill 顺序与 conhost 残留
+### Problem
+1) shell 自然退出后 conhost.exe 残留；2) 先 `pty.kill()` 再 taskkill 时 taskkill 报错，claude 以隐藏控制台启动的孙进程会成为孤儿；3) shell 已死时调用 `pty.kill()`，dev 输出里出现 `conpty_console_list_agent.js ... Error: AttachConsole failed`。
+### Root Cause
+node-pty `src/win/conpty.cc` 的退出线程在 shell 退出时 `remove_pty_baton`，但不调用 ClosePseudoConsole；之后 `PtyKill` 找不到句柄成为空操作。`pty.kill()` 还会 fork 一个 agent 去 AttachConsole 到 shell，shell 已死则该子进程崩溃（无害）。ClosePseudoConsole 会在几毫秒内结束控制台上的所有进程，taskkill 来不及枚举树。
+### Solution
+先 `taskkill /T /F` 并等待完成（树完整时枚举），失败时才 `pty.kill()` 兜底；接受被结束会话的 conhost 留到应用退出（系统回收，已验证退出后无残留）。
+### Prevention
+改 kill 逻辑前先用 `children.ps1` 类脚本（按父 PID 列 electron 主进程的子进程）+ 按 PID 检查孙进程验证；升级 node-pty 时复查 conpty.cc 是否已修复，修复后可在退出/kill 后调用 pty.kill() 释放 conhost。
+
+## Lesson: 从 Claude Code 会话里启动 Agent Desk 会把会话标记传给终端里的 claude
+### Problem
+Agent Desk 终端里运行的 claude 提示 "Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker"。
+### Root Cause
+在 Claude Code 的 shell 里执行 `npm run dev`，`CLAUDECODE`、`CLAUDE_CODE_CHILD_SESSION`、`CLAUDE_CODE_MESSAGING_*` 等会话标记一路继承到 PTY。
+### Solution
+`ptyManager.buildEnv` 始终剔除这些会话级标记（保留 `ANTHROPIC_*`、`CLAUDE_CONFIG_DIR` 等用户配置）。
+### Prevention
+新增环境变量处理时区分「会话标记」与「用户配置」。
+
 ## Lesson: 退出时异步写配置会丢
 ### Problem
 关闭窗口后 settings.json 里 `window` 仍为 null。

@@ -20,6 +20,8 @@ interface Session {
   pending: string
   flushTimer: NodeJS.Timeout | null
   disposables: pty.IDisposable[]
+  /** 已调用过 pty.kill()，避免重复释放 */
+  released: boolean
 }
 
 type DataListener = (sessionId: string, data: string) => void
@@ -79,7 +81,8 @@ export class PtyManager {
         pid: proc.pid,
         pending: '',
         flushTimer: null,
-        disposables: []
+        disposables: [],
+        released: false
       }
       session.disposables.push(
         proc.onData((data) => this.handleData(session, data)),
@@ -120,9 +123,7 @@ export class PtyManager {
     if (!session) return
     this.detach(session)
     log.info(`[pty] kill session=${sessionId} pid=${session.pid}`)
-    // 先 taskkill 整棵树：如果先 pty.kill()，shell 死掉后子进程（claude/node）会变成孤儿，/T 就找不到它们了
-    await killProcessTree(session.pid)
-    killPty(session)
+    await terminate(session)
   }
 
   /** 退出时清理所有会话，最多等待 timeoutMs。 */
@@ -131,9 +132,7 @@ export class PtyManager {
     if (sessions.length === 0) return
     log.info(`[pty] 清理全部会话 count=${sessions.length}`)
     sessions.forEach((s) => this.detach(s))
-    const trees = Promise.all(sessions.map((s) => killProcessTree(s.pid)))
-    await Promise.race([trees, delay(timeoutMs)])
-    sessions.forEach(killPty)
+    await Promise.race([Promise.all(sessions.map(terminate)), delay(timeoutMs)])
   }
 
   private handleData(session: Session, data: string): void {
@@ -162,6 +161,8 @@ export class PtyManager {
     this.detach(session)
     log.info(`[pty] 退出 session=${session.id} pid=${session.pid} code=${exitCode}`)
     this.onExit(session.id, exitCode)
+    // 已知限制：node-pty 1.1 在 shell 自然退出时不关闭 pseudoconsole，且已丢弃句柄，
+    // 此时再调 pty.kill() 是空操作。对应的 conhost.exe 会留到应用退出时由系统回收（见 lessons.md）。
   }
 
   private detach(session: Session): void {
@@ -182,7 +183,30 @@ export class PtyManager {
   }
 }
 
+/**
+ * 结束一个会话：先 taskkill 整棵进程树，失败时再用 pty.kill() 兜底。
+ *
+ * 为什么先 taskkill 并等它完成：
+ * - taskkill /T 靠父子关系从 shell 向下枚举，必须在链条完整时执行。若先 pty.kill()，
+ *   ClosePseudoConsole 会在几毫秒内结束 shell，taskkill 就找不到树了；claude 以隐藏控制台
+ *   启动的孙进程（MCP server、它启动的 dev server 等）不挂在我们的控制台上，会变成孤儿。
+ * 代价（node-pty 1.1 的限制）：shell 一旦退出，node-pty 原生层就丢弃了 pseudoconsole 句柄，
+ * 之后 pty.kill() 是空操作，这个会话的 conhost.exe 会留到应用退出时由系统回收。
+ * taskkill 失败时（例如 shell 还活着但无权结束），pty.kill() 仍能关闭 pseudoconsole。
+ */
+async function terminate(session: Session): Promise<void> {
+  const killed = await killProcessTree(session.pid)
+  if (!killed) killPty(session)
+}
+
+/**
+ * 关闭 pseudoconsole，并由 node-pty 结束控制台上的进程。
+ * 注意：node-pty 1.1 的 kill() 会 fork conpty_console_list_agent 去 AttachConsole 到 shell，
+ * 如果 shell 已经退出，该子进程会在 stderr 打印 "AttachConsole failed"，这是无害的噪音。
+ */
 function killPty(session: Session): void {
+  if (session.released) return
+  session.released = true
   try {
     session.proc.kill()
   } catch (err) {
@@ -191,17 +215,17 @@ function killPty(session: Session): void {
   }
 }
 
-/** taskkill /PID <pid> /T /F，忽略报错（进程可能已经退出） */
-function killProcessTree(pid: number): Promise<void> {
+/** taskkill /PID <pid> /T /F，忽略报错（进程可能已经退出）。返回是否成功结束。 */
+function killProcessTree(pid: number): Promise<boolean> {
   return new Promise((resolve) => {
     execFile(
       'taskkill',
       ['/PID', String(pid), '/T', '/F'],
       { windowsHide: true, timeout: TASKKILL_TIMEOUT_MS },
       (err) => {
-        if (err) log.debug(`[pty] taskkill pid=${pid} 返回错误（通常是进程已退出）: ${err.message.split('\n')[0]}`)
+        if (err) log.info(`[pty] taskkill pid=${pid} 失败（通常是进程已退出）code=${String(err.code)}`)
         else log.info(`[pty] taskkill 已结束进程树 pid=${pid}`)
-        resolve()
+        resolve(!err)
       }
     )
   })
@@ -242,9 +266,27 @@ function buildEnv(): Record<string, string> {
     }
     if (injectedByElectronVite) delete env.NODE_ENV
   }
+  // 如果 Agent Desk 本身是从某个 Claude Code 会话里启动的，去掉那个会话的会话级标记，
+  // 否则终端里运行的 claude 会把自己当成子会话（例如关闭会话记录、连到父会话的消息管道）。
+  // 只去掉会话标记，ANTHROPIC_API_KEY、CLAUDE_CONFIG_DIR 等用户配置保持不变。
+  for (const key of Object.keys(env)) {
+    if (isClaudeSessionMarker(key)) delete env[key]
+  }
   env.TERM = 'xterm-256color'
   env.COLORTERM = 'truecolor'
   return env
+}
+
+function isClaudeSessionMarker(key: string): boolean {
+  const k = key.toUpperCase()
+  return (
+    k === 'CLAUDECODE' ||
+    k === 'CLAUDE_PID' ||
+    k === 'CLAUDE_CODE_CHILD_SESSION' ||
+    k === 'CLAUDE_CODE_ENTRYPOINT' ||
+    k.startsWith('CLAUDE_CODE_SESSION_') ||
+    k.startsWith('CLAUDE_CODE_MESSAGING_')
+  )
 }
 
 function checkDirectory(dir: string): string | null {

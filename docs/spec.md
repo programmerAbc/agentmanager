@@ -21,9 +21,10 @@
 ### 重复添加判定
 - 路径 `path.resolve` 后忽略大小写、忽略末尾分隔符比较（Windows 路径不区分大小写）。
 
-### 开发模式的终端环境
+### 终端环境变量
 - 终端继承 `process.env`，额外设置 `TERM` / `COLORTERM`。
 - 仅在未打包（dev）时，去掉 npm / electron-vite 注入的变量（`npm_*`、`NODE_ENV`(electron-vite 注入时)、`ELECTRON_CLI_ARGS` 等），避免干扰用户在终端里运行的命令。
+- 始终去掉**父 Claude Code 会话的会话级标记**（`CLAUDECODE`、`CLAUDE_PID`、`CLAUDE_CODE_CHILD_SESSION`、`CLAUDE_CODE_ENTRYPOINT`、`CLAUDE_CODE_SESSION_*`、`CLAUDE_CODE_MESSAGING_*`）：Agent Desk 若是从某个 claude 会话里启动的，这些标记会让终端里的 claude 以为自己是子会话（例如关闭会话记录）。用户配置类变量（`ANTHROPIC_*`、`CLAUDE_CONFIG_DIR` 等）不受影响。
 
 ### 渲染进程重载
 - 渲染进程重新加载或崩溃时，主进程清理全部 PTY（xterm 实例已不存在，保留 PTY 没有意义）。

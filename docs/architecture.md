@@ -15,8 +15,10 @@ preload (src/preload/index.ts)
   沙箱 preload，contextBridge 暴露 window.api（类型见 shared/types.ts 的 Api）
 渲染进程 (src/renderer)
   main.ts          入口，组装各模块
-  sidebar.ts       项目列表 UI（M1）
-  terminalView.ts  每个项目一个 xterm 实例及其 DOM 容器（M2）
+  sidebar.ts       项目列表 UI：选中、行内重命名、右键菜单、宽度拖拽
+  terminalView.ts  TerminalView（每个项目一个 xterm 实例 + DOM 容器，状态 idle/starting/running/exited/failed）
+                   TerminalManager（按 sessionId 管理视图，只切换可见性不 dispose，分发 PTY 输出）
+  contextMenu.ts   DOM 右键菜单；toast.ts 右下角提示
 共享 (src/shared/types.ts)
   Project / 设置类型、IPC 通道名常量、window.api 接口
 ```
@@ -34,7 +36,8 @@ preload (src/preload/index.ts)
 | node-pty 1.1.0，postinstall 通过 `scripts/postinstall.mjs` 调用 `electron-rebuild -f -o node-pty` 从源码编译 | PLAN 要求 postinstall 用 @electron/rebuild。node-pty 1.1 已改为 N-API 并自带 prebuilds（已验证在 Electron 44 可直接加载），源码编译产物 `build/Release` 优先于 prebuilds 被加载。包装脚本用于去掉 `NoDefaultCurrentDirectoryInExePath`（见 lessons.md）。 |
 | 使用系统 ConPTY（`useConptyDll: false`，node-pty 默认） | 目标平台 Win10 1903+ 均自带 ConPTY；暂不引入捆绑的 OpenConsole.exe。 |
 | PTY 以 sessionId 为键，当前 sessionId === projectId，映射集中在 `ipc.ts#projectIdOfSession` | PLAN §9：以后一个项目多会话、守护进程化时不必改 ptyManager 接口。 |
-| kill 顺序：先 `taskkill /PID <pid> /T /F`，再 `pty.kill()` | 若先 pty.kill，shell 退出后其子进程（claude/node）成为孤儿，taskkill /T 找不到它们。 |
+| kill：先 `taskkill /PID <pid> /T /F` 并等待完成；仅当 taskkill 失败时才调用 `pty.kill()` | 实测：若先 `pty.kill()`，ClosePseudoConsole 在几毫秒内结束 shell，taskkill 找不到树；claude 以隐藏控制台启动的孙进程（MCP server 等）不挂在我们的控制台上，会成为孤儿。先 taskkill 能在树完整时枚举。代价见下一行。 |
+| 已知限制：shell 退出（自然退出或被 taskkill）后，该会话的 conhost.exe 留到应用退出 | node-pty 1.1 原生退出线程在 shell 退出时丢弃 pseudoconsole 句柄但不调用 ClosePseudoConsole，之后 `pty.kill()` 是空操作。空闲 conhost 约几 MB，应用退出时由系统回收（已验证退出后无残留）。升级 node-pty 修复后可去掉。 |
 | 退出时 `before-quit` 中 preventDefault，killAll 最多等 2 秒后再 `app.quit()` | PLAN M5：清理但不阻塞退出超过 2 秒。 |
 | 所有 invoke handler 在主进程内 try/catch，返回 `OpResult` / `DataResult` | PLAN §7：错误通过返回值传递，主进程不崩溃；另有 electron-log errorHandler 兜底。 |
 | 剪贴板、确认框、打开链接都走 IPC 由主进程执行 | 渲染进程开启 sandbox，且不依赖 `navigator.clipboard` 权限。 |

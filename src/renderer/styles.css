@@ -226,6 +226,11 @@ button {
   display: none;
 }
 
+.center-panel.clickable {
+  cursor: pointer;
+  outline: none;
+}
+
 .center-panel .title {
   color: var(--text);
   font-size: 16px;
