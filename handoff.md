@@ -5,17 +5,18 @@
 - M3：切换只改可见性；显示时 fit → pty.resize → focus；隐藏时不 fit；后台输出照常写入。
 - M4：复制/粘贴快捷键与右键菜单、ResizeObserver 50ms 防抖、字号快捷键（全局、持久化）；修复 dev 下页面刷新被 will-navigate 拦截且 PTY 被误清理的问题。
 
+- M5：移除/重启/退出时清理整棵进程树；退出确认；before-quit ≤2 秒；窗口位置/尺寸/最大化与最后选中项持久化（修复高 DPI 下窗口尺寸漂移）。
+
 ## In Progress
-- M5 生命周期与清理。
+- M6 打包。
 
 ## Next Steps
-- M4 → M6，见 plans.md。
+- M6，见 plans.md。
 
 ## Risks
 - node-pty 源码编译依赖 VS Build Tools + Spectre 缓解库 + Python（README 已写明）。
 - 字体文件 25MB 直接提交在仓库中。
 - 已知限制：shell 退出（自然退出 / 重启 / 移除）后该会话的 conhost.exe 留到应用退出（node-pty 1.1 缺陷，见 lessons.md）。
-- 150% 缩放下 `getNormalBounds()` 返回 1281×801（默认 1280×800），需观察重启后是否逐次增长 1px。
 
 ## Changed Files
 - M2/M3：src/renderer/{terminalView.ts,main.ts,styles.css,env.d.ts}；src/main/ptyManager.ts（kill 顺序、会话标记剔除、dev 变量剔除）；docs/spec.md、docs/architecture.md、lessons.md。
@@ -39,6 +40,11 @@
   - 拖动侧栏：终端经 ResizeObserver 自动 fit 为 131 列，pwsh `WindowSize.Width = 131`。
   - 模拟输入法组合上屏「中文测试」不重复、不丢字。
   - Vite 整页刷新：页面确实重载（timeOrigin 变化），主进程清理全部 PTY。
+- M5（`npm run typecheck` 通过，dev 自测）：
+  - 移除运行中的项目（其中跑着 node + 隐藏控制台孙进程）→ shell、子进程、孙进程全部结束。
+  - A 跑进程树、C 跑 claude（claude 下有 cmd → node → cmd → node → node 多级子进程及隐藏 conhost），最大化后关闭 → 弹「有 2 个终端仍在运行，确定退出？」→ 退出：记录的 17 个 PID 与主进程全部消失，清理用时 233ms，退出码 0。
+  - 重启后：窗口最大化恢复、标题与上次选中项恢复、未创建任何 PTY（显示「点击启动」面板）。
+  - 窗口尺寸：连续 5 轮（普通 / 普通 / 最大化 / 还原 / 普通）保存值稳定在 1282×802（首次启动有一次性 +2 取整），不再漂移。
 - 待人工确认：
   1. 微软拼音在 pwsh / claude 中输入：候选框位置是否跟随光标、上屏是否重复或丢字（结果请填到 README「中文输入法测试记录」）。
   2. claude TUI 长时间对话中有无错位/闪烁（自测只覆盖启动画面、空闲界面和输入框）。

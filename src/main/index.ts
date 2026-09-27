@@ -29,8 +29,9 @@ function sendToRenderer(channel: string, ...args: unknown[]): void {
 
 function createWindow(): BrowserWindow {
   const saved = settings.get().window
+  const initialBounds = restoreBounds(saved)
   const win = new BrowserWindow({
-    ...restoreBounds(saved),
+    ...initialBounds,
     minWidth: MIN_SIZE.width,
     minHeight: MIN_SIZE.height,
     show: false,
@@ -43,6 +44,7 @@ function createWindow(): BrowserWindow {
       sandbox: true
     }
   })
+  const getNormalBounds = trackNormalBounds(win, initialBounds)
   if (saved?.maximized) win.maximize()
   win.once('ready-to-show', () => win.show())
 
@@ -73,7 +75,7 @@ function createWindow(): BrowserWindow {
   }
 
   win.on('close', (event) => {
-    saveWindowState(win)
+    saveWindowState(win, getNormalBounds())
     if (quitConfirmed || ptys.size === 0) return
     event.preventDefault()
     void confirmQuit(win)
@@ -107,10 +109,27 @@ async function confirmQuit(win: BrowserWindow): Promise<void> {
   }
 }
 
-function saveWindowState(win: BrowserWindow): void {
-  const bounds = win.getNormalBounds()
-  const state: WindowState = { ...bounds, maximized: win.isMaximized() }
+function saveWindowState(win: BrowserWindow, normalBounds: Rectangle): void {
+  const state: WindowState = { ...normalBounds, maximized: win.isMaximized() }
   settings.setWindowState(state).catch(() => undefined)
+}
+
+/**
+ * 自己跟踪窗口在「普通状态」下的位置和尺寸。
+ * 高 DPI 下最大化窗口的 getNormalBounds() 不精确，每次重启都会漂移几个像素，
+ * 所以只在窗口处于普通状态时通过 resize/move 事件记录，初始值取恢复时使用的值。
+ */
+function trackNormalBounds(win: BrowserWindow, initial: Partial<Rectangle>): () => Rectangle {
+  let bounds: Rectangle | null =
+    initial.x !== undefined && initial.y !== undefined && initial.width && initial.height
+      ? { x: initial.x, y: initial.y, width: initial.width, height: initial.height }
+      : null
+  const update = (): void => {
+    if (!win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) bounds = win.getBounds()
+  }
+  win.on('resize', update)
+  win.on('move', update)
+  return () => bounds ?? win.getNormalBounds()
 }
 
 /** 恢复上次的窗口位置；如果那块区域已经不在任何显示器上（比如拔了副屏），就只保留大小 */

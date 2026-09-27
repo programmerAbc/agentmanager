@@ -41,6 +41,8 @@ preload (src/preload/index.ts)
 | 退出时 `before-quit` 中 preventDefault，killAll 最多等 2 秒后再 `app.quit()` | PLAN M5：清理但不阻塞退出超过 2 秒。 |
 | 所有 invoke handler 在主进程内 try/catch，返回 `OpResult` / `DataResult` | PLAN §7：错误通过返回值传递，主进程不崩溃；另有 electron-log errorHandler 兜底。 |
 | 剪贴板、确认框、打开链接都走 IPC 由主进程执行 | 渲染进程开启 sandbox，且不依赖 `navigator.clipboard` 权限。 |
+| 窗口状态：自己跟踪「普通状态」下的 bounds（只在非最大化/最小化/全屏时由 resize/move 更新），关闭时与 `isMaximized()` 一起保存；恢复时校验与某个显示器工作区重叠 ≥100×100，否则只保留尺寸 | 150% 缩放下最大化窗口的 `getNormalBounds()` 每次偏大约 4px，重启会持续漂移。 |
+| 退出流程：窗口 `close` 时若有 PTY 运行则弹原生确认框；`before-quit` 中 preventDefault，并行执行 killAll + 两个存储 flush，最多 2 秒后 `app.quit()` | PLAN M5；flush 避免关闭时的最后一次写入丢失。 |
 | `Menu.setApplicationMenu(null)` | 使用原生标题栏但不需要菜单栏；同时去掉默认菜单的 Ctrl+= / Ctrl+- / Ctrl+0 页面缩放快捷键（这些键用于终端字号）。dev 下 F12 打开 DevTools。 |
 | 窗口禁止导航和 window.open | 安全：只加载应用自身页面，链接统一用 `shell.openExternal`（仅 http/https）。 |
 | Vite dev server 绑定 `127.0.0.1` | Vite 默认只监听 `::1`，Electron 在部分环境下以 IPv4 访问 localhost 导致 ERR_CONNECTION_REFUSED。 |
