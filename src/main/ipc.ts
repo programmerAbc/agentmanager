@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import {
   IPC,
   type ConfirmOptions,
@@ -73,9 +73,8 @@ export function registerIpc({ projects, settings, ptys }: IpcDeps): void {
     try {
       const sessionId = asString(id)
       const project = projects.get(projectIdOfSession(sessionId))
-      // M0 临时：还没有项目列表时，在用户主目录打开终端（M1 移除）
-      const cwd = project?.path ?? app.getPath('home')
-      return ptys.open(sessionId, { cwd, cols: asInt(cols), rows: asInt(rows) })
+      if (!project) return { ok: false, error: '项目不存在' }
+      return ptys.open(sessionId, { cwd: project.path, cols: asInt(cols), rows: asInt(rows) })
     } catch (err) {
       log.error('[ipc] pty.open 失败', err)
       return { ok: false, error: errorMessage(err) }

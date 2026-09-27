@@ -70,6 +70,11 @@ export class JsonFileWriter {
     this.queue = job.catch(() => undefined)
     return job
   }
+
+  /** 等待已排队的写入全部完成（退出前调用，避免进程退出时丢掉最后一次写入） */
+  flush(): Promise<void> {
+    return this.queue
+  }
 }
 
 async function writeAtomic(file: string, content: string): Promise<void> {

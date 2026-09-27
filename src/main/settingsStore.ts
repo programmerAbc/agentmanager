@@ -52,6 +52,10 @@ export class SettingsStore {
     await this.save()
   }
 
+  flush(): Promise<void> {
+    return this.writer.flush()
+  }
+
   private save(): Promise<void> {
     const data: SettingsFile = { version: 1, ...this.settings }
     return this.writer.write(data).catch((err: unknown) => {

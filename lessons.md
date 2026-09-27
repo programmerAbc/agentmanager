@@ -52,10 +52,21 @@ Vite 把 `localhost` 解析为 `::1` 只监听 IPv6，Electron 以 IPv4 访问�
 
 ## Lesson: 工具调用中的 `cd` 会改变后续命令的工作目录
 ### Problem
-一次 bash 调用里 `cd node_modules/electron-vite` 后，后续 `npm install` 跑在了依赖包目录里，往里面装了一堆包。
+一次 bash 调用里 `cd node_modules/electron-vite` 后，后续 `npm install` 跑在了依赖包目录里：往里面装了一堆包，而且该包的生命周期脚本（simple-git-hooks）把 electron-vite 自己的 `pre-commit`（`npx lint-staged`）和 `commit-msg` hook 装进了本仓库的 `.git/hooks`，导致后来 `git commit` 失败。
 ### Root Cause
-会话的工作目录在调用之间持久化。
+会话的工作目录在调用之间持久化；simple-git-hooks 会向上查找 git 根目录安装 hook。
 ### Solution
-删除被污染的包目录后在项目根目录重装。
+删除被污染的包目录后在项目根目录重装；删除误装的两个 hook（创建时间与误装时刻一致）。
 ### Prevention
-命令里使用绝对路径，避免 `cd`；必要时在命令开头显式 `Set-Location` 到项目根目录。
+命令里使用绝对路径，避免 `cd`；必要时在命令开头显式 `Set-Location` 到项目根目录。commit 被陌生 hook 拦截时先查 hook 来源，不要用 `--no-verify` 绕过。
+
+## Lesson: 退出时异步写配置会丢
+### Problem
+关闭窗口后 settings.json 里 `window` 仍为 null。
+### Root Cause
+`close` 事件里发起的异步原子写还没完成，`before-quit` 清理完成后进程就退出了。
+### Solution
+`JsonFileWriter.flush()`；`before-quit` 中与 PTY 清理一起等待两个存储落盘（整体仍受 2 秒上限约束）。
+### Prevention
+任何在退出路径上发起的异步写都要在 before-quit 里等待。
+另：用 CDP 在渲染进程执行 `window.close()` 不会触发 BrowserWindow 的 `close` 事件，测试关闭流程要向窗口发 `WM_CLOSE`（模拟点标题栏关闭按钮）。

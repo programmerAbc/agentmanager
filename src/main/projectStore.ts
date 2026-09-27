@@ -72,6 +72,10 @@ export class ProjectStore {
     await this.save()
   }
 
+  flush(): Promise<void> {
+    return this.writer.flush()
+  }
+
   private require(id: string): Project {
     const project = this.get(id)
     if (!project) throw new Error('项目不存在')

@@ -120,6 +120,10 @@ function restoreBounds(saved: WindowState | null): Partial<Rectangle> {
   return visible ? rect : { width, height }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function overlapArea(a: Rectangle, b: Rectangle): number {
   const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
   const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
@@ -138,14 +142,14 @@ function main(): void {
     mainWindow.focus()
   })
 
-  // 退出前清理所有 PTY（含进程树），最多等 2 秒
+  // 退出前清理所有 PTY（含进程树）并等待配置落盘，最多等 2 秒
   app.on('before-quit', (event) => {
     if (cleanedUp) return
     event.preventDefault()
     const started = Date.now()
-    void ptys
-      .killAll(QUIT_CLEANUP_TIMEOUT_MS)
-      .catch((err: unknown) => log.error('[app] 清理 PTY 失败', err))
+    const cleanup = Promise.all([ptys.killAll(QUIT_CLEANUP_TIMEOUT_MS), projects.flush(), settings.flush()])
+    void Promise.race([cleanup, delay(QUIT_CLEANUP_TIMEOUT_MS)])
+      .catch((err: unknown) => log.error('[app] 退出清理失败', err))
       .finally(() => {
         cleanedUp = true
         log.info(`[app] 退出清理完成 用时 ${Date.now() - started}ms`)
