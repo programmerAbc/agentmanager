@@ -13,6 +13,8 @@ import palette from '@material-symbols/svg-400/rounded/palette.svg?raw'
 import playArrowFill from '@material-symbols/svg-400/rounded/play_arrow-fill.svg?raw'
 import restartAlt from '@material-symbols/svg-400/rounded/restart_alt.svg?raw'
 import rocketLaunch from '@material-symbols/svg-400/rounded/rocket_launch.svg?raw'
+import search from '@material-symbols/svg-400/rounded/search.svg?raw'
+import searchOff from '@material-symbols/svg-400/rounded/search_off.svg?raw'
 import settings from '@material-symbols/svg-400/rounded/settings.svg?raw'
 import terminal from '@material-symbols/svg-400/rounded/terminal.svg?raw'
 import check from '@material-symbols/svg-400/rounded/check.svg?raw'
@@ -39,6 +41,8 @@ const ICONS = {
   playArrowFill,
   restartAlt,
   rocketLaunch,
+  search,
+  searchOff,
   settings,
   terminal
 } as const

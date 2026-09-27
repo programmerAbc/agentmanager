@@ -28,6 +28,13 @@
 | M9 项目记录存入 SQLite | ✅ 完成 |
 | M10 Codex 启动与状态；设置对话框位置 | ✅ 完成 | 类型与 IPC 泛化为 agents；hookServer 增加 codex 路由与环境变量；PTY 注入环境变量；codex 启动命令（try/finally）；状态机按助手区分；UI 按钮 / 右键菜单 / 设置；对话框高度与居中；验证 | `node:sqlite` 实现 ProjectStore（接口不变）；schema 版本（`PRAGMA user_version`）；从 projects.json 迁移；损坏备份；退出时关闭数据库；验证迁移 / 增删改 / 去重 / 损坏恢复 / 打包 |
 
+## 迭代 4（需求见 docs/spec.md「迭代 4 需求」）
+
+| 里程碑 | 状态 | 任务 |
+|---|---|---|
+| M11 项目列表模糊搜索 | ✅ 完成 | 模糊匹配与打分（纯函数，fuzzy.ts）；侧栏搜索框、过滤 / 排序 / 高亮；键盘（Ctrl+Shift+F、↑↓、Enter、Esc）；输入法组字；无结果提示；dev + CDP 验证 |
+| M12 白色 / 黑色主题 | 🚧 进行中 | theme.ts 按种子色选方案（单色浅 / 单色深纯黑 / 原动态深色）；浅色 ANSI 与最小对比度；color-scheme；色块描边；截图检查各界面 |
+
 ## 阻塞
 - 无。
 

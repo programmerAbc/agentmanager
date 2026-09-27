@@ -166,3 +166,14 @@ electron-builder 26 的 NSIS 模板：`multiUser.nsh` 的 `setInstallModePerUser
 不改代码：让用户卸载 AgentManager（默认不删 `%APPDATA%\AgentManager`，卸载时也会删掉注册表里的 InstallLocation）→ 删掉空的 `Programs\agent-desk` → 重新安装，默认目录变为 `Programs\AgentManager`，以后升级都留在这里。
 ### Prevention
 改 productName 时，如果保留 appId 以便升级替换旧版，要预期安装目录会嵌套：要么提示用户先卸载旧版再装，要么通过 `nsis.include` 的自定义宏处理默认目录。改名后先在测试 appId / 测试可执行名 / 测试快捷方式名下演练一次覆盖安装（不能用真实 appId，否则会卸载用户正在用的应用）。
+
+## Lesson: 被其他窗口完全遮挡的 dev 窗口收不到 CDP 输入
+### Problem
+自测时 CDP 发送的按键（`Input.dispatchKeyEvent`）突然全部无效，页面 `document.visibilityState` 为 `hidden`，但窗口并没有最小化。
+### Root Cause
+Chromium 在 Windows 上做原生窗口遮挡检测：窗口被其他窗口完全盖住时被当成隐藏，渲染暂停、输入事件被丢弃。用户在自己的桌面上工作时，dev 窗口很容易被盖住。
+### Solution
+启动 dev 实例时加 `--disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows`（放在 `electron-vite dev ... --` 之后传给 Electron）。
+### Prevention
+所有自测启动命令都带上这两个参数；测试前先用 `document.visibilityState` 确认页面可见，不要去激活或挪动窗口打扰用户。
+另：Bash 工具的 heredoc 会吃掉反斜杠，写含 Windows 路径或 `\` 转义的脚本时用 Write 工具生成文件。

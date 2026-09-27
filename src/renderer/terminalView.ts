@@ -25,6 +25,11 @@ export function isSettingsShortcut(e: KeyboardEvent): boolean {
   return e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === ',' || e.code === 'Comma')
 }
 
+/** 应用级快捷键（Ctrl+Shift+F 搜索项目），终端里不发给 PTY */
+export function isSearchShortcut(e: KeyboardEvent): boolean {
+  return e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && letterOf(e) === 'f'
+}
+
 /** Ctrl+= / Ctrl+- / Ctrl+0（含小键盘）→ 字号操作；其他按键返回 null */
 export function zoomActionOf(e: KeyboardEvent): ZoomAction | null {
   if (!e.ctrlKey || e.altKey || e.metaKey) return null
@@ -245,13 +250,13 @@ class TerminalView {
    * - Ctrl+C：有选区时复制并清除选区；没有选区时照常发给 PTY（中断信号）
    * - Ctrl+Shift+C：始终复制
    * - Ctrl+V / Ctrl+Shift+V：通过 term.paste() 粘贴，保证 bracketed paste 生效
-   * - Ctrl+= / Ctrl+- / Ctrl+0：字号快捷键由全局监听处理，这里只阻止它们发给 PTY
+   * - Ctrl+= / Ctrl+- / Ctrl+0、Ctrl+,、Ctrl+Shift+F：应用快捷键由全局监听处理，这里只阻止它们发给 PTY
    * 返回 false 表示 xterm 不再处理该按键。
    */
   private handleKey(e: KeyboardEvent): boolean {
     if (e.type !== 'keydown') return true
     if (!e.ctrlKey || e.altKey || e.metaKey) return true
-    if (zoomActionOf(e) || isSettingsShortcut(e)) return false
+    if (zoomActionOf(e) || isSettingsShortcut(e) || isSearchShortcut(e)) return false
     const letter = letterOf(e)
     if (letter === 'c') {
       if (!e.shiftKey && !this.term.hasSelection()) return true

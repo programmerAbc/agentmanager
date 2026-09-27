@@ -299,6 +299,96 @@ select {
   letter-spacing: 0.5px;
 }
 
+/* 项目搜索：MD3 搜索栏（胶囊形，前置图标，有内容时显示清除按钮） */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  margin: 0 4px 4px;
+  padding: 0 4px 0 12px;
+  border-radius: var(--md-shape-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  transition: box-shadow var(--md-duration-effects) var(--md-motion-default-effects);
+}
+
+.search-bar[hidden] {
+  display: none;
+}
+
+.search-bar:focus-within {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+
+.search-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  user-select: text;
+}
+
+.search-input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+}
+
+.search-clear {
+  width: 36px;
+  height: 36px;
+}
+
+.search-clear[hidden] {
+  display: none;
+}
+
+.search-clear .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* 搜索命中的字符 */
+.project-item mark {
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+
+.project-item.selected mark {
+  color: inherit;
+}
+
+/* 搜索框有焦点时，↑↓ 选到的项目 */
+#sidebar.search-focused .project-item.search-active {
+  outline: 2px solid var(--md-sys-color-secondary);
+  outline-offset: -2px;
+}
+
+.list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+}
+
 .project-list {
   flex: 1;
   margin: 0;

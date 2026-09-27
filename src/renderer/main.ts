@@ -17,7 +17,7 @@ import { icon, type IconName } from './icons'
 import { openAboutDialog, openSettingsDialog, row, sectionEl } from './settingsDialog'
 import { shapeSvg, type ShapeName } from './shapes'
 import { Sidebar } from './sidebar'
-import { TerminalManager, isSettingsShortcut, zoomActionOf, type ZoomAction } from './terminalView'
+import { TerminalManager, isSearchShortcut, isSettingsShortcut, zoomActionOf, type ZoomAction } from './terminalView'
 import { applyTheme } from './theme'
 import { toast } from './toast'
 
@@ -108,6 +108,9 @@ class App {
       onRemove: (id) => void this.removeProject(id),
       onOpenInExplorer: (id) => void this.openInExplorer(id),
       onRestartTerminal: (id) => void this.restartTerminal(id),
+      onSearchDone: () => {
+        if (this.selectedId) this.terminals.focus(this.selectedId)
+      },
       onWidthChange: (width, done) => {
         if (done) this.changeSettings({ sidebarWidth: width })
       }
@@ -115,7 +118,7 @@ class App {
     this.sidebar.setWidth(settings.sidebarWidth)
     this.sidebar.setProjects(this.projects)
 
-    // 应用级快捷键：字号（Ctrl+= / - / 0）、设置（Ctrl+,）。焦点在侧栏时也可用
+    // 应用级快捷键：字号（Ctrl+= / - / 0）、设置（Ctrl+,）、搜索项目（Ctrl+Shift+F）。焦点在侧栏时也可用
     document.addEventListener(
       'keydown',
       (e) => {
@@ -126,6 +129,10 @@ class App {
         } else if (isSettingsShortcut(e)) {
           e.preventDefault()
           this.openSettings()
+        } else if (isSearchShortcut(e)) {
+          e.preventDefault()
+          // 对话框打开时不把焦点移到它后面的侧栏
+          if (!document.querySelector('.dialog-scrim')) this.sidebar.focusSearch()
         }
       },
       true

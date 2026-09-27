@@ -1,6 +1,7 @@
 import { SIDEBAR_WIDTH, type AgentKind, type Project } from '../shared/types'
 import { ALL_STATUSES, statusIndicator, statusText, type AgentState } from './agentStatus'
 import { showContextMenu } from './contextMenu'
+import { matchProject, searchTokens, type ProjectMatch } from './fuzzy'
 import { icon } from './icons'
 import { shapeSvg } from './shapes'
 
@@ -14,17 +15,25 @@ export interface SidebarCallbacks {
   onRemove(id: string): void
   onOpenInExplorer(id: string): void
   onRestartTerminal(id: string): void
+  /** 搜索框按 Esc 且搜索词已为空：把焦点还给终端 */
+  onSearchDone(): void
   /** 拖动过程中 done=false，松开鼠标时 done=true（此时再持久化） */
   onWidthChange(width: number, done: boolean): void
 }
 
-/** 左侧项目列表：添加、选中、行内重命名、右键菜单、宽度拖拽。 */
+/** 左侧项目列表：添加、搜索、选中、行内重命名、右键菜单、宽度拖拽。 */
 export class Sidebar {
   private projects: Project[] = []
   private selectedId: string | null = null
   private readonly running = new Set<string>()
   private readonly agents = new Map<string, AgentState>()
   private readonly list: HTMLUListElement
+  private readonly search: SearchBar
+  private tokens: string[] = []
+  /** 当前显示的项目（搜索时为过滤、排序后的结果） */
+  private visibleIds: string[] = []
+  /** 搜索框中 ↑↓ 选到的项目，Enter 打开它 */
+  private activeId: string | null = null
   private width: number = SIDEBAR_WIDTH.default
 
   constructor(
@@ -47,6 +56,8 @@ export class Sidebar {
     addButton.append(icon('add'), document.createTextNode('添加项目'))
     addButton.addEventListener('click', () => cb.onAdd())
     header.append(title, addButton)
+
+    this.search = this.buildSearch()
 
     const label = document.createElement('div')
     label.className = 'list-label'
@@ -77,13 +88,23 @@ export class Sidebar {
       this.openItemMenu(id, e.clientX, e.clientY)
     })
 
-    root.append(header, label, this.list, footer)
+    root.append(header, this.search.box, label, this.list, footer)
     this.setupResizer()
   }
 
   setProjects(projects: Project[]): void {
     this.projects = projects
+    // 没有项目时不显示搜索框，也不保留看不见的搜索词
+    this.search.box.hidden = projects.length === 0
+    if (projects.length === 0) this.clearQuery()
     this.render()
+  }
+
+  /** Ctrl+Shift+F：聚焦搜索框并全选 */
+  focusSearch(): void {
+    if (this.search.box.hidden) return
+    this.search.input.focus()
+    this.search.input.select()
   }
 
   setSelected(id: string | null): void {
@@ -158,8 +179,14 @@ export class Sidebar {
   }
 
   private render(): void {
+    const entries = this.visibleEntries()
+    this.visibleIds = entries.map((e) => e.project.id)
+    // 有搜索词时默认选中第一个结果（Enter 直接打开它）
+    if (this.tokens.length === 0) this.activeId = null
+    else if (!this.activeId || !this.visibleIds.includes(this.activeId)) this.activeId = this.visibleIds[0] ?? null
+
     const fragment = document.createDocumentFragment()
-    for (const project of this.projects) {
+    for (const { project, match } of entries) {
       const li = document.createElement('li')
       li.className = 'project-item'
       li.dataset.id = project.id
@@ -167,6 +194,7 @@ export class Sidebar {
       li.title = project.path
       li.classList.toggle('selected', project.id === this.selectedId)
       li.classList.toggle('running', this.running.has(project.id))
+      li.classList.toggle('search-active', project.id === this.activeId)
 
       const slot = document.createElement('span')
       slot.className = 'status-slot'
@@ -174,16 +202,114 @@ export class Sidebar {
       text.className = 'project-text'
       const name = document.createElement('div')
       name.className = 'project-name'
-      name.textContent = project.name
+      appendHighlighted(name, project.name, match?.nameHits)
       const pathEl = document.createElement('div')
       pathEl.className = 'project-path'
-      pathEl.textContent = shortenPath(project.path)
+      appendHighlighted(pathEl, shortenPath(project.path), match?.pathHits)
       text.append(name, pathEl)
       li.append(slot, text)
       this.applyAgentState(li, project)
       fragment.appendChild(li)
     }
+    if (entries.length === 0 && this.tokens.length > 0) {
+      const empty = document.createElement('li')
+      empty.className = 'list-empty'
+      empty.append(icon('searchOff'), document.createTextNode('没有匹配的项目'))
+      fragment.appendChild(empty)
+    }
     this.list.replaceChildren(fragment)
+  }
+
+  /** 没有搜索词时按原顺序；有搜索词时只保留匹配的项目，按得分从高到低，同分保持原顺序 */
+  private visibleEntries(): { project: Project; match: ProjectMatch | null }[] {
+    if (this.tokens.length === 0) return this.projects.map((project) => ({ project, match: null }))
+    const matched: { project: Project; match: ProjectMatch; index: number }[] = []
+    this.projects.forEach((project, index) => {
+      // 只匹配侧栏上显示出来的路径（盘符 + 最后两级），缩写成 … 的部分看不见，不参与匹配
+      const match = matchProject(this.tokens, project.name, shortenPath(project.path))
+      if (match) matched.push({ project, match, index })
+    })
+    matched.sort((a, b) => b.match.score - a.match.score || a.index - b.index)
+    return matched
+  }
+
+  private buildSearch(): SearchBar {
+    const box = document.createElement('div')
+    box.className = 'search-bar'
+    box.hidden = true
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.className = 'search-input'
+    input.placeholder = '搜索项目'
+    input.spellcheck = false
+    input.setAttribute('role', 'searchbox')
+    input.setAttribute('aria-label', '搜索项目')
+    input.title = '模糊搜索项目名称与路径（Ctrl+Shift+F）'
+    const clear = document.createElement('button')
+    clear.type = 'button'
+    clear.className = 'icon-btn search-clear'
+    clear.title = '清除搜索（Esc）'
+    clear.hidden = true
+    clear.append(icon('close'))
+    box.append(icon('search', 'search-icon'), input, clear)
+
+    // 输入法组字过程中（拼音还没上屏）不过滤，上屏后由 compositionend 触发
+    input.addEventListener('input', (e) => {
+      if (!(e as InputEvent).isComposing) this.setQuery(input.value)
+    })
+    input.addEventListener('compositionend', () => this.setQuery(input.value))
+    input.addEventListener('keydown', (e) => {
+      if (e.isComposing) return
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        this.moveActive(e.key === 'ArrowDown' ? 1 : -1)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (this.activeId) this.cb.onSelect(this.activeId)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        if (input.value) {
+          this.clearQuery()
+        } else {
+          input.blur()
+          this.cb.onSearchDone()
+        }
+      }
+    })
+    // 键盘选中项的高亮只在搜索框有焦点时显示
+    input.addEventListener('focus', () => this.root.classList.add('search-focused'))
+    input.addEventListener('blur', () => this.root.classList.remove('search-focused'))
+    clear.addEventListener('click', () => {
+      this.clearQuery()
+      input.focus()
+    })
+    return { box, input, clear }
+  }
+
+  private clearQuery(): void {
+    this.search.input.value = ''
+    this.setQuery('')
+  }
+
+  private setQuery(value: string): void {
+    this.search.clear.hidden = value === ''
+    const tokens = searchTokens(value)
+    if (tokens.join(' ') === this.tokens.join(' ')) return
+    this.tokens = tokens
+    this.activeId = null
+    this.render()
+    this.list.scrollTop = 0
+  }
+
+  /** 搜索框中 ↑↓：在当前显示的项目之间移动 */
+  private moveActive(delta: number): void {
+    if (this.visibleIds.length === 0) return
+    const index = this.activeId ? this.visibleIds.indexOf(this.activeId) : -1
+    const next = index < 0 ? (delta > 0 ? 0 : this.visibleIds.length - 1) : index + delta
+    const id = this.visibleIds[Math.max(0, Math.min(this.visibleIds.length - 1, next))]
+    this.activeId = id
+    for (const li of this.items()) li.classList.toggle('search-active', li.dataset.id === id)
+    this.itemById(id)?.scrollIntoView({ block: 'nearest' })
   }
 
   private openItemMenu(id: string, x: number, y: number): void {
@@ -271,6 +397,42 @@ export class Sidebar {
     const li = (e.target as HTMLElement | null)?.closest<HTMLLIElement>('li.project-item')
     return li?.dataset.id ?? null
   }
+}
+
+interface SearchBar {
+  box: HTMLElement
+  input: HTMLInputElement
+  clear: HTMLButtonElement
+}
+
+/** 把命中的字符包进 <mark>（连续命中合并为一段），其余为普通文本 */
+function appendHighlighted(el: HTMLElement, text: string, hits: ReadonlySet<number> | undefined): void {
+  if (!hits || hits.size === 0) {
+    el.textContent = text
+    return
+  }
+  let run = ''
+  let runIsHit = false
+  const flush = (): void => {
+    if (!run) return
+    if (runIsHit) {
+      const mark = document.createElement('mark')
+      mark.textContent = run
+      el.append(mark)
+    } else {
+      el.append(run)
+    }
+    run = ''
+  }
+  Array.from(text).forEach((ch, i) => {
+    const hit = hits.has(i)
+    if (hit !== runIsHit) {
+      flush()
+      runIsHit = hit
+    }
+    run += ch
+  })
+  flush()
 }
 
 function clampWidth(width: number): number {

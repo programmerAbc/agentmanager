@@ -12,7 +12,8 @@
 
 - 1.0.0：版本号定为 1.0.0（功能与 0.4.1 相同）。
 - 1.0.0 改名 AgentManager（用户要求）：界面 / 窗口标题 / 安装包 / 快捷方式 / `AgentManager.exe` / 卸载项统一改名，package 名 `agentmanager`；数据目录变为 `%APPDATA%\AgentManager`、数据库 `agentmanager.db`。**不迁移旧数据**（用户决定），projects.json 导入代码一并删除。`appId` 保留 `com.agentdesk.app`，安装时会静默卸载已安装的 Agent Desk。安装包 `dist/agentmanager-1.0.0-setup.exe`，由用户自行安装。按用户要求从干净工作区（commit e472b15）重新打包，并复制到 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`（SHA256 608CE6F5…40ED911B，与 dist 中一致）。`dist/agent-desk-*.exe` 是改名前的旧包，不要再用。
-- 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main）。
+- 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main）。之后的提交（M11 起）尚未推送，推送需用户同意。
+- M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
@@ -33,6 +34,7 @@
 - M7：src/shared/types.ts、src/main/{settingsStore,ipc}.ts、src/preload/index.ts、src/renderer/{main,sidebar,terminalView,contextMenu,dialog,settingsDialog,theme,fonts,icons,shapes}.ts、styles.css、index.html、env.d.ts；package.json（新增 @material/material-color-utilities、@material-symbols/svg-400）。
 - M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
 - 1.0.0 改名：electron-builder.yml、package.json、package-lock.json、scripts/postinstall.mjs、src/main/{index,projectStore,ptyManager,settingsStore}.ts、src/shared/types.ts（删除 ProjectsFile）、src/renderer/{index.html,main,settingsDialog,sidebar}.ts；README、docs、plans、handoff。
+- M11：src/renderer/fuzzy.ts（新）、sidebar.ts、main.ts、terminalView.ts、icons.ts、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
 - `npm run typecheck`：通过。dev + CDP 自测（隔离 userData）：
@@ -54,6 +56,10 @@
   - 设置对话框：视口 863 / 583 高时分别为 52–812 / 24–559，居中不截断，内容区滚动。
   - **事故**：15:00:31 关闭 dev 实例时，测试脚本按窗口标题匹配，把用户正在使用的 0.3.0 也关掉了（4 个终端被结束）。脚本已改为只匹配 dev 进程，见 lessons.md。
 - 1.0.0 改名（AgentManager）：`npm run typecheck` 通过；`npm run build:win` 生成 `dist/agentmanager-1.0.0-setup.exe`。`dist/win-unpacked/AgentManager.exe` 在隔离的带空格 userData 下启动：窗口标题 AgentManager，日志「已加载 0 个项目（agentmanager.db）」、hooks 服务启动；按 PID 发 WM_CLOSE 后正常退出，WAL 已合并，settings.json 已写入。未测：在已安装 Agent Desk 的机器上覆盖安装（由用户自行安装）。
+- M11（`npm run typecheck` 通过）：
+  - `fuzzy.ts` 用 esbuild 打包的临时脚本做了 18 项断言（子序列、词首 / 连续加分、大小写、中文、emoji 码点下标、多词与、不跨分隔符、名称优先、路径命中下标），全部通过。
+  - dev + CDP（隔离 userData，7 个测试项目，启动参数加 `--disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows`）：`Ctrl+Shift+F` 从终端聚焦搜索框并全选，终端缓冲区不变；`agm` → 只剩 agentmanager 且 a/g/m 高亮；`lab3` → 路径命中两个项目（整段命中的排前）；`api ser` 多词；`ge` → GameEngine（词首）排在 agentmanager（连续）之前；`xyz` → 「没有匹配的项目」；↓↓↑ 移动当前项、Enter 打开 notes 并聚焦其终端、搜索词保留；Esc 清空、再按 Esc 焦点回到终端；拼音组字 `qian'duan` 时列表不变，上屏「前端」后只剩「前端项目」；过滤状态下 F2 重命名为「前端控制台」→ 仍在结果中并重新高亮，数据库已更新。截图检查搜索栏、高亮与当前项描边。
+  - 未测：删除全部项目后搜索框隐藏（代码路径简单，未走 UI 删除流程）。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。
@@ -62,5 +68,5 @@
 
 ## Resume Context
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
-- 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录>` + CDP；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
+- 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

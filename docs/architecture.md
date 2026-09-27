@@ -16,7 +16,8 @@ preload (src/preload/index.ts)
   沙箱 preload，contextBridge 暴露 window.api（类型见 shared/types.ts 的 Api）
 渲染进程 (src/renderer)
   main.ts          入口，组装各模块
-  sidebar.ts       项目列表 UI：选中、行内重命名、右键菜单、宽度拖拽
+  sidebar.ts       项目列表 UI：搜索过滤、选中、行内重命名、右键菜单、宽度拖拽
+  fuzzy.ts         模糊匹配与打分（纯函数，无 DOM 依赖）
   terminalView.ts  TerminalView（每个项目一个 xterm 实例 + DOM 容器，状态 idle/starting/running/exited/failed）
                    TerminalManager（按 sessionId 管理视图，只切换可见性不 dispose，分发 PTY 输出）
   contextMenu.ts   DOM 右键菜单；toast.ts 右下角提示
@@ -64,6 +65,16 @@ preload (src/preload/index.ts)
 | 启动命令由主进程拼接并直接写入 PTY（`agents.launch(sessionId, agent)`） | 命令、hooks 文件路径、端口都在主进程，渲染进程只负责确保终端已启动 |
 | **Codex（M10）**：终端启动时注入 `AGENT_DESK_HOOK_URL`（`…/hook/<token>/<sessionId>/codex`）和 `AGENT_DESK_CODEX_HOOKS`（固定的 hooks TOML）；启动命令 `try { <命令> -c $env:AGENT_DESK_CODEX_HOOKS } finally { curl.exe -s -m 2 -d SessionEnd $env:AGENT_DESK_HOOK_URL \| Out-Null }`；hook 命令 `$null = @($input); curl.exe -s -m 2 -d <事件> $env:AGENT_DESK_HOOK_URL`，服务端从请求体读事件名 | codex 对 hook 命令文本做信任校验（变化即需重新信任），所以文本必须固定；codex 在 Windows 用 PowerShell 执行 hook（实测）；codex 无 SessionEnd，靠 PowerShell finally（Ctrl+C 也会执行）上报退出 |
 | 状态机 `AgentStatusTracker`：每个终端只跟踪一个助手 `{agent, status}`；claude 启动后等 SessionStart（30 秒超时），codex 启动后直接「就绪」（其 SessionStart 在第一轮对话才触发） | 两种助手的事件时序不同 |
+
+## 迭代 4 设计（M11 / M12）
+
+| 决策 | 原因 |
+|---|---|
+| 项目搜索在渲染进程内存中完成：`fuzzy.ts` 实现 fzy 式动态规划（子序列最优对齐；连续命中 +1.0，开头 / 分隔符后 +0.9，`-_` 空格后 +0.8，驼峰 +0.7，`.` 后 +0.6；间隔每字符 -0.01，开头前 -0.005），同时回溯出命中位置供高亮 | 项目数量小（几十个），无需索引或依赖；自己实现可以同时拿到得分和位置，且下标统一按码点计算（中文 / emoji 不错位） |
+| 多个词按空格拆分、全部命中才保留；每个词先匹配名称（加 10000 分，保证名称命中排在前面），再匹配**侧栏显示的缩写路径**的某一级目录名（不跨 `\`） | 整条长路径做子序列匹配几乎能匹配任何短词；只匹配显示出来的路径，每个命中都看得见、能高亮（测试中隐藏目录名导致全部项目「莫名其妙」匹配，因此改为此规则） |
+| 过滤只重建 `<ul>` 内容，项目状态（运行 / 助手状态）保存在 Sidebar 的 Map 里，渲染时重新应用；搜索词不持久化 | 与原有的 setProjects 渲染路径一致，状态不会因过滤丢失 |
+| `Ctrl+Shift+F` 由 document 捕获阶段监听处理，终端的 `attachCustomKeyEventHandler` 对它返回 false | 与 `Ctrl+,` 等应用快捷键相同的模式：焦点在终端里也生效，且不发给 PTY；对话框打开时不响应 |
+| 输入法：`input` 事件 `isComposing` 时跳过，`compositionend` 再过滤 | 避免拼音组字过程中列表闪烁 |
 
 ## 打包（electron-builder.yml）
 
