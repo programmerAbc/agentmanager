@@ -1,33 +1,43 @@
 import '@xterm/xterm/css/xterm.css'
 import './styles.css'
 import { FONT_SIZE, type AppSettings, type Project, type SettingsPatch } from '../shared/types'
+import { confirmDialog, iconButton, button } from './dialog'
+import { ensureFontLoaded, fontStack } from './fonts'
+import { icon, type IconName } from './icons'
+import { openSettingsDialog } from './settingsDialog'
+import { shapeSvg, type ShapeName } from './shapes'
 import { Sidebar } from './sidebar'
-import { TerminalManager, zoomActionOf, type ZoomAction } from './terminalView'
+import { TerminalManager, isSettingsShortcut, zoomActionOf, type ZoomAction } from './terminalView'
+import { applyTheme } from './theme'
 import { toast } from './toast'
 
 const api = window.api
-const FONT_SIZE_SAVE_DELAY_MS = 400
+const SETTINGS_SAVE_DELAY_MS = 400
 
-/** 渲染进程的总控：持有项目列表和当前选中项，协调侧栏与终端区域。 */
+/** 渲染进程的总控：持有项目列表、当前选中项和设置，协调侧栏、顶部栏与终端区域。 */
 class App {
   private projects: Project[]
   private selectedId: string | null = null
+  private settings: AppSettings
   private readonly sidebar: Sidebar
   private readonly terminals: TerminalManager
   private readonly emptyState: HTMLElement
   /** 选中了项目但终端还没启动时显示（启动时恢复上次选中的项目，不自动启动 PTY） */
   private readonly idlePanel: HTMLElement
-  private fontSize: number
-  private fontSizeSaveTimer: number | undefined
+  private readonly topbar: {
+    title: HTMLElement
+    subtitle: HTMLElement
+    actions: HTMLElement
+  }
+  private pendingPatch: SettingsPatch = {}
+  private saveTimer: number | undefined
 
   constructor(settings: AppSettings, projects: Project[]) {
     this.projects = projects
-    this.fontSize = settings.fontSize
+    this.settings = settings
+    const terminalTheme = applyTheme(settings.themeSeed)
 
-    const sidebarEl = mustGet('sidebar')
-    const resizer = mustGet('resizer')
     const host = mustGet('terminal-host')
-
     this.emptyState = document.createElement('div')
     this.emptyState.className = 'center-panel'
     this.idlePanel = document.createElement('div')
@@ -47,33 +57,49 @@ class App {
     })
     host.append(this.emptyState, this.idlePanel)
 
-    this.terminals = new TerminalManager(host, settings.fontSize, {
-      onRunningChange: (id, running) => this.sidebar.setRunning(id, running),
-      onError: (message) => toast(message)
-    })
+    this.topbar = this.buildTopbar(mustGet('topbar'))
 
-    this.sidebar = new Sidebar(sidebarEl, resizer, {
+    this.terminals = new TerminalManager(
+      host,
+      {
+        fontFamily: fontStack(settings.fontFamily),
+        fontSize: settings.fontSize,
+        lineHeight: settings.lineHeight,
+        theme: terminalTheme
+      },
+      {
+        onRunningChange: (id, running) => this.sidebar.setRunning(id, running),
+        onError: (message) => toast(message)
+      }
+    )
+
+    this.sidebar = new Sidebar(mustGet('sidebar'), mustGet('resizer'), {
       onAdd: () => void this.addProject(),
+      onOpenSettings: () => this.openSettings(),
       onSelect: (id) => this.select(id, true),
       onRename: (id, name) => void this.renameProject(id, name),
       onRemove: (id) => void this.removeProject(id),
       onOpenInExplorer: (id) => void this.openInExplorer(id),
       onRestartTerminal: (id) => void this.restartTerminal(id),
       onWidthChange: (width, done) => {
-        if (done) void this.saveSettings({ sidebarWidth: width })
+        if (done) this.changeSettings({ sidebarWidth: width })
       }
     })
     this.sidebar.setWidth(settings.sidebarWidth)
     this.sidebar.setProjects(this.projects)
 
-    // 字号快捷键全局生效（焦点在侧栏时也可用）；终端内的同一组合键不会发给 PTY
+    // 应用级快捷键：字号（Ctrl+= / - / 0）、设置（Ctrl+,）。焦点在侧栏时也可用
     document.addEventListener(
       'keydown',
       (e) => {
         const action = zoomActionOf(e)
-        if (!action) return
-        e.preventDefault()
-        this.zoom(action)
+        if (action) {
+          e.preventDefault()
+          this.zoom(action)
+        } else if (isSettingsShortcut(e)) {
+          e.preventDefault()
+          this.openSettings()
+        }
       },
       true
     )
@@ -102,25 +128,60 @@ class App {
     this.render()
 
     if (changed) {
-      void this.saveSettings({ lastProjectId: id })
+      this.changeSettings({ lastProjectId: id })
       if (id) void api.projects.touch(id)
     }
   }
 
+  // ---------------- 设置 ----------------
+
+  private openSettings(): void {
+    openSettingsDialog({
+      get: () => this.settings,
+      change: (patch) => this.changeSettings(patch)
+    })
+  }
+
+  /** 立即应用到界面，合并后延迟写盘 */
+  private changeSettings(patch: SettingsPatch): void {
+    const prev = this.settings
+    this.settings = { ...this.settings, ...patch }
+    const s = this.settings
+
+    if (patch.themeSeed !== undefined && patch.themeSeed !== prev.themeSeed) {
+      this.terminals.setAppearance({ theme: applyTheme(s.themeSeed) })
+    }
+    if (patch.fontFamily !== undefined && patch.fontFamily !== prev.fontFamily) {
+      void ensureFontLoaded(s.fontFamily, s.fontSize).then(() =>
+        this.terminals.setAppearance({ fontFamily: fontStack(s.fontFamily) })
+      )
+    }
+    if (patch.fontSize !== undefined || patch.lineHeight !== undefined) {
+      this.terminals.setAppearance({ fontSize: s.fontSize, lineHeight: s.lineHeight })
+    }
+
+    this.pendingPatch = { ...this.pendingPatch, ...patch }
+    window.clearTimeout(this.saveTimer)
+    this.saveTimer = window.setTimeout(() => void this.flushSettings(), SETTINGS_SAVE_DELAY_MS)
+  }
+
+  private async flushSettings(): Promise<void> {
+    const patch = this.pendingPatch
+    this.pendingPatch = {}
+    const result = await api.settings.update(patch)
+    if (!result.ok) toast(result.error)
+  }
+
   private zoom(action: ZoomAction): void {
+    const current = this.settings.fontSize
     const next =
       action === 'reset'
         ? FONT_SIZE.default
-        : Math.min(FONT_SIZE.max, Math.max(FONT_SIZE.min, this.fontSize + (action === 'in' ? 1 : -1)))
-    if (next === this.fontSize) return
-    this.fontSize = next
-    this.terminals.setFontSize(next)
-    window.clearTimeout(this.fontSizeSaveTimer)
-    this.fontSizeSaveTimer = window.setTimeout(
-      () => void this.saveSettings({ fontSize: this.fontSize }),
-      FONT_SIZE_SAVE_DELAY_MS
-    )
+        : Math.min(FONT_SIZE.max, Math.max(FONT_SIZE.min, current + (action === 'in' ? 1 : -1)))
+    if (next !== current) this.changeSettings({ fontSize: next })
   }
+
+  // ---------------- 项目 ----------------
 
   private async addProject(): Promise<void> {
     const result = await api.projects.add()
@@ -151,10 +212,13 @@ class App {
   private async removeProject(id: string): Promise<void> {
     const project = this.projects.find((p) => p.id === id)
     if (!project) return
-    const confirmed = await api.dialog.confirm({
-      message: `确定移除项目「${project.name}」？`,
+    const confirmed = await confirmDialog({
+      title: '移除项目',
+      icon: 'delete',
+      message: `确定移除「${project.name}」？`,
       detail: `${project.path}\n\n只会从列表中移除，不会删除磁盘上的文件。如果终端正在运行，会被结束。`,
-      okLabel: '移除'
+      confirmLabel: '移除',
+      danger: true
     })
     if (!confirmed) return
     const result = await api.projects.remove(id)
@@ -180,68 +244,114 @@ class App {
     if (!result.ok) toast(result.error)
   }
 
-  private async saveSettings(patch: SettingsPatch): Promise<void> {
-    const result = await api.settings.update(patch)
-    if (!result.ok) toast(result.error)
+  // ---------------- 渲染 ----------------
+
+  private buildTopbar(root: HTMLElement): App['topbar'] {
+    const titles = document.createElement('div')
+    titles.className = 'topbar-titles'
+    const title = document.createElement('div')
+    title.className = 'topbar-title'
+    const subtitle = document.createElement('div')
+    subtitle.className = 'topbar-subtitle'
+    titles.append(title, subtitle)
+
+    const actions = document.createElement('div')
+    actions.className = 'topbar-actions'
+    actions.append(
+      iconButton('restartAlt', '重启终端', () => {
+        if (this.selectedId) void this.restartTerminal(this.selectedId)
+      }),
+      iconButton('folderOpen', '在资源管理器中打开', () => {
+        if (this.selectedId) void this.openInExplorer(this.selectedId)
+      })
+    )
+    root.append(titles, actions)
+    return { title, subtitle, actions }
   }
 
   private render(): void {
     const project = this.projects.find((p) => p.id === this.selectedId) ?? null
     document.title = project ? `Agent Desk — ${project.name}` : 'Agent Desk'
 
+    this.topbar.title.textContent = project ? project.name : 'Agent Desk'
+    this.topbar.subtitle.textContent = project ? project.path : '项目终端管理器'
+    this.topbar.subtitle.title = project?.path ?? ''
+    this.topbar.actions.hidden = project === null
+
     const terminalShown = project !== null && this.terminals.has(project.id)
     this.emptyState.hidden = project !== null
     this.idlePanel.hidden = project === null || terminalShown
 
     if (project && !terminalShown) {
-      renderPanel(this.idlePanel, project.name, project.path, '终端尚未启动，点击此处或按 Enter 启动。', {
-        label: '启动终端'
+      renderPanel(this.idlePanel, {
+        shape: 'cookie12',
+        icon: 'terminal',
+        title: project.name,
+        path: project.path,
+        hint: '终端尚未启动，点击此处或按 Enter 启动。',
+        buttons: [{ label: '启动终端', variant: 'filled', icon: 'playArrowFill' }]
       })
     } else if (!project && this.projects.length === 0) {
-      renderPanel(this.emptyState, '还没有项目', null, '添加一个本地目录作为项目，然后在终端里运行 claude 等命令。', {
-        label: '＋ 添加项目',
-        action: () => void this.addProject()
+      renderPanel(this.emptyState, {
+        shape: 'softBurst',
+        icon: 'rocketLaunch',
+        title: '还没有项目',
+        hint: '添加一个本地目录作为项目，然后在终端里运行 claude 等命令。',
+        buttons: [{ label: '添加项目', variant: 'filled', icon: 'add', action: () => void this.addProject() }]
       })
     } else if (!project) {
-      renderPanel(this.emptyState, '选择一个项目', null, '从左侧列表中选择一个项目以打开它的终端。')
+      renderPanel(this.emptyState, {
+        shape: 'cookie9',
+        icon: 'terminal',
+        title: '选择一个项目',
+        hint: '从左侧列表中选择一个项目以打开它的终端。'
+      })
     }
   }
 }
 
-function renderPanel(
-  panel: HTMLElement,
-  title: string,
-  path: string | null,
-  hint?: string,
-  button?: { label: string; action?: () => void }
-): void {
-  const children: HTMLElement[] = []
-  const titleEl = document.createElement('div')
-  titleEl.className = 'title'
-  titleEl.textContent = title
-  children.push(titleEl)
-  if (path) {
+interface PanelOptions {
+  shape: ShapeName
+  icon: IconName
+  title: string
+  path?: string
+  hint?: string
+  /** 没有 action 的按钮点击会冒泡给面板处理 */
+  buttons?: { label: string; variant: 'filled' | 'tonal'; icon: IconName; action?: () => void }[]
+}
+
+function renderPanel(panel: HTMLElement, o: PanelOptions): void {
+  const hero = document.createElement('div')
+  hero.className = 'hero-shape'
+  hero.append(shapeSvg(o.shape, 'shape'), icon(o.icon))
+  const children: HTMLElement[] = [hero]
+  const title = document.createElement('div')
+  title.className = 'title'
+  title.textContent = o.title
+  children.push(title)
+  if (o.path) {
     const pathEl = document.createElement('div')
     pathEl.className = 'path'
-    pathEl.textContent = path
-    pathEl.title = path
+    pathEl.textContent = o.path
+    pathEl.title = o.path
     children.push(pathEl)
   }
-  if (hint) {
+  if (o.hint) {
     const hintEl = document.createElement('div')
     hintEl.className = 'hint'
-    hintEl.textContent = hint
+    hintEl.textContent = o.hint
     children.push(hintEl)
   }
-  if (button) {
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = 'primary'
-    btn.textContent = button.label
-    // 没有 action 时点击冒泡给面板处理
-    if (button.action) btn.addEventListener('click', button.action)
-    else btn.tabIndex = -1
-    children.push(btn)
+  if (o.buttons?.length) {
+    const actions = document.createElement('div')
+    actions.className = 'actions'
+    for (const b of o.buttons) {
+      const btn = button(b.label, b.variant, b.icon)
+      if (b.action) btn.addEventListener('click', b.action)
+      else btn.tabIndex = -1
+      actions.appendChild(btn)
+    }
+    children.push(actions)
   }
   panel.replaceChildren(...children)
 }
@@ -254,12 +364,8 @@ function mustGet(id: string): HTMLElement {
 
 async function bootstrap(): Promise<void> {
   const [settings, projects] = await Promise.all([api.settings.get(), api.projects.list()])
-  // 先加载终端字体再创建 xterm，否则 xterm 会按回退字体测量字符宽度
-  try {
-    await document.fonts.load(`${settings.fontSize}px "Sarasa Term SC"`)
-  } catch (err) {
-    console.warn('终端字体加载失败，使用回退字体', err)
-  }
+  // 选的是内置字体时先加载，否则 xterm 会按回退字体测量字符宽度
+  await ensureFontLoaded(settings.fontFamily, settings.fontSize)
   new App(settings, projects)
 }
 

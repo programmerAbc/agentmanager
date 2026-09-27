@@ -29,5 +29,28 @@
 ### 渲染进程重载
 - 渲染进程重新加载或崩溃时，主进程清理全部 PTY（xterm 实例已不存在，保留 PTY 没有意义）。
 
+## 迭代 2 需求（2026-09-27 用户新增，覆盖 PLAN 中相冲突的部分）
+
+### M7 设置页 / 字体 / MD3 Expressive 界面
+- **终端字体可配置**：默认 `Maple Mono NF CN`；未安装时依次回退 `Maple Mono NL NF CN` → `Cascadia Mono` → 内置 `Sarasa Term SC` → `Consolas` / `Microsoft YaHei UI` / `monospace`。设置页列出本机已安装的等宽字体供选择；可调字号（8–32）与行高（1.0–1.6）；修改实时作用于所有终端并持久化。（PLAN §1/§M2 的「更纱黑体为终端字体」改为「内置回退字体」。）
+- **设置页**（侧栏底部按钮 / `Ctrl+,` 打开，Esc 或关闭按钮关闭，修改即时保存）：
+  - 关于：应用版本、Electron / Chromium / Node / V8 版本、系统版本；打开数据目录、打开日志目录。
+  - 终端：字体、字号、行高、预览。
+  - 外观：主题色（种子色），预设若干 + 自定义颜色；默认 Claude 橙 `#D97757`。
+  - Claude：启动命令（默认 `claude --permission-mode bypassPermissions`），可恢复默认。
+- **Material Design 3 Expressive 风格**（覆盖 PLAN §6 的固定配色）：由种子色生成 MD3 暗色配色方案（surface / container 层级、primary / secondary / tertiary 及其 container）；大圆角与按压时的形状变化、弹簧动效；侧栏为导航抽屉（扩展 FAB「添加项目」、胶囊形选中指示）；顶部栏；MD3 菜单、对话框、Snackbar、滑块、文本框。终端背景、光标、选区颜色跟随配色方案。PLAN §6 中仍保留：原生标题栏、4px 拖拽条（悬停高亮）、终端容器 8px 内边距、中文界面。
+- 移除项目的确认改为应用内 MD3 对话框；退出确认仍用原生对话框（窗口关闭流程中）。
+
+### M8 启动 Claude 按钮与工作状态
+- **启动 Claude 按钮**（用户选择按钮而非快捷键）：顶部栏按钮；空闲面板、项目右键菜单中也提供。在当前项目的终端里执行设置中的命令；终端未启动（或已退出）时先启动；若检测到该终端里通过按钮启动的 Claude 仍在运行，则不重复执行，只聚焦终端并提示。
+- **状态检测只对通过按钮启动的 claude 生效**：命令的第一个词是 `claude` 时，自动追加 `--settings "<userData>/claude-hooks/<sessionId>.json"`，该文件只包含 Agent Desk 的 hooks（`curl.exe` 把事件 POST 到主进程本地端口）。**不修改** `~/.claude/settings.json`；手动输入的 `claude` 没有状态。
+- **状态与显示**（侧栏项目、顶部栏状态标签）：
+  - 工作中：`UserPromptSubmit`、`PostToolUse` → MD3 Expressive 形状变换加载指示器。
+  - 等待确认：`Notification` 且 `notification_type` 为 `permission_prompt` / `elicitation_dialog`。
+  - 已完成：`Stop`；该项目未被查看时保持显示，被查看（选中且窗口聚焦）后转为空闲。
+  - 空闲（Claude 已就绪）：`SessionStart`；`Notification(idle_prompt)` 时若仍是「工作中」则回落为空闲（用户中断时不会触发 Stop）。
+  - 结束：`SessionEnd`、终端退出 / 重启 / 移除 → 清除状态。
+- 非目标：快捷键启动、修改全局 claude 配置、系统通知。
+
 ## Open
-- 暂无。
+- 用户按 Esc 中断 claude 时 `Stop` 不触发，状态会停留在「工作中」，直到下一次事件或约 60 秒后的 `idle_prompt` 通知。

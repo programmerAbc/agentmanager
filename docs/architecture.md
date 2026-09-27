@@ -49,6 +49,19 @@ preload (src/preload/index.ts)
 | 字体 TTF 直接提交在 `resources/fonts/`（约 25MB），CSS `@font-face` 相对路径引用，由 Vite 作为资源打包 | 离线可构建；启动时先 `document.fonts.load` 再创建 xterm，避免用回退字体测量字符宽度。 |
 | 终端容器两层：外层 `.term-pane` 带 8px padding，内层 `.term-mount` 挂 xterm | FitAddon 用 xterm 父元素的计算尺寸；padding 不能放在 xterm 元素或其直接父元素上（PLAN §6）。 |
 
+## 迭代 2 设计（M7 / M8）
+
+| 决策 | 原因 |
+|---|---|
+| 配色用 `@material/material-color-utilities`（Google 官方，Apache-2.0）在渲染进程从种子色生成 MD3 暗色方案，写成 `:root` 上的 `--md-sys-color-*` CSS 变量，并同步到 xterm 主题 | MD3 动态配色依赖 HCT 色彩空间，自己实现容易偏离规范；库纯 TS、只进渲染进程 bundle |
+| 图标用 `@material-symbols/svg-400`（Apache-2.0）的 Rounded SVG，经 Vite `?raw` 按需导入 | 官方 MD3 图标；只打包用到的几个 |
+| MD3 Expressive 动效用 CSS `cubic-bezier` 近似弹簧（带回弹的 spatial 曲线 + 无回弹的 effects 曲线）；加载指示器为 SVG SMIL 在多个圆角多边形之间做路径变换并旋转 | 不引入动画库；路径由极坐标采样同样点数生成，保证可插值 |
+| 字体检测：渲染进程 `queryLocalFonts()` 取已安装字体族，canvas 比较 `i` 与 `W` 宽度过滤等宽字体；失败时只提供默认列表 | Chromium 内置 API，无需主进程枚举注册表 |
+| 设置扩展为 `{sidebarWidth, fontSize, fontFamily, lineHeight, themeSeed, claudeCommand, lastProjectId, window}`，主进程校验与限幅 | 单一持久化入口 |
+| Claude 状态：主进程 `hookServer` 监听 `127.0.0.1:0`（随机端口）+ 随机 token；启动 Claude 时为会话写 `userData/claude-hooks/<sessionId>.json`（端口、token、sessionId 直接写进 hook 命令），命令追加 `--settings "<该文件>"`；hook 命令为 `curl.exe -s -m 2 -X POST --data-binary "@-" http://127.0.0.1:<port>/hook/<token>/<sessionId>/<event>` | 用户选择不改全局配置；实测 claude 在 Windows 上用 Git Bash 执行 hook，该命令在 bash / cmd / PowerShell 下都成立，且不依赖环境变量展开；curl.exe 为系统自带 |
+| 状态机放在渲染进程（`claudeStatus.ts`）：idle / working / waiting / done / none；「已完成」在项目被查看后转空闲 | 「是否被查看」只有渲染进程知道 |
+| 启动命令由主进程拼接并直接写入 PTY（`claude.launch(sessionId)`） | 命令、hooks 文件路径、端口都在主进程，渲染进程只负责确保终端已启动 |
+
 ## 打包（electron-builder.yml）
 
 - 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。

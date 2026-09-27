@@ -1,8 +1,11 @@
 import { SIDEBAR_WIDTH, type Project } from '../shared/types'
 import { showContextMenu } from './contextMenu'
+import { icon } from './icons'
+import { shapeSvg } from './shapes'
 
 export interface SidebarCallbacks {
   onAdd(): void
+  onOpenSettings(): void
   onSelect(id: string): void
   onRename(id: string, name: string): void
   onRemove(id: string): void
@@ -25,14 +28,33 @@ export class Sidebar {
     private readonly resizer: HTMLElement,
     private readonly cb: SidebarCallbacks
   ) {
+    // 抽屉头部：应用名 + 扩展 FAB
     const header = document.createElement('div')
-    header.className = 'sidebar-header'
+    header.className = 'drawer-header'
+    const title = document.createElement('div')
+    title.className = 'app-title'
+    title.append(shapeSvg('cookie9', 'app-logo'), document.createTextNode('Agent Desk'))
     const addButton = document.createElement('button')
     addButton.type = 'button'
-    addButton.className = 'add-project'
-    addButton.textContent = '＋ 添加项目'
+    addButton.className = 'fab add-project'
+    addButton.append(icon('add'), document.createTextNode('添加项目'))
     addButton.addEventListener('click', () => cb.onAdd())
-    header.appendChild(addButton)
+    header.append(title, addButton)
+
+    const label = document.createElement('div')
+    label.className = 'list-label'
+    label.textContent = '项目'
+
+    // 抽屉底部：设置
+    const footer = document.createElement('div')
+    footer.className = 'drawer-footer'
+    const settingsButton = document.createElement('button')
+    settingsButton.type = 'button'
+    settingsButton.className = 'nav-footer-btn'
+    settingsButton.title = '设置（Ctrl+,）'
+    settingsButton.append(icon('settings'), document.createTextNode('设置'))
+    settingsButton.addEventListener('click', () => cb.onOpenSettings())
+    footer.appendChild(settingsButton)
 
     this.list = document.createElement('ul')
     this.list.className = 'project-list'
@@ -48,7 +70,7 @@ export class Sidebar {
       this.openItemMenu(id, e.clientX, e.clientY)
     })
 
-    root.append(header, this.list)
+    root.append(header, label, this.list, footer)
     this.setupResizer()
   }
 
@@ -122,8 +144,11 @@ export class Sidebar {
       li.classList.toggle('selected', project.id === this.selectedId)
       li.classList.toggle('running', this.running.has(project.id))
 
+      const slot = document.createElement('span')
+      slot.className = 'status-slot'
       const dot = document.createElement('span')
       dot.className = 'status-dot'
+      slot.appendChild(dot)
       const text = document.createElement('div')
       text.className = 'project-text'
       const name = document.createElement('div')
@@ -133,7 +158,7 @@ export class Sidebar {
       pathEl.className = 'project-path'
       pathEl.textContent = shortenPath(project.path)
       text.append(name, pathEl)
-      li.append(dot, text)
+      li.append(slot, text)
       fragment.appendChild(li)
     }
     this.list.replaceChildren(fragment)
@@ -141,11 +166,11 @@ export class Sidebar {
 
   private openItemMenu(id: string, x: number, y: number): void {
     showContextMenu(x, y, [
-      { label: '重命名', action: () => this.beginRename(id) },
-      { label: '在资源管理器中打开', action: () => this.cb.onOpenInExplorer(id) },
-      { label: '重启终端', action: () => this.cb.onRestartTerminal(id) },
+      { label: '重命名', icon: 'edit', action: () => this.beginRename(id) },
+      { label: '在资源管理器中打开', icon: 'folderOpen', action: () => this.cb.onOpenInExplorer(id) },
+      { label: '重启终端', icon: 'restartAlt', action: () => this.cb.onRestartTerminal(id) },
       { separator: true },
-      { label: '移除项目', danger: true, action: () => this.cb.onRemove(id) }
+      { label: '移除项目', icon: 'delete', danger: true, action: () => this.cb.onRemove(id) }
     ])
   }
 

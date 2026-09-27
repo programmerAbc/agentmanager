@@ -29,6 +29,13 @@ export interface WindowState {
 export interface AppSettings {
   sidebarWidth: number
   fontSize: number
+  /** 终端首选字体族；渲染进程会在后面接上回退字体 */
+  fontFamily: string
+  lineHeight: number
+  /** MD3 动态配色的种子色，#RRGGBB */
+  themeSeed: string
+  /** 「启动 Claude」按钮执行的命令 */
+  claudeCommand: string
   lastProjectId: string | null
   window: WindowState | null
 }
@@ -38,15 +45,28 @@ export interface SettingsFile extends AppSettings {
 }
 
 /** 渲染进程允许修改的设置项；窗口状态由主进程自己维护。 */
-export type SettingsPatch = Partial<Pick<AppSettings, 'sidebarWidth' | 'fontSize' | 'lastProjectId'>>
+export type SettingsPatch = Partial<Omit<AppSettings, 'window'>>
 
 export const SIDEBAR_WIDTH = { default: 240, min: 180, max: 400 } as const
 export const FONT_SIZE = { default: 14, min: 8, max: 32 } as const
+export const LINE_HEIGHT = { default: 1.0, min: 1.0, max: 1.6 } as const
+export const DEFAULT_FONT_FAMILY = 'Maple Mono NF CN'
+export const DEFAULT_THEME_SEED = '#D97757'
+export const DEFAULT_CLAUDE_COMMAND = 'claude --permission-mode bypassPermissions'
+/** 字体族名只允许常见字符，避免拼进 CSS font-family 时出问题 */
+export const FONT_FAMILY_PATTERN = /^[^"'\\;{}<>\r\n]{1,100}$/
+export const THEME_SEED_PATTERN = /^#[0-9a-fA-F]{6}$/
 
-export interface ConfirmOptions {
-  message: string
-  detail?: string
-  okLabel?: string
+export interface AppInfo {
+  appName: string
+  appVersion: string
+  electron: string
+  chrome: string
+  node: string
+  v8: string
+  os: string
+  userDataDir: string
+  logsDir: string
 }
 
 /** IPC 通道名，全部集中在这里。 */
@@ -68,7 +88,8 @@ export const IPC = {
   clipboardReadText: 'clipboard:read-text',
   clipboardWriteText: 'clipboard:write-text',
   shellOpenExternal: 'shell:open-external',
-  dialogConfirm: 'dialog:confirm'
+  appInfo: 'app:info',
+  appOpenDir: 'app:open-dir'
 } as const
 
 /**
@@ -110,7 +131,8 @@ export interface Api {
   shell: {
     openExternal(url: string): Promise<OpResult>
   }
-  dialog: {
-    confirm(options: ConfirmOptions): Promise<boolean>
+  app: {
+    info(): Promise<AppInfo>
+    openDir(kind: 'userData' | 'logs'): Promise<OpResult>
   }
 }

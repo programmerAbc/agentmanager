@@ -7,10 +7,23 @@ import { showContextMenu } from './contextMenu'
 
 const api = window.api
 
-export const FONT_FAMILY = "'Sarasa Term SC', Consolas, 'Microsoft YaHei UI', monospace"
 const RESIZE_DEBOUNCE_MS = 50
 
+/** 终端外观，全部终端共用；任一字段变化都会重新 fit */
+export interface TerminalAppearance {
+  /** 完整的 CSS font-family 字体栈 */
+  fontFamily: string
+  fontSize: number
+  lineHeight: number
+  theme: ITheme
+}
+
 export type ZoomAction = 'in' | 'out' | 'reset'
+
+/** 应用级快捷键（Ctrl+, 打开设置），终端里不发给 PTY */
+export function isSettingsShortcut(e: KeyboardEvent): boolean {
+  return e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === ',' || e.code === 'Comma')
+}
 
 /** Ctrl+= / Ctrl+- / Ctrl+0（含小键盘）→ 字号操作；其他按键返回 null */
 export function zoomActionOf(e: KeyboardEvent): ZoomAction | null {
@@ -26,34 +39,6 @@ function letterOf(e: KeyboardEvent): string {
   if (/^[a-z]$/i.test(e.key)) return e.key.toLowerCase()
   const m = /^Key([A-Z])$/.exec(e.code)
   return m ? m[1].toLowerCase() : ''
-}
-
-const THEME: ITheme = {
-  background: '#181818',
-  foreground: '#d4d4d4',
-  cursor: '#e6e6e6',
-  cursorAccent: '#181818',
-  selectionBackground: 'rgba(217, 119, 87, 0.35)',
-  selectionInactiveBackground: 'rgba(217, 119, 87, 0.2)',
-  scrollbarSliderBackground: 'rgba(121, 121, 121, 0.3)',
-  scrollbarSliderHoverBackground: 'rgba(121, 121, 121, 0.5)',
-  scrollbarSliderActiveBackground: 'rgba(191, 191, 191, 0.5)',
-  black: '#000000',
-  red: '#cd3131',
-  green: '#0dbc79',
-  yellow: '#e5e510',
-  blue: '#2472c8',
-  magenta: '#bc3fbc',
-  cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#23d18b',
-  brightYellow: '#f5f543',
-  brightBlue: '#3b8eea',
-  brightMagenta: '#d670d6',
-  brightCyan: '#29b8db',
-  brightWhite: '#e5e5e5'
 }
 
 /**
@@ -74,12 +59,13 @@ class TerminalView {
   private readonly fitAddon = new FitAddon()
   private webgl: WebglAddon | null = null
   private state: ViewState = 'idle'
+  private startPromise: Promise<void> = Promise.resolve()
   private disposed = false
 
   constructor(
     readonly sessionId: string,
     host: HTMLElement,
-    fontSize: number,
+    appearance: TerminalAppearance,
     private readonly hooks: TerminalHooks
   ) {
     // 先让容器可见再 open，xterm 需要在可见状态下测量字符尺寸
@@ -91,12 +77,13 @@ class TerminalView {
     host.appendChild(this.pane)
 
     this.term = new Terminal({
-      fontFamily: FONT_FAMILY,
-      fontSize,
+      fontFamily: appearance.fontFamily,
+      fontSize: appearance.fontSize,
+      lineHeight: appearance.lineHeight,
       scrollback: 10000,
       cursorBlink: true,
       allowProposedApi: true,
-      theme: THEME,
+      theme: appearance.theme,
       windowsPty: { backend: 'conpty', buildNumber: api.system.windowsBuild }
     })
     this.term.loadAddon(this.fitAddon)
@@ -117,8 +104,13 @@ class TerminalView {
     this.pane.addEventListener('contextmenu', (e) => {
       e.preventDefault()
       showContextMenu(e.clientX, e.clientY, [
-        { label: '复制', disabled: !this.term.hasSelection(), action: () => this.copySelection(false) },
-        { label: '粘贴', action: () => void this.pasteFromClipboard() }
+        {
+          label: '复制',
+          icon: 'contentCopy',
+          disabled: !this.term.hasSelection(),
+          action: () => this.copySelection(false)
+        },
+        { label: '粘贴', icon: 'contentPaste', action: () => void this.pasteFromClipboard() }
       ])
     })
   }
@@ -156,8 +148,20 @@ class TerminalView {
     if (this.state === 'running') api.pty.resize(this.sessionId, this.term.cols, this.term.rows)
   }
 
-  async start(): Promise<void> {
-    if (this.state === 'starting' || this.state === 'running') return
+  start(): Promise<void> {
+    if (this.state === 'running') return Promise.resolve()
+    if (this.state !== 'starting') this.startPromise = this.doStart()
+    return this.startPromise
+  }
+
+  /** 保证 PTY 在运行：已退出 / 启动失败时清屏重启；返回是否在运行 */
+  async ensureRunning(): Promise<boolean> {
+    if (this.state === 'exited' || this.state === 'failed') this.term.reset()
+    await this.start()
+    return this.state === 'running'
+  }
+
+  private async doStart(): Promise<void> {
     this.setState('starting')
     this.fit()
     const result = await api.pty.open(this.sessionId, this.term.cols, this.term.rows)
@@ -224,8 +228,12 @@ class TerminalView {
     this.pane.remove()
   }
 
-  setFontSize(fontSize: number): void {
-    this.term.options.fontSize = fontSize
+  setAppearance(appearance: TerminalAppearance): void {
+    const o = this.term.options
+    if (o.fontFamily !== appearance.fontFamily) o.fontFamily = appearance.fontFamily
+    if (o.fontSize !== appearance.fontSize) o.fontSize = appearance.fontSize
+    if (o.lineHeight !== appearance.lineHeight) o.lineHeight = appearance.lineHeight
+    if (o.theme !== appearance.theme) o.theme = appearance.theme
     // 隐藏的终端等下次显示时再 fit
     if (this.fit()) this.syncPtySize()
   }
@@ -241,7 +249,7 @@ class TerminalView {
   private handleKey(e: KeyboardEvent): boolean {
     if (e.type !== 'keydown') return true
     if (!e.ctrlKey || e.altKey || e.metaKey) return true
-    if (zoomActionOf(e)) return false
+    if (zoomActionOf(e) || isSettingsShortcut(e)) return false
     const letter = letterOf(e)
     if (letter === 'c') {
       if (!e.shiftKey && !this.term.hasSelection()) return true
@@ -316,7 +324,7 @@ export class TerminalManager {
 
   constructor(
     private readonly host: HTMLElement,
-    private fontSize: number,
+    private appearance: TerminalAppearance,
     private readonly hooks: TerminalHooks
   ) {
     api.pty.onData((id, data) => this.views.get(id)?.write(data))
@@ -329,9 +337,19 @@ export class TerminalManager {
     }).observe(host)
   }
 
-  setFontSize(fontSize: number): void {
-    this.fontSize = fontSize
-    for (const view of this.views.values()) view.setFontSize(fontSize)
+  setAppearance(patch: Partial<TerminalAppearance>): void {
+    this.appearance = { ...this.appearance, ...patch }
+    for (const view of this.views.values()) view.setAppearance(this.appearance)
+  }
+
+  /**
+   * 确保会话的终端已显示且 PTY 在运行（没有实例则创建，已退出 / 启动失败则重新启动）。
+   * 返回 PTY 是否在运行。
+   */
+  async ensureRunning(sessionId: string): Promise<boolean> {
+    if (this.activeId !== sessionId || !this.views.has(sessionId)) this.show(sessionId)
+    const view = this.views.get(sessionId)
+    return view ? view.ensureRunning() : false
   }
 
   private fitActive(): void {
@@ -352,7 +370,7 @@ export class TerminalManager {
       existing.show()
       return
     }
-    const view = new TerminalView(sessionId, this.host, this.fontSize, this.hooks)
+    const view = new TerminalView(sessionId, this.host, this.appearance, this.hooks)
     this.views.set(sessionId, view)
     view.fit()
     void view.start()

@@ -1,12 +1,7 @@
-import { BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
-import {
-  IPC,
-  type ConfirmOptions,
-  type DataResult,
-  type OpResult,
-  type Project,
-  type SettingsPatch
-} from '../shared/types'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
+import os from 'node:os'
+import path from 'node:path'
+import { IPC, type AppInfo, type DataResult, type OpResult, type Project, type SettingsPatch } from '../shared/types'
 import log from './log'
 import type { ProjectStore } from './projectStore'
 import type { PtyManager } from './ptyManager'
@@ -121,27 +116,30 @@ export function registerIpc({ projects, settings, ptys }: IpcDeps): void {
     })
   )
 
-  ipcMain.handle(IPC.dialogConfirm, async (event: IpcMainInvokeEvent, options: unknown): Promise<boolean> => {
-    try {
-      const { message, detail, okLabel } = asConfirmOptions(options)
-      const win = BrowserWindow.fromWebContents(event.sender)
-      const box: Electron.MessageBoxOptions = {
-        type: 'question',
-        title: 'Agent Desk',
-        message,
-        detail,
-        buttons: [okLabel ?? '确定', '取消'],
-        defaultId: 1,
-        cancelId: 1,
-        noLink: true
-      }
-      const { response } = win ? await dialog.showMessageBox(win, box) : await dialog.showMessageBox(box)
-      return response === 0
-    } catch (err) {
-      log.error('[ipc] 确认框失败', err)
-      return false
-    }
-  })
+  // ---------- app ----------
+  ipcMain.handle(IPC.appInfo, (): AppInfo => ({
+    appName: app.getName(),
+    appVersion: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    v8: process.versions.v8,
+    os: `Windows ${os.release()} (${os.arch()})`,
+    userDataDir: app.getPath('userData'),
+    logsDir: logsDir()
+  }))
+
+  ipcMain.handle(IPC.appOpenDir, (_e, kind: unknown) =>
+    guard('打开目录', async () => {
+      const dir = kind === 'logs' ? logsDir() : app.getPath('userData')
+      const error = await shell.openPath(dir)
+      if (error) throw new Error(error)
+    })
+  )
+}
+
+function logsDir(): string {
+  return path.join(app.getPath('userData'), 'logs')
 }
 
 async function guard(action: string, fn: () => Promise<void>): Promise<OpResult> {
@@ -179,24 +177,20 @@ function asInt(v: unknown): number {
   return v
 }
 
+/** 只挑出类型正确的字段；取值范围与格式由 SettingsStore 校验 */
 function asSettingsPatch(v: unknown): SettingsPatch {
   if (typeof v !== 'object' || v === null) throw new Error('参数类型错误')
   const r = v as Record<string, unknown>
   const patch: SettingsPatch = {}
-  if (typeof r.sidebarWidth === 'number' && Number.isFinite(r.sidebarWidth)) patch.sidebarWidth = r.sidebarWidth
-  if (typeof r.fontSize === 'number' && Number.isFinite(r.fontSize)) patch.fontSize = r.fontSize
+  const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+  if (num(r.sidebarWidth)) patch.sidebarWidth = r.sidebarWidth
+  if (num(r.fontSize)) patch.fontSize = r.fontSize
+  if (num(r.lineHeight)) patch.lineHeight = r.lineHeight
+  if (typeof r.fontFamily === 'string') patch.fontFamily = r.fontFamily
+  if (typeof r.themeSeed === 'string') patch.themeSeed = r.themeSeed
+  if (typeof r.claudeCommand === 'string') patch.claudeCommand = r.claudeCommand
   if (typeof r.lastProjectId === 'string' || r.lastProjectId === null) patch.lastProjectId = r.lastProjectId
   return patch
-}
-
-function asConfirmOptions(v: unknown): ConfirmOptions {
-  if (typeof v !== 'object' || v === null) throw new Error('参数类型错误')
-  const r = v as Record<string, unknown>
-  return {
-    message: asString(r.message),
-    detail: typeof r.detail === 'string' ? r.detail : undefined,
-    okLabel: typeof r.okLabel === 'string' ? r.okLabel : undefined
-  }
 }
 
 function errorMessage(err: unknown): string {

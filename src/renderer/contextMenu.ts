@@ -1,7 +1,9 @@
-// 简单的 DOM 右键菜单：同一时间只有一个，点击外部 / Esc / 窗口失焦时关闭
+import { icon, type IconName } from './icons'
+
+// MD3 菜单：同一时间只有一个，点击外部 / Esc / 窗口失焦时关闭
 
 export type MenuItem =
-  | { label: string; action: () => void; disabled?: boolean; danger?: boolean }
+  | { label: string; action: () => void; icon?: IconName; disabled?: boolean; danger?: boolean }
   | { separator: true }
 
 let closeCurrent: (() => void) | null = null
@@ -27,7 +29,10 @@ export function showContextMenu(x: number, y: number, items: MenuItem[]): void {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = item.danger ? 'menu-item danger' : 'menu-item'
-    button.textContent = item.label
+    if (item.icon) button.appendChild(icon(item.icon))
+    const label = document.createElement('span')
+    label.textContent = item.label
+    button.appendChild(label)
     button.disabled = item.disabled === true
     button.setAttribute('role', 'menuitem')
     button.addEventListener('click', () => {
@@ -38,6 +43,7 @@ export function showContextMenu(x: number, y: number, items: MenuItem[]): void {
   }
 
   document.body.appendChild(menu)
+  requestAnimationFrame(() => menu.classList.add('open'))
   const rect = menu.getBoundingClientRect()
   menu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`
   menu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`

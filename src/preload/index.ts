@@ -48,8 +48,9 @@ const api: Api = {
   shell: {
     openExternal: (url) => ipcRenderer.invoke(IPC.shellOpenExternal, url)
   },
-  dialog: {
-    confirm: (options) => ipcRenderer.invoke(IPC.dialogConfirm, options)
+  app: {
+    info: () => ipcRenderer.invoke(IPC.appInfo),
+    openDir: (kind) => ipcRenderer.invoke(IPC.appOpenDir, kind)
   }
 }
 
