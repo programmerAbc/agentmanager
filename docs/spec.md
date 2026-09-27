@@ -111,6 +111,25 @@
 - **换行**：在终端里按 `Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` 输入换行而不是提交——claude 与 codex 的输入框里换行，PowerShell 里续行（`>>`）。`Enter` 行为不变。输入法组字时的 Enter 交给输入法。
 - **光标样式**：设置 → 终端 →「光标」三选一：竖线（默认，用户偏好「普通的光标」）/ 下划线 / 方块；立即作用于所有终端并保存。失焦时保持同一形状（方块失焦为空心）。程序自己用转义序列设置的光标形状（DECSCUSR）优先。claude 输入框使用的就是终端光标，因此同样生效。
 
+### M14 默认终端（用户要求）
+- 设置 → 终端 →「默认终端」：**自动**（默认，保持原行为：有 PowerShell 7 用 pwsh，否则 Windows PowerShell）/ **PowerShell 7**（pwsh）/ **Windows PowerShell**（5.1）/ **命令提示符**（cmd）/ **Git Bash**。
+- 只列出本机检测到的（未安装的显示为不可选并标注「未安装」）。Git Bash 从 Git for Windows 的安装位置找 `bin\bash.exe`（不用 PATH 里的 `bash.exe`，那可能是 WSL 的启动器）。
+- 对**新打开或重启**的终端生效，已打开的终端不变。所选终端启动时找不到（例如被卸载）则回退为「自动」并记日志。
+- Git Bash 以登录交互模式启动（`--login -i`），并保持在项目目录（`CHERE_INVOKING=1`）。
+- 「启动 Claude / 启动 Codex」按该终端实际使用的 shell 生成命令：PowerShell 用现有写法（`try/finally`），cmd 用 `&` 串联退出上报，bash 用 `;`；hooks 本身不变（codex 无需重新信任）。
+- 非目标：WSL、自定义 shell 路径 / 参数（另议）。
+- Git Bash 里在空提示符下按 Shift+Enter 与 Enter 相同（执行命令，bash 本身没有多行编辑键）；claude / codex 输入框里仍是换行。
+
+### M15 用户反馈：顶部栏按钮、Ctrl+单击打开文件
+- **顶部栏**：终端里有助手（claude / codex）运行时，隐藏「启动 Claude」「启动 Codex」两个按钮，只显示状态标签（例如「Codex 就绪」）；助手退出后按钮恢复。项目右键菜单里的两项仍为禁用（菜单里保留禁用项是常规做法）。
+- **Ctrl+单击打开**（与 VS Code 一致，普通单击不打开，留给选择文本）：
+  - 程序输出的 **OSC 8 超链接**：`file://` → 用系统默认程序打开；`http(s)://` 与编辑器协议（`vscode:` `vscode-insiders:` `cursor:` `windsurf:`）→ 交给系统打开；其他协议拒绝并提示。
+  - claude 只有在认为终端支持超链接时才把「[Image #N]」图片附件、文件引用输出为链接：终端环境变量设置 `FORCE_HYPERLINK=1`（用户自己设置了则保留）。
+  - 文本里的**本机文件路径**（codex 等不输出超链接的程序）：Windows 绝对路径（`C:\a\b.png`、`D:/x/y.ts:12`）与相对路径 / 文件名（`src/main/ipc.ts:147`、`handoff.md`，相对项目目录）；只有存在的文件 / 目录才显示为链接；`:行号`、`#L20` 后缀忽略；不支持含空格的纯文本路径（OSC 8 链接不受此限）。
+  - 网址（原有）同样改为 Ctrl+单击。
+  - 悬浮时终端的提示显示目标和「按住 Ctrl 单击打开」。
+- **安全**：终端输出不可信。可执行文件 / 脚本（`.exe .bat .cmd .ps1 .vbs .js .msi .lnk` 等）只在资源管理器中定位、不直接打开；没有关联程序的文件也改为定位；不打开网络位置（`\\server\share`、带主机名的 `file://`，访问时 Windows 会自动发送登录凭据）。
+
 ## Open
 - codex 一轮对话出错（例如模型不可用）时不会有 Stop，状态停留在「工作中」直到下一次事件或 codex 退出。
 - 退出 claude 时连按三次以上 Ctrl+C：多出来的 Ctrl+C 会广播给控制台里的所有进程，可能打断正在上报 SessionEnd 的 `curl.exe`，状态停在「就绪」、启动按钮保持禁用（重启终端可恢复）。正常的两次 Ctrl+C 或 `/exit` 已验证能清除状态。可选改进：像 codex 一样用 PowerShell `try/finally` 兜底上报。

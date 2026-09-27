@@ -429,14 +429,8 @@ class App {
     }
     chip.dataset.state = key
 
-    // 同一终端同时只跟踪一个助手：有助手在运行时两个启动按钮都禁用，运行中的那个显示「运行中」
-    for (const agent of ['claude', 'codex'] as const) {
-      const btn = this.topbar.launch[agent]
-      btn.disabled = state !== null
-      const label = btn.querySelector('span:last-child')
-      const name = AGENT_LABEL[agent]
-      if (label) label.textContent = state?.agent === agent ? `${name} 运行中` : `启动 ${name}`
-    }
+    // 同一终端同时只跟踪一个助手：有助手在运行时隐藏两个启动按钮，只留状态标签（用户反馈：禁用的按钮多余）
+    for (const agent of ['claude', 'codex'] as const) this.topbar.launch[agent].hidden = state !== null
   }
 
   private render(): void {

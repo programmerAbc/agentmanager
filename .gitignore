@@ -5,3 +5,6 @@ dist/
 .DS_Store
 Thumbs.db
 release/
+
+# 本地自测用的临时数据与脚本（CDP 工具、测试 userData）
+.devtest/

@@ -7,6 +7,7 @@ import log from './log'
 import { ProjectStore } from './projectStore'
 import { PtyManager } from './ptyManager'
 import { SettingsStore } from './settingsStore'
+import { logDetectedShells } from './shells'
 
 const QUIT_CLEANUP_TIMEOUT_MS = 2000
 const DEFAULT_SIZE = { width: 1280, height: 800 }
@@ -207,6 +208,7 @@ function main(): void {
       // 状态服务启动失败不影响终端功能，只是没有助手状态
       await hooks.start().catch((err: unknown) => log.error('[agents] hooks 服务启动失败', err))
       registerIpc({ projects, settings, ptys, hooks })
+      logDetectedShells()
       mainWindow = createWindow()
     })
     .catch((err: unknown) => {

@@ -1,15 +1,17 @@
 import { app } from 'electron'
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
-import path from 'node:path'
 import * as pty from 'node-pty'
-import type { OpResult } from '../shared/types'
+import type { OpResult, ShellId } from '../shared/types'
 import log from './log'
+import { resolveShell, type ShellFamily } from './shells'
 
 export interface PtyOpenOptions {
   cwd: string
   cols: number
   rows: number
+  /** 设置里选的 shell；找不到时回退为自动 */
+  shell: ShellId
   /** 额外的环境变量（例如 AgentManager 的 hooks 地址） */
   env?: Record<string, string>
 }
@@ -18,6 +20,8 @@ interface Session {
   id: string
   proc: pty.IPty
   pid: number
+  /** 实际启动的 shell 家族，决定助手启动命令的写法 */
+  family: ShellFamily
   /** 攒一小段时间的输出再发给渲染进程，减少 IPC 消息数 */
   pending: string
   flushTimer: NodeJS.Timeout | null
@@ -62,25 +66,31 @@ export class PtyManager {
     return this.sessions.has(sessionId)
   }
 
-  open(sessionId: string, { cwd, cols, rows, env: extraEnv }: PtyOpenOptions): OpResult {
+  /** 会话实际使用的 shell 家族；会话不存在时为 null */
+  shellFamilyOf(sessionId: string): ShellFamily | null {
+    return this.sessions.get(sessionId)?.family ?? null
+  }
+
+  open(sessionId: string, { cwd, cols, rows, shell: shellId, env: extraEnv }: PtyOpenOptions): OpResult {
     if (this.sessions.has(sessionId)) return { ok: true }
 
     const dirError = checkDirectory(cwd)
     if (dirError) return { ok: false, error: dirError }
 
-    const shell = resolveShell()
+    const shell = resolveShell(shellId)
     try {
-      const proc = pty.spawn(shell, ['-NoLogo'], {
+      const proc = pty.spawn(shell.file, shell.args, {
         name: 'xterm-256color',
         cols: sanitizeDim(cols, 80),
         rows: sanitizeDim(rows, 24),
         cwd,
-        env: { ...buildEnv(), ...extraEnv }
+        env: { ...buildEnv(), ...shell.env, ...extraEnv }
       })
       const session: Session = {
         id: sessionId,
         proc,
         pid: proc.pid,
+        family: shell.family,
         pending: '',
         flushTimer: null,
         disposables: [],
@@ -91,10 +101,10 @@ export class PtyManager {
         proc.onExit(({ exitCode }) => this.handleExit(session, exitCode))
       )
       this.sessions.set(sessionId, session)
-      log.info(`[pty] 创建 session=${sessionId} pid=${proc.pid} shell=${shell} cwd=${cwd} size=${cols}x${rows}`)
+      log.info(`[pty] 创建 session=${sessionId} pid=${proc.pid} shell="${shell.file}" cwd="${cwd}" size=${cols}x${rows}`)
       return { ok: true }
     } catch (err) {
-      log.error(`[pty] 创建失败 session=${sessionId} shell=${shell} cwd=${cwd}`, err)
+      log.error(`[pty] 创建失败 session=${sessionId} shell="${shell.file}" cwd="${cwd}"`, err)
       return { ok: false, error: `启动终端失败：${errorMessage(err)}` }
     }
   }
@@ -233,28 +243,6 @@ function killProcessTree(pid: number): Promise<boolean> {
   })
 }
 
-/** 默认 shell：PATH 中有 pwsh.exe 就用它，否则用 powershell.exe */
-function resolveShell(): string {
-  return findInPath('pwsh.exe') ?? 'powershell.exe'
-}
-
-function findInPath(exe: string): string | null {
-  const dirs = (process.env.PATH ?? '').split(path.delimiter)
-  for (const raw of dirs) {
-    const dir = raw.trim().replace(/^"(.*)"$/, '$1')
-    if (!dir) continue
-    const candidate = path.join(dir, exe)
-    // 应用执行别名（WindowsApps 下的 pwsh.exe）对 stat/existsSync 会报 EACCES，只能用 lstat 判断存在
-    try {
-      fs.lstatSync(candidate)
-      return candidate
-    } catch {
-      // 不存在，继续找
-    }
-  }
-  return null
-}
-
 function buildEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
@@ -281,6 +269,9 @@ function buildEnv(): Record<string, string> {
   }
   env.TERM = 'xterm-256color'
   env.COLORTERM = 'truecolor'
+  // 告诉程序终端支持 OSC 8 超链接（claude 据此把「[Image #N]」和文件引用输出为可 Ctrl+单击的 file 链接）；
+  // 用户自己设置了（例如 FORCE_HYPERLINK=0）则保留
+  env.FORCE_HYPERLINK ??= '1'
   return env
 }
 

@@ -15,6 +15,9 @@
 - 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main，含 1.1.0）。以后的推送需用户要求。
 - M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
 - M12（迭代 4）：主题色新增「白色」（单色浅色界面，白底终端 + 浅色 ANSI + 最小对比度 4.5）与「黑色」（单色纯黑界面）；色块描边；启动时窗口底色与主题一致、主题应用前页面透明，避免闪烁。
+- M14（用户要求，尚未推送 / 打包）：设置「默认终端」自动 / PowerShell 7 / Windows PowerShell / 命令提示符 / Git Bash（只列本机已安装的），对新开或重启的终端生效；助手启动命令按 shell 家族生成。
+- M15（用户反馈，尚未推送 / 打包）：助手运行时隐藏顶部栏两个启动按钮；终端里 Ctrl+单击打开 OSC 8 链接（claude 的图片附件 / 文件引用，靠 `FORCE_HYPERLINK=1` 让 claude 输出）、网址和识别出的本机文件路径；可执行文件只定位、网络位置不打开。
+- 自测工具与数据改放在项目内 `.devtest/`（已加入 .gitignore，不提交）：cdp.mjs、hover.mjs（把鼠标移到终端文字上、可 Ctrl+单击）、pick-shell.mjs、close-dev.ps1、seed.mjs（测试项目 / userData / 假 codex）。原会话 scratchpad 已不可用。
 - 1.2.0（M13）：按用户要求推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.2.0-setup.exe`（SHA256 5435C3B2…38F6CDA8，与 dist 中一致）。为不抢用户焦点，打包版未启动 GUI 冒烟，改为静态检查（见 Verification）。
 - M13（用户实际使用中反馈）：`Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` 在 claude、codex 输入框里换行，在 PowerShell 里续行；设置新增「光标」竖线（默认）/ 下划线 / 方块。开发模式 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口不激活显示（自测不抢焦点）。
 - 1.1.0（M11 + M12）：按用户要求版本号改为 1.1.0，安装包 `D:\agnent_manager_release\agentmanager-1.1.0-setup.exe`（SHA256 0FE53C70…58A2A8FA，与 dist 中一致；同目录的 1.0.0 安装包保留）。已推送到 GitHub。
@@ -39,6 +42,7 @@
 - M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
 - 1.0.0 改名：electron-builder.yml、package.json、package-lock.json、scripts/postinstall.mjs、src/main/{index,projectStore,ptyManager,settingsStore}.ts、src/shared/types.ts（删除 ProjectsFile）、src/renderer/{index.html,main,settingsDialog,sidebar}.ts；README、docs、plans、handoff。
 - M11：src/renderer/fuzzy.ts（新）、sidebar.ts、main.ts、terminalView.ts、icons.ts、styles.css；spec、architecture、README、plans、handoff、lessons。
+- M14 / M15：src/main/shells.ts（新）、src/main/links.ts（新）、src/renderer/pathLinks.ts（新）、src/main/{ptyManager,ipc,hookServer,settingsStore,index}.ts、src/preload/index.ts、src/shared/types.ts、src/renderer/{terminalView,settingsDialog,main}.ts、styles.css、.gitignore（.devtest/）；spec、architecture、README、plans、handoff、lessons。
 - M13：src/renderer/terminalView.ts（NEWLINE_KEY、cursorOptions）、src/shared/types.ts（CursorStyle）、src/main/{settingsStore,ipc,index}.ts、src/renderer/{main,settingsDialog}.ts、styles.css（分段按钮）；spec、architecture、README、plans、handoff、lessons。
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
@@ -81,6 +85,14 @@
   - 顺带验证：按钮启动的 claude 用 `/exit` 或两次 Ctrl+C 退出，SessionEnd 均到达、按钮恢复；此前「状态卡在就绪」是测试时第三次 Ctrl+C 打断了 hook 的 curl（已记入 spec Open）。
   - 事故：一次用 Bash 工具传 `/exit` 参数时被 MSYS 改写成 `C:/Program Files/Git/exit`，作为提示词发给了 claude（一次很小的请求，claude 只回复了说明，没有执行操作）。见 lessons.md。
   - 未测：真实键盘上的输入法状态下按 Shift+Enter；Windows 10 上的回退分支。
+- M14 / M15（`npm run typecheck` 通过；dev 实例以 `AGENTMANAGER_TEST_INACTIVE=1` 启动、userData 在 `.devtest/ud`；全程未碰用户的安装版进程）：
+  - 检测：日志「可用终端」列出 pwsh（WindowsApps）、powershell、cmd、Git Bash；设置页下拉 5 项，「自动」标注 PowerShell 7。
+  - cmd：在项目目录启动；按钮启动 claude → SessionStart（双引号 `--settings` 路径可用），`/exit` → SessionEnd、按钮恢复；按钮启动真实 codex（临时 CODEX_HOME，测试后已删除，用户 config.toml 未写入信任记录）→ 两次 Ctrl+C 退出后 `&` 上报 SessionEnd、状态清除。
+  - Git Bash：`pwd` 为项目目录、MSYSTEM=MINGW64；假 codex（打印参数）收到完整的 hooks TOML 作为一个参数，`;` 上报 SessionEnd；claude 按钮启动 → SessionStart（单引号 Windows 路径可用），`/exit` → SessionEnd。空提示符下 Shift+Enter 执行命令（bash 行为）。
+  - Windows PowerShell 5.1（5.1.26100）：假 codex（codex.cmd）收到完整 TOML，`finally` 上报 SessionEnd。PowerShell 7（自动）：claude 启动 / 退出上报正常，终端内 `FORCE_HYPERLINK=1`。
+  - 顶部栏：claude 运行时两个启动按钮 hidden、只剩「Claude 就绪」（截图确认），退出后恢复。
+  - 链接：`pathLinks` 识别用 esbuild 打包的临时脚本做了 11 项断言（中文路径、`:行:列`、`#L`、反引号、句末标点、网址 / 版本号不识别），全部通过。dev 中 pwsh 打印 3 个 OSC 8 链接与 2 个纯文本相对路径：悬浮提示分别为 file:// / 主机名 file:// / ms-settings: 与解析后的绝对路径；普通单击不打开；Ctrl+单击（先删除目标文件）→「文件不存在」、主机名 → 「不打开网络位置上的文件」、ms-settings → 「不支持的链接」；纯文本路径 Ctrl+单击（删除后）→「文件不存在」，说明整条链路到达主进程。claude 头部的目录路径由纯文本识别成链接。
+  - 未测：真正用默认程序打开（会弹出记事本 / 资源管理器等窗口，可能复用用户的窗口，故未做；`shell.openPath` 为 Electron 标准 API）；claude 对话记录中「[Image #N]」的 OSC 8 链接（需要实际发送一条带图片的消息；输入框里的「[Image #1]」不是链接，按 claude 代码它在消息里才输出链接，且 `FORCE_HYPERLINK=1` 时其判断为真）；所选终端被卸载后的回退。
 - 1.2.0 打包：`npm run build:win`（含 typecheck）通过。用户正在使用安装版，打包版若启动会抢焦点（`showInactive` 只在开发模式生效），因此没有启动 GUI，改为解包 `app.asar` 静态检查：package.json 版本 1.2.0；渲染进程 bundle 含换行序列 `[13;28;10;1;16;1_` 与 `cursorInactiveStyle`；主进程含 `cursorStyle` 校验；`AGENTMANAGER_TEST_INACTIVE` 编译结果带 `!app.isPackaged` 判断；node-pty 原生模块在 app.asar.unpacked 中。打包配置自 1.1.0（已做 GUI 冒烟）以来未变。
 - 覆盖安装数据：数据在 `%APPDATA%\AgentManager`（与安装目录分开），NSIS 升级时以 `/S /KEEP_APP_DATA` 运行旧卸载程序；数据库 schema 未变（user_version 1）；settings.json 缺少新字段 `cursorStyle` 时按字段回退默认值（竖线），其他设置保留。
 - 待人工确认：
@@ -91,5 +103,5 @@
 
 ## Resume Context
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
-- 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
+- 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；自测工具在 `.devtest/`（先 `node .devtest/seed.mjs` 建测试数据，userData 用 `--user-data-dir=<项目>/.devtest/ud`，关闭用 `.devtest/close-dev.ps1`）；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

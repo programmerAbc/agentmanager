@@ -101,6 +101,20 @@ preload (src/preload/index.ts)
 | 光标样式存在设置 `cursorStyle`（bar / underline / block，默认 bar），映射到 xterm `cursorStyle`，`cursorInactiveStyle` 取同一形状（block 失焦为 outline），竖线宽 2px | 用户不喜欢默认方块；xterm 默认失焦时画空心方块，与竖线不一致；1px 在高 DPI 下太细 |
 | 开发模式下环境变量 `AGENTMANAGER_TEST_INACTIVE=1` 时窗口用 `showInactive()` 显示 | 自测时不抢用户的键盘焦点（见 lessons.md）；打包版不受影响 |
 
+## 迭代 5 设计（M14 / M15）
+
+| 决策 | 原因 |
+|---|---|
+| `src/main/shells.ts` 集中检测与解析 shell：pwsh（PATH → `Program Files\PowerShell\7`）、Windows PowerShell（`System32\WindowsPowerShell\v1.0`）、cmd（`ComSpec`）、Git Bash（常见安装目录 → 由 PATH 里的 `git.exe` 反推 `<Git>\bin\bash.exe`）；设置 `shell`（auto / pwsh / powershell / cmd / gitbash，默认 auto）在 `pty.open` 时解析，找不到回退 auto；启动时把检测结果写日志 | 用户要求可选终端；Git Bash 不能从 PATH 找 `bash.exe`（System32 下的是 WSL 启动器）；应用执行别名只能用 lstat 判断存在 |
+| Git Bash 以 `bin\bash.exe --login -i` 启动并设置 `CHERE_INVOKING=1` | 与 Git Bash 窗口一致加载 profile；profile 默认会 cd 到 HOME，该变量让它留在项目目录（实测） |
+| PtyManager 为每个会话记录 shell 家族（powershell / cmd / bash），`launchLine` 据此生成助手启动命令：claude 的 `--settings` 路径在 PowerShell / bash 用单引号（`''` / `'\''` 转义）、cmd 用双引号；codex 分别用 `try/finally`、`&`、`;` 串联退出上报，hooks 配置都从 `AGENT_DESK_CODEX_HOOKS` 取（`"%VAR%"` / `"$VAR"`） | hooks 的 TOML 里没有双引号，放进双引号安全；hook 命令文本不变，codex 不会要求重新信任。实测 codex 在 cmd 里以原始模式读 Ctrl+C，不会中断 `&` 后面的上报 |
+| 设置页下拉菜单通用化为 `showSelectMenu(options)`（value / label / tag / disabled / fontFamily），字体与默认终端共用；未安装的终端显示为禁用项 | 避免复制一套菜单 |
+| 助手运行时隐藏顶部栏的两个启动按钮（`hidden`），只留状态标签 | 用户反馈禁用的按钮多余 |
+| 链接统一 Ctrl（或 Cmd）+ 单击：xterm `linkHandler`（`allowNonHttpProtocols: true`，否则 xterm 直接忽略 file 等非 http 的 OSC 8 链接）、WebLinksAddon、自定义 `PathLinkProvider` 三处共用 `activateLink`；悬浮时设置终端容器的 `title` 作为提示 | xterm 6 的 Linkifier 在元素上直接监听鼠标，程序开启鼠标上报时链接仍可用 |
+| `PathLinkProvider`（`src/renderer/pathLinks.ts`）：按单元格重建逻辑行（含自动换行续行，宽字符按 2 格映射），正则识别路径，再经 IPC `links.resolvePaths` 让主进程以项目目录为基准判断存在，只返回存在的 | 路径常被自动换行截断；只链接存在的文件避免把「node.js」「v1.2」之类误判成链接 |
+| 主进程 `links.ts` 负责打开：协议白名单；file 链接拒绝主机名；本机路径拒绝 UNC；可执行扩展名只 `showItemInFolder`；`shell.openPath` 失败（无关联程序）时也改为定位 | 终端输出不可信：恶意文本里的 OSC 8 链接不应能直接运行程序或触发访问网络共享（NTLM 凭据泄露） |
+| 终端环境变量 `FORCE_HYPERLINK=1`（`??=`，尊重用户设置） | claude 的超链接判断（supports-hyperlinks + 终端白名单，Windows Terminal 靠 `WT_SESSION`）在我们的终端里为否，不会输出 OSC 8；该变量是 supports-hyperlinks 的标准开关 |
+
 ## 打包（electron-builder.yml）
 
 - 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。

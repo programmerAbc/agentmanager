@@ -65,11 +65,11 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 ## 界面与功能
 
 - **启动 Claude / 启动 Codex**：顶部栏按钮（也在「点击启动」面板和项目右键菜单里）。在当前项目终端里执行设置中的命令，默认分别为 `claude --permission-mode bypassPermissions`、`codex --dangerously-bypass-approvals-and-sandbox`；终端未启动时先启动。
-- **工作状态**：通过按钮启动的 claude / codex 会在侧栏和顶部栏显示「就绪 / 工作中（形状变换动画）/ 等待确认 / 已完成」。「已完成」会一直保留，直到你切换到该项目或在它的终端里输入。手动输入的 `claude` / `codex` 没有状态。
+- **工作状态**：通过按钮启动的 claude / codex 会在侧栏和顶部栏显示「就绪 / 工作中（形状变换动画）/ 等待确认 / 已完成」。「已完成」会一直保留，直到你切换到该项目或在它的终端里输入。手动输入的 `claude` / `codex` 没有状态。助手运行时顶部栏只显示状态，两个启动按钮隐藏。
   - Claude：追加 `--settings <userData>\agent-hooks\<会话>.json`，**不修改** `~/.claude/settings.json`。
   - Codex：追加 `-c $env:AGENT_DESK_CODEX_HOOKS` 注入 hooks，并用 `try { … } finally { … }` 检测退出，**不修改** `~/.codex/config.toml`。首次启动时 codex 会提示「Hooks need review」，选「Trust all and continue」后不再提示（这条信任记录由 codex 自己保存）。需要系统自带的 `curl.exe`。
 - **搜索项目**（侧栏搜索框，或 `Ctrl+Shift+F`）：输入即过滤，模糊匹配项目名和侧栏上显示的路径（如输入 `agm` 能找到 agentmanager），多个词用空格分开；`↑` / `↓` 选择、`Enter` 打开、`Esc` 清空 / 回到终端。
-- **设置**（侧栏底部，或 `Ctrl+,`）：终端字体（列出本机等宽字体，默认 Maple Mono NF CN）、字号、行高、光标样式（竖线 / 下划线 / 方块）、主题色（Material 3 动态配色；「白色」为浅色界面，「黑色」为纯黑界面）、Claude / Codex 启动命令。点击左上角的应用名可查看版本信息。
+- **设置**（侧栏底部，或 `Ctrl+,`）：默认终端（自动 / PowerShell 7 / Windows PowerShell / 命令提示符 / Git Bash）、终端字体（列出本机等宽字体，默认 Maple Mono NF CN）、字号、行高、光标样式（竖线 / 下划线 / 方块）、主题色（Material 3 动态配色；「白色」为浅色界面，「黑色」为纯黑界面）、Claude / Codex 启动命令。点击左上角的应用名可查看版本信息。
 - 界面采用 Material Design 3 Expressive 风格。
 
 ## 终端快捷键
@@ -83,6 +83,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 | 设置 | `Ctrl+,` |
 | 搜索项目 | `Ctrl+Shift+F` |
 | 换行（claude / codex 输入框换行，PowerShell 续行） | `Shift+Enter` / `Ctrl+Enter` / `Alt+Enter` |
+| 打开链接 / 图片附件 / 文件路径 | `Ctrl` + 单击（可执行文件只在资源管理器中定位） |
 | 重启已退出的终端 | 进程退出后按 `Enter` |
 
 终端内右键菜单提供「复制」「粘贴」；侧栏项目右键菜单提供「重命名 / 在资源管理器中打开 / 重启终端 / 移除项目」，选中项目时 `F2` 重命名。

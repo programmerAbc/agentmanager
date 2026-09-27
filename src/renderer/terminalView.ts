@@ -3,7 +3,8 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal, type ITerminalOptions, type ITheme } from '@xterm/xterm'
-import type { CursorStyle } from '../shared/types'
+import type { CursorStyle, OpResult } from '../shared/types'
+import { PathLinkProvider } from './pathLinks'
 import { showContextMenu } from './contextMenu'
 
 const api = window.api
@@ -124,16 +125,31 @@ class TerminalView {
       allowProposedApi: true,
       theme: appearance.theme,
       minimumContrastRatio: appearance.minimumContrastRatio,
-      windowsPty: { backend: 'conpty', buildNumber: api.system.windowsBuild }
+      windowsPty: { backend: 'conpty', buildNumber: api.system.windowsBuild },
+      // 程序输出的 OSC 8 超链接（claude 的「[Image #N]」、文件引用是 file:// 链接），协议由主进程按白名单处理
+      linkHandler: {
+        allowNonHttpProtocols: true,
+        activate: (event, uri) => this.activateLink(event, () => api.links.open(uri)),
+        hover: (_event, uri) => this.showLinkHint(uri),
+        leave: () => this.hideLinkHint()
+      }
     })
     this.term.loadAddon(this.fitAddon)
     this.term.loadAddon(new Unicode11Addon())
     this.term.unicode.activeVersion = '11'
+    // 文本里的网址
     this.term.loadAddon(
-      new WebLinksAddon((_event, uri) => {
-        void api.shell.openExternal(uri).then((r) => {
-          if (!r.ok) hooks.onError(r.error)
-        })
+      new WebLinksAddon((event, uri) => this.activateLink(event, () => api.links.open(uri)), {
+        hover: (_event, uri) => this.showLinkHint(uri),
+        leave: () => this.hideLinkHint()
+      })
+    )
+    // 文本里的本机文件路径（codex 等不输出超链接的程序）
+    this.term.registerLinkProvider(
+      new PathLinkProvider(this.term, sessionId, {
+        open: (event, target) => this.activateLink(event, () => api.links.openPath(target)),
+        hover: (target) => this.showLinkHint(target),
+        leave: () => this.hideLinkHint()
       })
     )
     this.term.open(mount)
@@ -245,7 +261,18 @@ class TerminalView {
   }
 
   /** 仅供开发期自测使用 */
-  debugSnapshot(): { state: ViewState; cols: number; rows: number; visible: boolean; webgl: boolean; text: string } {
+  debugSnapshot(): {
+    state: ViewState
+    cols: number
+    rows: number
+    visible: boolean
+    webgl: boolean
+    text: string
+    /** 视口第一行在缓冲区中的行号（用来把文本位置换算成屏幕坐标） */
+    viewportY: number
+    /** 链接悬浮提示（终端容器的 title） */
+    hint: string
+  } {
     const buffer = this.term.buffer.active
     const lines: string[] = []
     for (let i = 0; i < buffer.length; i++) lines.push(buffer.getLine(i)?.translateToString(true) ?? '')
@@ -256,7 +283,9 @@ class TerminalView {
       rows: this.term.rows,
       visible: this.visible,
       webgl: this.webgl !== null,
-      text: lines.join('\n')
+      text: lines.join('\n'),
+      viewportY: buffer.viewportY,
+      hint: this.pane.title
     }
   }
 
@@ -318,6 +347,22 @@ class TerminalView {
       return false
     }
     return true
+  }
+
+  /** 与 VS Code 一致：Ctrl（macOS 为 Cmd）+ 单击才打开链接，普通单击留给选择文本和程序自己的鼠标操作 */
+  private activateLink(event: MouseEvent, open: () => Promise<OpResult>): void {
+    if (!event.ctrlKey && !event.metaKey) return
+    void open().then((r) => {
+      if (!r.ok) this.hooks.onError(r.error)
+    })
+  }
+
+  private showLinkHint(target: string): void {
+    this.pane.title = `${target}\n按住 Ctrl 单击打开`
+  }
+
+  private hideLinkHint(): void {
+    this.pane.title = ''
   }
 
   private copySelection(clearAfterCopy: boolean): void {

@@ -4,7 +4,9 @@ import {
   DEFAULT_CODEX_COMMAND,
   DEFAULT_CURSOR_STYLE,
   DEFAULT_FONT_FAMILY,
+  DEFAULT_SHELL,
   DEFAULT_THEME_SEED,
+  SHELL_IDS,
   FONT_FAMILY_PATTERN,
   FONT_SIZE,
   LINE_HEIGHT,
@@ -14,6 +16,7 @@ import {
   type CursorStyle,
   type SettingsFile,
   type SettingsPatch,
+  type ShellId,
   type WindowState
 } from '../shared/types'
 import { JsonFileWriter, readJsonFile } from './jsonFile'
@@ -25,6 +28,7 @@ const DEFAULTS: AppSettings = {
   fontFamily: DEFAULT_FONT_FAMILY,
   lineHeight: LINE_HEIGHT.default,
   cursorStyle: DEFAULT_CURSOR_STYLE,
+  shell: DEFAULT_SHELL,
   themeSeed: DEFAULT_THEME_SEED,
   claudeCommand: DEFAULT_CLAUDE_COMMAND,
   codexCommand: DEFAULT_CODEX_COMMAND,
@@ -63,6 +67,10 @@ export class SettingsStore {
     if (patch.cursorStyle !== undefined) {
       if (!isCursorStyle(patch.cursorStyle)) throw new Error('光标样式不合法')
       next.cursorStyle = patch.cursorStyle
+    }
+    if (patch.shell !== undefined) {
+      if (!isShellId(patch.shell)) throw new Error('终端类型不合法')
+      next.shell = patch.shell
     }
     if (patch.fontFamily !== undefined) {
       const family = patch.fontFamily.trim()
@@ -133,6 +141,7 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
         : DEFAULTS.fontFamily,
     lineHeight: typeof r.lineHeight === 'number' ? clampLineHeight(r.lineHeight) : DEFAULTS.lineHeight,
     cursorStyle: isCursorStyle(r.cursorStyle) ? r.cursorStyle : DEFAULTS.cursorStyle,
+    shell: isShellId(r.shell) ? r.shell : DEFAULTS.shell,
     themeSeed:
       typeof r.themeSeed === 'string' && THEME_SEED_PATTERN.test(r.themeSeed)
         ? r.themeSeed.toUpperCase()
@@ -146,6 +155,10 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
 
 function isCursorStyle(v: unknown): v is CursorStyle {
   return typeof v === 'string' && (CURSOR_STYLES as readonly string[]).includes(v)
+}
+
+function isShellId(v: unknown): v is ShellId {
+  return typeof v === 'string' && (SHELL_IDS as readonly string[]).includes(v)
 }
 
 function parseCommand(raw: unknown, fallback: string): string {

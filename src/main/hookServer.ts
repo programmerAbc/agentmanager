@@ -10,6 +10,7 @@ import {
   type AgentHookEvent
 } from '../shared/types'
 import log from './log'
+import type { ShellFamily } from './shells'
 
 const MAX_BODY_BYTES = 64 * 1024
 const HOOK_TIMEOUT_SECONDS = 5
@@ -104,10 +105,19 @@ export class AgentHookServer {
   }
 
   /**
-   * codex：在用户命令后追加 hooks，并用 PowerShell try/finally 包裹，
-   * codex 退出（包括 Ctrl+C）时上报 SessionEnd（codex 自身没有这个事件）。
+   * codex：在用户命令后追加 hooks，codex 退出（包括 Ctrl+C）后上报 SessionEnd（codex 自身没有这个事件）。
+   * 按终端的 shell 写法不同，hooks 配置都从环境变量 AGENT_DESK_CODEX_HOOKS 取（其中没有双引号，可安全放进双引号）：
+   * - PowerShell：try/finally
+   * - cmd：`&` 串联（codex 以原始模式读 Ctrl+C，不会中断 cmd 的这一行）
+   * - bash：`;` 串联
    */
-  codexLaunchLine(command: string): string {
+  codexLaunchLine(command: string, family: ShellFamily): string {
+    if (family === 'cmd') {
+      return `${command} -c "%AGENT_DESK_CODEX_HOOKS%" & curl.exe -s -m 2 -d SessionEnd %AGENT_DESK_HOOK_URL% >nul`
+    }
+    if (family === 'bash') {
+      return `${command} -c "$AGENT_DESK_CODEX_HOOKS"; curl.exe -s -m 2 -d SessionEnd "$AGENT_DESK_HOOK_URL" >/dev/null`
+    }
     return (
       `try { ${command} -c $env:AGENT_DESK_CODEX_HOOKS } ` +
       'finally { curl.exe -s -m 2 -d SessionEnd $env:AGENT_DESK_HOOK_URL | Out-Null }'

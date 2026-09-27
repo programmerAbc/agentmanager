@@ -11,10 +11,14 @@ import {
   type DataResult,
   type OpResult,
   type Project,
-  type SettingsPatch
+  type SettingsPatch,
+  type ShellId,
+  type ShellInfo
 } from '../shared/types'
 import type { AgentHookServer } from './hookServer'
+import { openLink, openLocalPath, resolveLocalPaths } from './links'
 import log from './log'
+import { detectShells, type ShellFamily } from './shells'
 import type { ProjectStore } from './projectStore'
 import type { PtyManager } from './ptyManager'
 import type { SettingsStore } from './settingsStore'
@@ -86,6 +90,7 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
         cwd: project.path,
         cols: asInt(cols),
         rows: asInt(rows),
+        shell: settings.get().shell,
         env: hooks.envFor(sessionId)
       })
     } catch (err) {
@@ -93,6 +98,8 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
       return { ok: false, error: errorMessage(err) }
     }
   })
+
+  ipcMain.handle(IPC.ptyShells, (): ShellInfo[] => detectShells())
 
   ipcMain.on(IPC.ptyWrite, (_e, id: unknown, data: unknown) => {
     if (typeof id === 'string' && typeof data === 'string') ptys.write(id, data)
@@ -138,6 +145,28 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
     })
   )
 
+  // ---------- 终端里的链接（Ctrl+单击） ----------
+  ipcMain.handle(IPC.linkOpen, (_e, url: unknown) =>
+    guard('打开链接', async () => {
+      await openLink(asString(url))
+    })
+  )
+
+  ipcMain.handle(IPC.linkOpenPath, (_e, target: unknown) =>
+    guard('打开文件', async () => {
+      await openLocalPath(asString(target))
+    })
+  )
+
+  ipcMain.handle(IPC.linkResolvePaths, (_e, id: unknown, candidates: unknown): (string | null)[] => {
+    if (typeof id !== 'string' || !Array.isArray(candidates)) return []
+    const project = projects.get(projectIdOfSession(id))
+    if (!project) return candidates.map(() => null)
+    // 一行里的候选不会很多；限制数量与长度，非字符串按不存在处理
+    const list = candidates.slice(0, 64).map((c) => (typeof c === 'string' && c.length <= 1024 ? c : ''))
+    return resolveLocalPaths(project.path, list)
+  })
+
   // ---------- agents ----------
   ipcMain.handle(IPC.agentLaunch, (_e, id: unknown, agent: unknown) =>
     guard('启动助手', async () => {
@@ -151,21 +180,21 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
   )
 
   /**
-   * 拼出写进终端的启动命令。终端里的 shell 固定是 PowerShell。
+   * 拼出写进终端的启动命令，写法取决于该终端实际使用的 shell（PowerShell / cmd / bash）。
    * 只有命令确实以 claude / codex 开头、且 hooks 服务可用时才注入 hooks，否则原样执行（没有状态）。
    */
   async function launchLine(kind: AgentKind, sessionId: string): Promise<string> {
     const s = settings.get()
+    const family = ptys.shellFamilyOf(sessionId) ?? 'powershell'
     if (kind === 'claude') {
       const command = s.claudeCommand
       if (!hooks.ready || !/^claude(\.exe|\.cmd)?(\s|$)/i.test(command)) return command
       const file = await hooks.writeClaudeSettings(sessionId)
-      // 单引号避免路径里的 $ 被 PowerShell 展开
-      return `${command} --settings '${file.replace(/'/g, "''")}'`
+      return `${command} --settings ${quotePath(file, family)}`
     }
     const command = s.codexCommand
     if (!hooks.ready || !/^codex(\.exe|\.cmd|\.ps1)?(\s|$)/i.test(command)) return command
-    return hooks.codexLaunchLine(command)
+    return hooks.codexLaunchLine(command, family)
   }
 
   // ---------- app ----------
@@ -246,11 +275,23 @@ function asSettingsPatch(v: unknown): SettingsPatch {
   if (typeof r.fontFamily === 'string') patch.fontFamily = r.fontFamily
   // 取值由 settingsStore 校验
   if (typeof r.cursorStyle === 'string') patch.cursorStyle = r.cursorStyle as CursorStyle
+  if (typeof r.shell === 'string') patch.shell = r.shell as ShellId
   if (typeof r.themeSeed === 'string') patch.themeSeed = r.themeSeed
   if (typeof r.claudeCommand === 'string') patch.claudeCommand = r.claudeCommand
   if (typeof r.codexCommand === 'string') patch.codexCommand = r.codexCommand
   if (typeof r.lastProjectId === 'string' || r.lastProjectId === null) patch.lastProjectId = r.lastProjectId
   return patch
+}
+
+/**
+ * 把文件路径作为一个命令行参数：
+ * - PowerShell / bash 用单引号（不展开 $ 等），内部单引号分别写成 '' / '\''
+ * - cmd 不认单引号，用双引号（Windows 路径里不会有双引号）
+ */
+function quotePath(file: string, family: ShellFamily): string {
+  if (family === 'cmd') return `"${file}"`
+  if (family === 'bash') return `'${file.replace(/'/g, `'\\''`)}'`
+  return `'${file.replace(/'/g, "''")}'`
 }
 
 function errorMessage(err: unknown): string {

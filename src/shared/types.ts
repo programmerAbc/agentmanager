@@ -29,6 +29,8 @@ export interface AppSettings {
   lineHeight: number
   /** 终端光标样式 */
   cursorStyle: CursorStyle
+  /** 新终端使用的 shell */
+  shell: ShellId
   /** MD3 动态配色的种子色，#RRGGBB */
   themeSeed: string
   /** 「启动 Claude」按钮执行的命令 */
@@ -54,6 +56,24 @@ export const DEFAULT_FONT_FAMILY = 'Maple Mono NF CN'
 export type CursorStyle = 'bar' | 'underline' | 'block'
 export const CURSOR_STYLES: readonly CursorStyle[] = ['bar', 'underline', 'block']
 export const DEFAULT_CURSOR_STYLE: CursorStyle = 'bar'
+
+/** 可选的 shell；auto = 有 PowerShell 7 用 pwsh，否则 Windows PowerShell */
+export type ShellId = 'auto' | 'pwsh' | 'powershell' | 'cmd' | 'gitbash'
+export const SHELL_IDS: readonly ShellId[] = ['auto', 'pwsh', 'powershell', 'cmd', 'gitbash']
+export const DEFAULT_SHELL: ShellId = 'auto'
+export const SHELL_LABEL: Record<ShellId, string> = {
+  auto: '自动',
+  pwsh: 'PowerShell 7',
+  powershell: 'Windows PowerShell',
+  cmd: '命令提示符',
+  gitbash: 'Git Bash'
+}
+
+export interface ShellInfo {
+  id: ShellId
+  /** 可执行文件路径；未安装为 null（auto 为它实际会用的 shell） */
+  path: string | null
+}
 export const DEFAULT_THEME_SEED = '#D97757'
 /** 这两个种子色表示白色（浅色界面）/ 黑色（纯黑界面）主题；其余种子色为动态配色的深色界面 */
 export const THEME_SEED_WHITE = '#FFFFFF'
@@ -102,6 +122,10 @@ export const IPC = {
   ptyKill: 'pty:kill',
   ptyData: 'pty:data',
   ptyExit: 'pty:exit',
+  ptyShells: 'pty:shells',
+  linkOpen: 'link:open',
+  linkOpenPath: 'link:open-path',
+  linkResolvePaths: 'link:resolve-paths',
   settingsGet: 'settings:get',
   settingsUpdate: 'settings:update',
   clipboardReadText: 'clipboard:read-text',
@@ -180,6 +204,8 @@ export interface Api {
     kill(id: string): Promise<OpResult>
     onData(cb: (id: string, data: string) => void): () => void
     onExit(cb: (id: string, exitCode: number) => void): () => void
+    /** 本机可用的 shell（设置页「默认终端」） */
+    shells(): Promise<ShellInfo[]>
   }
   settings: {
     get(): Promise<AppSettings>
@@ -191,6 +217,15 @@ export interface Api {
   }
   shell: {
     openExternal(url: string): Promise<OpResult>
+  }
+  /** 终端里 Ctrl+单击的链接 */
+  links: {
+    /** OSC 8 超链接或网址：网页 / 编辑器协议 / 本机 file 链接 */
+    open(url: string): Promise<OpResult>
+    /** 用默认程序打开本机文件（可执行文件只在资源管理器中定位） */
+    openPath(path: string): Promise<OpResult>
+    /** 把终端文本里的路径解析为存在的绝对路径（相对路径以该会话的项目目录为基准），不存在为 null */
+    resolvePaths(sessionId: string, candidates: string[]): Promise<(string | null)[]>
   }
   app: {
     info(): Promise<AppInfo>

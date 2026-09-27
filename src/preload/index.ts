@@ -35,7 +35,8 @@ const api: Api = {
     resize: (id, cols, rows) => ipcRenderer.send(IPC.ptyResize, id, cols, rows),
     kill: (id) => ipcRenderer.invoke(IPC.ptyKill, id),
     onData: (cb) => subscribe<[string, string]>(IPC.ptyData, cb),
-    onExit: (cb) => subscribe<[string, number]>(IPC.ptyExit, cb)
+    onExit: (cb) => subscribe<[string, number]>(IPC.ptyExit, cb),
+    shells: () => ipcRenderer.invoke(IPC.ptyShells)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC.settingsGet),
@@ -47,6 +48,11 @@ const api: Api = {
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke(IPC.shellOpenExternal, url)
+  },
+  links: {
+    open: (url) => ipcRenderer.invoke(IPC.linkOpen, url),
+    openPath: (target) => ipcRenderer.invoke(IPC.linkOpenPath, target),
+    resolvePaths: (sessionId, candidates) => ipcRenderer.invoke(IPC.linkResolvePaths, sessionId, candidates)
   },
   app: {
     info: () => ipcRenderer.invoke(IPC.appInfo),

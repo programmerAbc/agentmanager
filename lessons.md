@@ -218,3 +218,22 @@ MSYS 的参数路径转换：传给原生 Windows 程序的、以 `/` 开头的�
 这类命令前加 `MSYS_NO_PATHCONV=1`；向 claude / codex 输入斜杠命令前先读屏确认输入框内容和补全列表，再按 Enter。
 ### Prevention
 凡是经 Bash 工具传给 node / exe 的参数含前导 `/`（斜杠命令、Unix 风格路径），一律加 `MSYS_NO_PATHCONV=1`。
+另：bash 双引号里的 `\\` 会变成 `\`，拼进 JS 表达式的 Windows 路径会丢反斜杠（`\t` 还会变成制表符）；这类路径用正斜杠，或用 Write 工具写成文件。
+
+## Lesson: 终端里的文件链接点不开——xterm 忽略非 http 链接，claude 也不输出链接
+### Problem
+用户在 claude 里 Ctrl+单击「[Image #N]」图片附件和文件引用打不开（在 Windows Terminal 里可以）。
+### Root Cause
+两层原因：1）claude 用 supports-hyperlinks 加终端白名单判断是否输出 OSC 8 超链接，Windows Terminal 靠 `WT_SESSION` 命中，我们的终端没有这些标记，claude 只输出纯文本；2）即使有 OSC 8 链接，xterm.js 默认只激活 http(s)，file 等协议的链接被直接忽略（`linkHandler.allowNonHttpProtocols` 默认 false），且默认激活方式是 `window.open`，被窗口的打开限制拦下。
+### Solution
+终端环境变量 `FORCE_HYPERLINK=1`；xterm `linkHandler` 开启 `allowNonHttpProtocols` 并把链接交给主进程按白名单打开；另加纯文本路径识别给 codex 等不输出超链接的程序用。
+### Prevention
+链接功能要分别验证「程序是否输出链接」和「终端是否接受并处理该协议」；测试时用 `printf '\e]8;;URL\e\\文字\e]8;;\e\\'` 之类手工打印 OSC 8 链接，打开类动作用「目标已删除 / 被拒绝」的用例验证整条链路，避免在用户桌面上弹出窗口。
+
+## Lesson: 会话的 scratchpad 可能中途失效，可复用的自测工具放进项目里的忽略目录
+### Problem
+自测进行到一半，会话 scratchpad 被宣布不可用，里面的 CDP 脚本、关闭窗口脚本和测试数据都不能再用，只能临时重写。
+### Solution
+自测工具和测试数据统一放在项目内 `.devtest/`（已加入 .gitignore）：cdp.mjs、hover.mjs、pick-shell.mjs、close-dev.ps1、seed.mjs。
+### Prevention
+含凭据的临时文件（如复制的 codex auth.json）用完立即删除；能不复制凭据就不复制（例如用打印参数的假 codex 验证启动命令）。

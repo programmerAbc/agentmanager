@@ -3,9 +3,11 @@ import {
   DEFAULT_FONT_FAMILY,
   FONT_SIZE,
   LINE_HEIGHT,
+  SHELL_LABEL,
   type AppSettings,
   type CursorStyle,
-  type SettingsPatch
+  type SettingsPatch,
+  type ShellId
 } from '../shared/types'
 import { button, openDialog } from './dialog'
 import { BUNDLED_FONT, effectiveFont, fontStack, isFontAvailable, listMonospaceFonts } from './fonts'
@@ -65,6 +67,14 @@ function terminalSection(deps: SettingsDialogDeps): HTMLElement {
     hint.hidden = !missing
     hint.textContent = missing ? `本机没有「${s.fontFamily}」，当前实际使用「${effectiveFont(s.fontFamily)}」。` : ''
   }
+
+  section.appendChild(
+    row(
+      '默认终端',
+      '对新打开或重启的终端生效，已打开的终端不变',
+      shellPicker(deps.get().shell, (id) => deps.change({ shell: id }))
+    )
+  )
 
   const fontSelect = fontPicker(deps.get().fontFamily, (family) => {
     deps.change({ fontFamily: family })
@@ -164,7 +174,15 @@ function fontPicker(initial: string, onPick: (family: string) => void): HTMLElem
   trigger.addEventListener('click', () => {
     void listMonospaceFonts().then((fonts) => {
       const families = fonts.includes(current) ? fonts : [current, ...fonts]
-      showSelectMenu(trigger, families, current, (family) => {
+      const options = families.map((family) => ({
+        value: family,
+        label: family,
+        // 与终端相同的字体栈，未安装的字体会显示为实际使用的回退字体
+        fontFamily: fontStack(family),
+        tag:
+          family === BUNDLED_FONT ? '内置' : family === DEFAULT_FONT_FAMILY ? '默认' : isFontAvailable(family) ? '' : '未安装'
+      }))
+      showSelectMenu(trigger, options, current, (family) => {
         current = family
         renderLabel()
         onPick(family)
@@ -174,36 +192,87 @@ function fontPicker(initial: string, onPick: (family: string) => void): HTMLElem
   return wrap
 }
 
+/** 默认终端下拉：展开时检测本机 shell，未安装的不可选 */
+function shellPicker(initial: ShellId, onPick: (id: ShellId) => void): HTMLElement {
+  let current = initial
+  const wrap = document.createElement('div')
+  wrap.className = 'select'
+  const trigger = document.createElement('button')
+  trigger.type = 'button'
+  trigger.className = 'select-trigger'
+  const label = document.createElement('span')
+  trigger.append(label, icon('expandMore'))
+  wrap.appendChild(trigger)
+  const renderLabel = (): void => {
+    label.textContent = SHELL_LABEL[current]
+  }
+  renderLabel()
+
+  trigger.addEventListener('click', () => {
+    void api.pty.shells().then((shells) => {
+      const pwsh = shells.find((s) => s.id === 'pwsh')?.path ?? null
+      const options = shells.map((s) => {
+        const installed = s.path !== null
+        let tag = installed ? '' : '未安装'
+        if (s.id === 'auto' && installed) tag = s.path === pwsh ? SHELL_LABEL.pwsh : SHELL_LABEL.powershell
+        return {
+          value: s.id,
+          label: SHELL_LABEL[s.id],
+          tag,
+          title: s.path ?? undefined,
+          disabled: !installed && s.id !== current
+        }
+      })
+      showSelectMenu(trigger, options, current, (id) => {
+        current = id as ShellId
+        renderLabel()
+        onPick(current)
+      })
+    })
+  })
+  return wrap
+}
+
+interface SelectOption {
+  value: string
+  label: string
+  /** 右侧的小标签（默认 / 未安装 …） */
+  tag?: string
+  title?: string
+  disabled?: boolean
+  /** 选项文字用的字体（字体下拉里每项用自身字体渲染） */
+  fontFamily?: string
+}
+
 function showSelectMenu(
   anchor: HTMLElement,
-  families: string[],
+  options: SelectOption[],
   current: string,
-  onPick: (family: string) => void
+  onPick: (value: string) => void
 ): void {
   const menu = document.createElement('div')
   menu.className = 'select-menu'
   menu.setAttribute('role', 'listbox')
-  for (const family of families) {
+  for (const o of options) {
     const opt = document.createElement('button')
     opt.type = 'button'
-    opt.className = family === current ? 'select-option selected' : 'select-option'
+    opt.className = o.value === current ? 'select-option selected' : 'select-option'
     opt.setAttribute('role', 'option')
-    // 与终端相同的字体栈，未安装的字体会显示为实际使用的回退字体
-    opt.style.fontFamily = fontStack(family)
+    opt.disabled = o.disabled === true
+    if (o.fontFamily) opt.style.fontFamily = o.fontFamily
+    if (o.title) opt.title = o.title
     const text = document.createElement('span')
-    text.textContent = family
+    text.textContent = o.label
     opt.append(icon('check'), text)
-    const tagText =
-      family === BUNDLED_FONT ? '内置' : family === DEFAULT_FONT_FAMILY ? '默认' : isFontAvailable(family) ? '' : '未安装'
-    if (tagText) {
+    if (o.tag) {
       const tag = document.createElement('span')
       tag.className = 'tag'
-      tag.textContent = tagText
+      tag.textContent = o.tag
       opt.appendChild(tag)
     }
     opt.addEventListener('click', () => {
       close()
-      onPick(family)
+      onPick(o.value)
     })
     menu.appendChild(opt)
   }
