@@ -156,3 +156,13 @@ hook 命令文本固定为 `$null = @($input); curl.exe -s -m 2 -d <事件> $env
 ### Prevention
 任何在退出路径上发起的异步写都要在 before-quit 里等待。
 另：用 CDP 在渲染进程执行 `window.close()` 不会触发 BrowserWindow 的 `close` 事件，测试关闭流程要向窗口发 `WM_CLOSE`（模拟点标题栏关闭按钮）。
+
+## Lesson: 改 productName 但保留 appId，升级安装会装进「旧目录\新名字」
+### Problem
+Agent Desk 改名 AgentManager（appId 仍为 `com.agentdesk.app`）后，用户用新安装包覆盖安装，程序被装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`。
+### Root Cause
+electron-builder 26 的 NSIS 模板：`multiUser.nsh` 的 `setInstallModePerUser` 优先读注册表 `HKCU\Software\<由 appId 派生的 GUID>\InstallLocation`（旧的 `...\Programs\agent-desk`）作为默认目录；`assistedInstaller.nsh` 的 `instFilesPre` 发现目录路径里不含新的 `APP_FILENAME`（AgentManager），就在后面追加 `\AgentManager`。
+### Solution
+不改代码：让用户卸载 AgentManager（默认不删 `%APPDATA%\AgentManager`，卸载时也会删掉注册表里的 InstallLocation）→ 删掉空的 `Programs\agent-desk` → 重新安装，默认目录变为 `Programs\AgentManager`，以后升级都留在这里。
+### Prevention
+改 productName 时，如果保留 appId 以便升级替换旧版，要预期安装目录会嵌套：要么提示用户先卸载旧版再装，要么通过 `nsis.include` 的自定义宏处理默认目录。改名后先在测试 appId / 测试可执行名 / 测试快捷方式名下演练一次覆盖安装（不能用真实 appId，否则会卸载用户正在用的应用）。
