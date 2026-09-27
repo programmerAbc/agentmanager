@@ -12,10 +12,10 @@
 
 - 1.0.0：版本号定为 1.0.0（功能与 0.4.1 相同）。
 - 1.0.0 改名 AgentManager（用户要求）：界面 / 窗口标题 / 安装包 / 快捷方式 / `AgentManager.exe` / 卸载项统一改名，package 名 `agentmanager`；数据目录变为 `%APPDATA%\AgentManager`、数据库 `agentmanager.db`。**不迁移旧数据**（用户决定），projects.json 导入代码一并删除。`appId` 保留 `com.agentdesk.app`，安装时会静默卸载已安装的 Agent Desk。安装包 `dist/agentmanager-1.0.0-setup.exe`，由用户自行安装。按用户要求从干净工作区（commit e472b15）重新打包，并复制到 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`（SHA256 608CE6F5…40ED911B，与 dist 中一致）。`dist/agent-desk-*.exe` 是改名前的旧包，不要再用。
-- 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main）。之后的提交（M11 起）尚未推送，推送需用户同意。
+- 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main，含 1.1.0）。以后的推送需用户要求。
 - M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
 - M12（迭代 4）：主题色新增「白色」（单色浅色界面，白底终端 + 浅色 ANSI + 最小对比度 4.5）与「黑色」（单色纯黑界面）；色块描边；启动时窗口底色与主题一致、主题应用前页面透明，避免闪烁。
-- 版本号仍为 1.0.0，M11 / M12 尚未打安装包（用户未要求）。
+- 1.1.0（M11 + M12）：按用户要求版本号改为 1.1.0，安装包 `D:\agnent_manager_release\agentmanager-1.1.0-setup.exe`（SHA256 0FE53C70…58A2A8FA，与 dist 中一致；同目录的 1.0.0 安装包保留）。已推送到 GitHub。
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
@@ -69,6 +69,7 @@
   - 白色主题下「启动 Claude」：claude 的目录信任提示在白底上清晰可读，随后选「No, exit」退出。
   - 关闭流程：有终端时单次 WM_CLOSE 后 0.5 秒内出现退出确认框（之前两次「找不到对话框」是测试脚本的 UI Automation 问题，已改用 Win32 枚举，见 lessons.md）。
   - 未测：启动瞬间是否闪烁无法用 CDP 截到，只验证了窗口底色 / booting 的代码路径与最终状态；请用户实际启动时留意。
+- 1.1.0 打包：`npm run build:win`（含 typecheck）通过。`dist/win-unpacked/AgentManager.exe` 在隔离的带空格 userData（7 个测试项目、settings 仅含 `themeSeed: #FFFFFF`）下启动：日志 `version=1.1.0`，白色主题直接生效（`color-scheme: light`，body 白色），生产构建没有 `window.__agentDesk`；`Ctrl+Shift+F` + `api` → 只剩 api-server 并高亮。随后测试窗口因抢到键盘焦点收到了用户的键入（见 lessons.md），立即按 PID 关闭，Enter 打开终端这一步未在打包版上完成（dev 已验证）。
 - 待人工确认：
   1. 微软拼音输入（候选框位置、上屏不重复不丢字）→ 填 README。
   2. claude 长时间对话显示有无错位 / 闪烁。
