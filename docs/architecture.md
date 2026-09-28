@@ -50,6 +50,7 @@ preload (src/preload/index.ts)
 | Vite dev server 绑定 `127.0.0.1` | Vite 默认只监听 `::1`，Electron 在部分环境下以 IPv4 访问 localhost 导致 ERR_CONNECTION_REFUSED。 |
 | 字体 TTF 直接提交在 `resources/fonts/`（约 25MB），CSS `@font-face` 相对路径引用，由 Vite 作为资源打包 | 离线可构建；启动时先 `document.fonts.load` 再创建 xterm，避免用回退字体测量字符宽度。 |
 | 终端容器两层：外层 `.term-pane` 带 8px padding，内层 `.term-mount` 挂 xterm | FitAddon 用 xterm 父元素的计算尺寸；padding 不能放在 xterm 元素或其直接父元素上（PLAN §6）。 |
+| 构建时修补 `@xterm/addon-webgl` 0.19.0 的字形图集（Vite 插件 `scripts/xtermWebglAtlasFix.ts`，只作用于渲染进程；dev 下该包不预构建，否则插件的 transform 不生效） | 0.19.0 的缺陷（上游 xterm.js #4480，0.20 beta 已修、未发正式版）：图集页写满后合并，GlyphRenderer 按「页下标 + 页版本号」决定是否重新上传纹理，而版本号是每页从 0 数起的小整数；第二次合并时新合并页（版本 1）落在第一次合并页原来的下标上且版本同为 1，纹理不重新上传，该页字形全部取错——用户看到终端文字错乱 / 重叠（dev 实测可稳定复现）。修补与上游一致：页版本号全局递增；布局变化改为计数，每个渲染器各自记住看到的值（共用图集的隐藏终端再显示时整屏重建）；一帧更新途中合并则当帧重建；上传纹理不超出纹理单元数。不升级到 beta：xterm 6.1 beta 牵涉面大，已验证的换行 / Esc / 链接行为都要重测。按压缩代码精确替换，任一处不是恰好匹配 1 次就构建失败——升级 addon-webgl 时先确认上游是否已修，已修则删除插件。备选的「改用 DOM 渲染器」性能差，未采用。 |
 
 ## 迭代 2 设计（M7 / M8）
 
@@ -138,3 +139,4 @@ preload (src/preload/index.ts)
 
 运行时：`node-pty`、`electron-log`（main 中 externalize，由 node_modules 加载）。
 构建期：electron、electron-vite 5 + vite 7、typescript 5.9、@electron/rebuild、electron-builder、@xterm/*（渲染进程打包进 bundle）。
+`@xterm/addon-webgl` 在构建时被修补（见「关键决策」）：升级它时构建会失败，这是有意的。

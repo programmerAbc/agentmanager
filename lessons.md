@@ -247,3 +247,13 @@ MSYS 的参数路径转换：传给原生 Windows 程序的、以 `/` 开头的�
 自测工具和测试数据统一放在项目内 `.devtest/`（已加入 .gitignore）：cdp.mjs、hover.mjs、pick-shell.mjs、close-dev.ps1、seed.mjs。
 ### Prevention
 含凭据的临时文件（如复制的 codex auth.json）用完立即删除；能不复制凭据就不复制（例如用打印参数的假 codex 验证启动命令）。
+
+## Lesson: 终端文字错乱是 xterm WebGL 字形图集的缺陷，不是字体或编码问题
+### Problem
+用户反馈：长时间运行 claude 的终端里，部分字符显示成别的字或重叠的碎片（汉字、英文都有），只有部分颜色的字受影响。
+### Root Cause
+`@xterm/addon-webgl` 0.19.0（上游 xterm.js #4480）：字形图集页写满后把 4 页合并成 1 页，其余页下标前移；GlyphRenderer 按「页下标 + 页版本号」决定是否重新上传纹理，而版本号是每页从 0 数起的小整数。第二次合并时新合并页（版本 1）正好落在第一次合并页原来的下标上、版本也是 1，纹理不重新上传，这一页上的字形全部从旧纹理取样。所有终端共用同一个图集（同字体 / 字号 / 配色），汉字多、颜色多时很快写满。
+### Solution
+Vite 插件 `scripts/xtermWebglAtlasFix.ts` 在构建时按上游 beta 的思路修补压缩后的 addon：页版本号全局递增、布局变化计数由每个渲染器各自比较、更新途中合并则当帧重建、纹理上传不越界。任一替换没有恰好匹配一次就构建失败。dev 下必须把 `@xterm/addon-webgl` 排除出 `optimizeDeps`，预构建的依赖不经过插件 transform。已经错乱的旧版本：`Ctrl+=` 再 `Ctrl+0` 换一次字号即可恢复（重建图集并重新上传纹理）。
+### Prevention
+渲染类问题先在 dev 里用可重复的压力脚本复现（`.devtest/atlas-stress.mjs` 逐屏打印上万个不同汉字，`atlas-test.mjs` 截图后换字号、重印同一屏、逐像素比较）。复现要从全新启动的实例开始：图集状态跨运行累积，同一实例里第二次运行不一定触发。升级 xterm / addon 时查看上游是否已修，已修就删除插件。给依赖打补丁优先在构建时做精确替换并校验匹配次数，不要手改 node_modules。

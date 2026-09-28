@@ -1,4 +1,5 @@
 ## Completed
+- 修复（2026-09-28，用户截图反馈）：终端文字错乱（部分字显示成别的字 / 重叠碎片）。根因是 @xterm/addon-webgl 0.19.0 的图集缺陷（上游 #4480）：图集页合并后「页下标 + 页版本号」撞号，纹理不重新上传。新增 Vite 插件 `scripts/xtermWebglAtlasFix.ts` 在构建时按上游 beta 的思路修补（全局页版本号、每个渲染器各自跟踪布局变化、更新途中合并当帧重建、纹理上传不越界），dev 下不预构建该包。**未提交、未改版本号、未打包**（等用户要求）。用户正在运行的 1.3.1 未被触碰；已错乱的终端可按 Ctrl+= 再 Ctrl+0 恢复显示。
 - 1.3.1（Esc 修复）：按用户要求提交、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.3.1-setup.exe`（SHA256 B783E4DC…4DC211B9，与 dist 中一致）。为不抢焦点未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后实测：终端里按过 Shift+Enter 后，claude `/resume` 选择器按 Esc 能取消。
 - 修复：用户反馈 claude `/resume` 界面里 Esc 没用。根因：终端用过 Shift/Ctrl/Alt+Enter（M13 发 win32-input-mode 序列）后，ConPTY 会吞掉单独的 ESC，Esc / Ctrl+[ 在 claude、codex、PowerShell 里都失效直到终端重启。修法：`terminalView.ts` 记录当前 PTY 是否发过换行序列，之后单独的 `\x1b` 改发 win32-input-mode Esc（`ESC_KEY`），PTY 启动时复位。
 - 迭代 1（M0–M6）：项目列表、每项目保活终端、复制粘贴 / 字号 / 自适应、生命周期与进程树清理、NSIS 打包。详见 git 历史与 plans.md。
@@ -27,13 +28,16 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 无。
+- 终端文字错乱修复待用户决定：提交 / 改版本号（建议 1.3.2）/ 打包安装。
 
 ## Next Steps
+- 文字错乱修复：用户确认后提交；需要时改版本号 1.3.2 并打包（打包后解包 app.asar 检查含 `__agentmanagerAtlasPageVersion`）；用户安装后留意长时间 claude 会话里文字是否还会错乱。
+- 上游发布 @xterm/addon-webgl 0.20 正式版后：升级（xterm 同步升级）→ 构建会因插件匹配失败而中止 → 确认 #4480 已修后删除插件与 optimizeDeps.exclude。
 - 用户安装 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`，重新添加项目（空数据）；旧目录 `%APPDATA%\Agent Desk` 可手动删除。
 - 待人工确认项见下方。
 
 ## Risks
+- 构建时修补第三方包（@xterm/addon-webgl 0.19.0）：只按压缩代码精确替换，版本变化即构建失败（有意）；修补覆盖的是上游 beta 的主要修复，未移植 beta 里「凑不齐 4 张同尺寸页时清空图集」的极端分支（需要约十几张 8192 大页，实际不会出现）。
 - node-pty 源码编译依赖 VS Build Tools + Spectre 缓解库 + Python（README 已写明）。
 - 字体文件 25MB 直接提交在仓库中。
 - 已知限制：shell 退出后该会话的 conhost.exe 留到应用退出（node-pty 1.1 缺陷，见 lessons.md）。
@@ -41,6 +45,7 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- 文字错乱修复：scripts/xtermWebglAtlasFix.ts（新）、electron.vite.config.ts（渲染进程插件 + optimizeDeps.exclude）、tsconfig.node.json（include scripts/**/*.ts）；docs/architecture.md、docs/spec.md、plans.md、lessons.md、handoff.md。自测工具（不提交）：.devtest/atlas-stress.mjs、atlas-test.mjs、atlas-multi.mjs、atlas-run.sh。
 - Esc 修复：src/renderer/terminalView.ts（WIN32_INPUT_KEYS、ESC_KEY、win32InputSent）；docs/spec.md、docs/architecture.md、plans.md、lessons.md、handoff.md。`.devtest/cdp.mjs` 新增 `[` 按键（不提交）。
 - M7：src/shared/types.ts、src/main/{settingsStore,ipc}.ts、src/preload/index.ts、src/renderer/{main,sidebar,terminalView,contextMenu,dialog,settingsDialog,theme,fonts,icons,shapes}.ts、styles.css、index.html、env.d.ts；package.json（新增 @material/material-color-utilities、@material-symbols/svg-400）。
 - M8：src/main/{hookServer,ipc,index,ptyManager}.ts、src/renderer/{claudeStatus,main,sidebar,terminalView,settingsDialog}.ts、styles.css；文档。
@@ -51,6 +56,14 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 文字错乱修复（`npm run typecheck` 通过；`npm run build` 通过，产物 out/renderer/assets/index-*.js 中含全局页版本号 6 处、`_amSeenLayout` 3 处，无残留的 `_requestClearModel=!0`）：
+  - 复现（未修补，全新 dev 实例，隔离 userData，窗口不激活；DPR 1.5、终端 122×36）：`atlas-stress.mjs 16000` 逐屏打印 16000 个不同汉字后打印探针屏，截图中多行汉字错乱 / 重叠、出现别行的字，与用户截图一致；连续两个全新实例都复现。同一实例里第二次运行未复现（图集状态已变，见 lessons）。
+  - 修补后：全新实例 16000（两次）、30000 各一次，探针截图 A 与「换字号重建图集后重印同一屏」的截图 B 逐像素比较只差 105 像素（即 `round=1` / `round=2` 这几个字），目视无错乱。
+  - 多终端（p1 隐藏期间 p2 打印 30000 字，再切回 p1）：修补前后都只差 105 像素——该场景没能在未修补版本上触发，不能作为修复证据，仅说明修补后无回归。
+  - 插件自检：对原文件替换成功；对其他文件不处理；源码中任一处不匹配、或重复修补时抛错（构建失败）。
+  - Ctrl+= / Ctrl+0 恢复：未修补实例上换字号往返后画面正确（atlas-test 的截图 B）。
+  - 全程只操作 dev electron.exe（node_modules 下）的进程，用户的 AgentManager.exe（4 个进程）始终在运行。
+  - 未测：打包安装版（未打包）；真实 claude 长会话（用压力脚本代替）。
 - 1.3.1 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar：package.json 版本 1.3.1；渲染进程 bundle 含 win32-input-mode Esc 序列 `[27;1;27;1;0;1_`、`win32InputSent` 与换行序列；node-pty 原生模块在 app.asar.unpacked 中。打包配置自 1.3.0 以来未变。
 - Esc 修复（`npm run typecheck` 通过）：
   - 复现（修复前代码路径，直接用 node-pty + 原始模式读 stdin 的 Node 子进程，Electron 以 `ELECTRON_RUN_AS_NODE=1` 运行脚本）：发换行序列前 `\x1b` → 收到 `1b`；发换行序列后 `\x1b` 收不到（`\x1b\x1b`、`\x1b[`、`\x1bO` 同样收不到），方向键 / Ctrl+↑ / Home / F1 / F5 / Alt+b / 粘贴正常；win32-input-mode Esc 在发换行序列前后都收到 `1b`。
@@ -114,4 +127,5 @@
 ## Resume Context
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
 - 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；自测工具在 `.devtest/`（先 `node .devtest/seed.mjs` 建测试数据，userData 用 `--user-data-dir=<项目>/.devtest/ud`，关闭用 `.devtest/close-dev.ps1`）；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
+- 图集自测：`sh .devtest/atlas-run.sh [字数] [标签]` 从全新 dev 实例跑一次压力 + 截图比较（输出 `A vs B {diffPixels}`，约 105 为正常）；在 Bash 工具里用 run_in_background 运行。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。
