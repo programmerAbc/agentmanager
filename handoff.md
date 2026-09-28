@@ -1,5 +1,6 @@
 ## Completed
-- 修复（2026-09-28，用户截图反馈）：终端文字错乱（部分字显示成别的字 / 重叠碎片）。根因是 @xterm/addon-webgl 0.19.0 的图集缺陷（上游 #4480）：图集页合并后「页下标 + 页版本号」撞号，纹理不重新上传。新增 Vite 插件 `scripts/xtermWebglAtlasFix.ts` 在构建时按上游 beta 的思路修补（全局页版本号、每个渲染器各自跟踪布局变化、更新途中合并当帧重建、纹理上传不越界），dev 下不预构建该包。**未提交、未改版本号、未打包**（等用户要求）。用户正在运行的 1.3.1 未被触碰；已错乱的终端可按 Ctrl+= 再 Ctrl+0 恢复显示。
+- 1.3.2（文字错乱修复）：按用户要求提交并打包（未推送），安装包 `D:\agnent_manager_release\agentmanager-1.3.2-setup.exe`（SHA256 86DEA055…BC9CEC1B，与 dist 中一致）。为不打扰用户正在运行的 1.3.1，未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后留意长时间 claude 会话里文字是否还会错乱。注：打包时 release 目录里只剩这一个安装包（以前的 1.0.0–1.3.1 已不在，非本次操作所致）。
+- 修复（2026-09-28，用户截图反馈）：终端文字错乱（部分字显示成别的字 / 重叠碎片）。根因是 @xterm/addon-webgl 0.19.0 的图集缺陷（上游 #4480）：图集页合并后「页下标 + 页版本号」撞号，纹理不重新上传。新增 Vite 插件 `scripts/xtermWebglAtlasFix.ts` 在构建时按上游 beta 的思路修补（全局页版本号、每个渲染器各自跟踪布局变化、更新途中合并当帧重建、纹理上传不越界），dev 下不预构建该包。已随 1.3.2 提交并打包。用户正在运行的 1.3.1 未被触碰；已错乱的终端可按 Ctrl+= 再 Ctrl+0 恢复显示。
 - 1.3.1（Esc 修复）：按用户要求提交、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.3.1-setup.exe`（SHA256 B783E4DC…4DC211B9，与 dist 中一致）。为不抢焦点未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后实测：终端里按过 Shift+Enter 后，claude `/resume` 选择器按 Esc 能取消。
 - 修复：用户反馈 claude `/resume` 界面里 Esc 没用。根因：终端用过 Shift/Ctrl/Alt+Enter（M13 发 win32-input-mode 序列）后，ConPTY 会吞掉单独的 ESC，Esc / Ctrl+[ 在 claude、codex、PowerShell 里都失效直到终端重启。修法：`terminalView.ts` 记录当前 PTY 是否发过换行序列，之后单独的 `\x1b` 改发 win32-input-mode Esc（`ESC_KEY`），PTY 启动时复位。
 - 迭代 1（M0–M6）：项目列表、每项目保活终端、复制粘贴 / 字号 / 自适应、生命周期与进程树清理、NSIS 打包。详见 git 历史与 plans.md。
@@ -28,10 +29,10 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 终端文字错乱修复待用户决定：提交 / 改版本号（建议 1.3.2）/ 打包安装。
+- 无。
 
 ## Next Steps
-- 文字错乱修复：用户确认后提交；需要时改版本号 1.3.2 并打包（打包后解包 app.asar 检查含 `__agentmanagerAtlasPageVersion`）；用户安装后留意长时间 claude 会话里文字是否还会错乱。
+- 用户安装 1.3.2（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后留意长时间 claude 会话里文字是否还会错乱。推送需用户要求。
 - 上游发布 @xterm/addon-webgl 0.20 正式版后：升级（xterm 同步升级）→ 构建会因插件匹配失败而中止 → 确认 #4480 已修后删除插件与 optimizeDeps.exclude。
 - 用户安装 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`，重新添加项目（空数据）；旧目录 `%APPDATA%\Agent Desk` 可手动删除。
 - 待人工确认项见下方。
@@ -56,6 +57,7 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 1.3.2 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar（`.devtest/asar-check.cjs`）：package.json 版本 1.3.2；渲染进程 bundle 含全局页版本号 6 处、`_amSeenLayout` 3 处、纹理上传上限 1 处，无 `_requestClearModel=!0`，Esc 序列仍在；node-pty 原生模块在 app.asar.unpacked 中。electron-builder.yml 自 1.3.1 以来未变。
 - 文字错乱修复（`npm run typecheck` 通过；`npm run build` 通过，产物 out/renderer/assets/index-*.js 中含全局页版本号 6 处、`_amSeenLayout` 3 处，无残留的 `_requestClearModel=!0`）：
   - 复现（未修补，全新 dev 实例，隔离 userData，窗口不激活；DPR 1.5、终端 122×36）：`atlas-stress.mjs 16000` 逐屏打印 16000 个不同汉字后打印探针屏，截图中多行汉字错乱 / 重叠、出现别行的字，与用户截图一致；连续两个全新实例都复现。同一实例里第二次运行未复现（图集状态已变，见 lessons）。
   - 修补后：全新实例 16000（两次）、30000 各一次，探针截图 A 与「换字号重建图集后重印同一屏」的截图 B 逐像素比较只差 105 像素（即 `round=1` / `round=2` 这几个字），目视无错乱。
