@@ -1,5 +1,5 @@
 ## Completed
-- 1.3.2（文字错乱修复）：按用户要求提交并打包（未推送），安装包 `D:\agnent_manager_release\agentmanager-1.3.2-setup.exe`（SHA256 86DEA055…BC9CEC1B，与 dist 中一致）。为不打扰用户正在运行的 1.3.1，未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后留意长时间 claude 会话里文字是否还会错乱。注：打包时 release 目录里只剩这一个安装包（以前的 1.0.0–1.3.1 已不在，非本次操作所致）。
+- 1.3.2（文字错乱修复）：按用户要求提交、打包并推送，安装包 `D:\agnent_manager_release\agentmanager-1.3.2-setup.exe`（SHA256 86DEA055…BC9CEC1B，与 dist 中一致）。为不打扰用户正在运行的 1.3.1，未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后留意长时间 claude 会话里文字是否还会错乱。注：打包时 release 目录里只剩这一个安装包（以前的 1.0.0–1.3.1 已不在，非本次操作所致）。
 - 修复（2026-09-28，用户截图反馈）：终端文字错乱（部分字显示成别的字 / 重叠碎片）。根因是 @xterm/addon-webgl 0.19.0 的图集缺陷（上游 #4480）：图集页合并后「页下标 + 页版本号」撞号，纹理不重新上传。新增 Vite 插件 `scripts/xtermWebglAtlasFix.ts` 在构建时按上游 beta 的思路修补（全局页版本号、每个渲染器各自跟踪布局变化、更新途中合并当帧重建、纹理上传不越界），dev 下不预构建该包。已随 1.3.2 提交并打包。用户正在运行的 1.3.1 未被触碰；已错乱的终端可按 Ctrl+= 再 Ctrl+0 恢复显示。
 - 1.3.1（Esc 修复）：按用户要求提交、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.3.1-setup.exe`（SHA256 B783E4DC…4DC211B9，与 dist 中一致）。为不抢焦点未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后实测：终端里按过 Shift+Enter 后，claude `/resume` 选择器按 Esc 能取消。
 - 修复：用户反馈 claude `/resume` 界面里 Esc 没用。根因：终端用过 Shift/Ctrl/Alt+Enter（M13 发 win32-input-mode 序列）后，ConPTY 会吞掉单独的 ESC，Esc / Ctrl+[ 在 claude、codex、PowerShell 里都失效直到终端重启。修法：`terminalView.ts` 记录当前 PTY 是否发过换行序列，之后单独的 `\x1b` 改发 win32-input-mode Esc（`ESC_KEY`），PTY 启动时复位。
@@ -16,7 +16,7 @@
 
 - 1.0.0：版本号定为 1.0.0（功能与 0.4.1 相同）。
 - 1.0.0 改名 AgentManager（用户要求）：界面 / 窗口标题 / 安装包 / 快捷方式 / `AgentManager.exe` / 卸载项统一改名，package 名 `agentmanager`；数据目录变为 `%APPDATA%\AgentManager`、数据库 `agentmanager.db`。**不迁移旧数据**（用户决定），projects.json 导入代码一并删除。`appId` 保留 `com.agentdesk.app`，安装时会静默卸载已安装的 Agent Desk。安装包 `dist/agentmanager-1.0.0-setup.exe`，由用户自行安装。按用户要求从干净工作区（commit e472b15）重新打包，并复制到 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`（SHA256 608CE6F5…40ED911B，与 dist 中一致）。`dist/agent-desk-*.exe` 是改名前的旧包，不要再用。
-- 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main，含 1.1.0）。以后的推送需用户要求。
+- 代码已推送到 GitHub：https://github.com/programmerAbc/agentmanager （分支 main，含 1.1.0）。以后的
 - M11（迭代 4）：侧栏项目模糊搜索——搜索框（`Ctrl+Shift+F`），输入即过滤，匹配名称与显示的缩写路径，多词与，按匹配度排序并高亮；↑↓ / Enter / Esc；输入法组字时不过滤。
 - M12（迭代 4）：主题色新增「白色」（单色浅色界面，白底终端 + 浅色 ANSI + 最小对比度 4.5）与「黑色」（单色纯黑界面）；色块描边；启动时窗口底色与主题一致、主题应用前页面透明，避免闪烁。
 - 1.3.0（M14 + M15）：按用户要求推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.3.0-setup.exe`（SHA256 DC0C685B…09EC03555，与 dist 中一致）。同样为不抢焦点未启动打包版 GUI，改为解包 app.asar 静态检查（版本 1.3.0；主进程含 FORCE_HYPERLINK、CHERE_INVOKING、cmd 版 codex 启动命令、link:resolve-paths、showItemInFolder、「可用终端」日志；渲染进程含 allowNonHttpProtocols、「按住 Ctrl 单击打开」、换行序列、Git Bash 选项）。请用户安装后实测：Ctrl+单击 claude 对话里的「[Image #N]」。
@@ -32,7 +32,7 @@
 - 无。
 
 ## Next Steps
-- 用户安装 1.3.2（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后留意长时间 claude 会话里文字是否还会错乱。推送需用户要求。
+- 用户安装 1.3.2（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后留意长时间 claude 会话里文字是否还会错乱。
 - 上游发布 @xterm/addon-webgl 0.20 正式版后：升级（xterm 同步升级）→ 构建会因插件匹配失败而中止 → 确认 #4480 已修后删除插件与 optimizeDeps.exclude。
 - 用户安装 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`，重新添加项目（空数据）；旧目录 `%APPDATA%\Agent Desk` 可手动删除。
 - 待人工确认项见下方。
