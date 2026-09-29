@@ -1,4 +1,5 @@
 ## Completed
+- M16（2026-09-29 用户反馈，**未提交、未打包**）：「重启终端」改为「结束终端」（顶部栏 ⏹ 按钮只在当前项目有终端时显示；项目右键菜单里没有终端时禁用）——结束 PTY 整棵进程树、丢弃终端内容，项目回到「终端尚未启动」面板；点击项目（及键盘 Enter、搜索 Enter、添加项目）只选中不启动终端。没有加结束前确认（与原「重启终端」一致，用户若想要可再加）。
 - 1.3.2（文字错乱修复）：按用户要求提交、打包并推送，安装包 `D:\agnent_manager_release\agentmanager-1.3.2-setup.exe`（SHA256 86DEA055…BC9CEC1B，与 dist 中一致）。为不打扰用户正在运行的 1.3.1，未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后留意长时间 claude 会话里文字是否还会错乱。注：打包时 release 目录里只剩这一个安装包（以前的 1.0.0–1.3.1 已不在，非本次操作所致）。
 - 修复（2026-09-28，用户截图反馈）：终端文字错乱（部分字显示成别的字 / 重叠碎片）。根因是 @xterm/addon-webgl 0.19.0 的图集缺陷（上游 #4480）：图集页合并后「页下标 + 页版本号」撞号，纹理不重新上传。新增 Vite 插件 `scripts/xtermWebglAtlasFix.ts` 在构建时按上游 beta 的思路修补（全局页版本号、每个渲染器各自跟踪布局变化、更新途中合并当帧重建、纹理上传不越界），dev 下不预构建该包。已随 1.3.2 提交并打包。用户正在运行的 1.3.1 未被触碰；已错乱的终端可按 Ctrl+= 再 Ctrl+0 恢复显示。
 - 1.3.1（Esc 修复）：按用户要求提交、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.3.1-setup.exe`（SHA256 B783E4DC…4DC211B9，与 dist 中一致）。为不抢焦点未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后实测：终端里按过 Shift+Enter 后，claude `/resume` 选择器按 Esc 能取消。
@@ -32,6 +33,7 @@
 - 无。
 
 ## Next Steps
+- M16 等用户试用后决定：提交、定版本号（上次为 1.3.2）、打包到 `D:\agnent_manager_release\`。
 - 用户安装 1.3.2（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后留意长时间 claude 会话里文字是否还会错乱。
 - 上游发布 @xterm/addon-webgl 0.20 正式版后：升级（xterm 同步升级）→ 构建会因插件匹配失败而中止 → 确认 #4480 已修后删除插件与 optimizeDeps.exclude。
 - 用户安装 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`，重新添加项目（空数据）；旧目录 `%APPDATA%\Agent Desk` 可手动删除。
@@ -46,6 +48,7 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- M16：src/renderer/{main,sidebar,terminalView,icons,agentStatus}.ts、styles.css（`.icon-btn[hidden]`）；docs/spec.md、docs/architecture.md、plans.md、README.md、lessons.md、handoff.md。`.devtest/mouse.mjs`（新，不提交：真实鼠标点击）。
 - 文字错乱修复：scripts/xtermWebglAtlasFix.ts（新）、electron.vite.config.ts（渲染进程插件 + optimizeDeps.exclude）、tsconfig.node.json（include scripts/**/*.ts）；docs/architecture.md、docs/spec.md、plans.md、lessons.md、handoff.md。自测工具（不提交）：.devtest/atlas-stress.mjs、atlas-test.mjs、atlas-multi.mjs、atlas-run.sh。
 - Esc 修复：src/renderer/terminalView.ts（WIN32_INPUT_KEYS、ESC_KEY、win32InputSent）；docs/spec.md、docs/architecture.md、plans.md、lessons.md、handoff.md。`.devtest/cdp.mjs` 新增 `[` 按键（不提交）。
 - M7：src/shared/types.ts、src/main/{settingsStore,ipc}.ts、src/preload/index.ts、src/renderer/{main,sidebar,terminalView,contextMenu,dialog,settingsDialog,theme,fonts,icons,shapes}.ts、styles.css、index.html、env.d.ts；package.json（新增 @material/material-color-utilities、@material-symbols/svg-400）。
@@ -57,6 +60,15 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- M16（`npm run typecheck`、`npm run build` 通过；dev 实例以 `AGENTMANAGER_TEST_INACTIVE=1` 启动、userData `.devtest/ud`，全程只操作 dev electron，用户的 AgentManager.exe 4 个进程未受影响）：
+  - 单击 / 列表项 Enter / 搜索框 Enter 选中项目：不创建终端，显示未启动面板，顶部栏「结束终端」隐藏（computed display none）。
+  - 点面板「启动终端」→ pwsh 运行，⏹ 按钮出现（截图确认位置在资源管理器按钮左边）；点 ⏹ → 回到未启动面板、侧栏圆点消失，日志 `kill` + `taskkill 已结束进程树`，pwsh 进程已不存在；同一项目再次启动正常。
+  - 右键菜单：无终端的项目「结束终端」禁用；对非当前项目（运行中）点「结束终端」→ 该终端结束，当前项目不受影响。
+  - 切换：有终端的项目切走再切回，终端仍在运行并显示。真实鼠标点击没有终端的项目后焦点在列表项上，键入的文字没有进入上一个项目的隐藏终端。
+  - 已退出的终端（`exit`）：⏹ 仍显示，点击后回到未启动面板。
+  - 启动中立即结束（同一 tick 内 start + end）：主进程日志 open 后 1 ms kill，shell 进程已不存在。
+  - 助手状态：测试 userData 的 Codex 命令临时改为 `echo fake-codex`，面板「启动 Codex」→「Codex 就绪」、启动按钮隐藏；结束终端 → 状态标签隐藏、启动按钮恢复、侧栏 agent-none。
+  - 未测：真实 claude / codex 运行中结束（清理路径与原「重启终端」、移除项目相同）；打包版。
 - 1.3.2 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar（`.devtest/asar-check.cjs`）：package.json 版本 1.3.2；渲染进程 bundle 含全局页版本号 6 处、`_amSeenLayout` 3 处、纹理上传上限 1 处，无 `_requestClearModel=!0`，Esc 序列仍在；node-pty 原生模块在 app.asar.unpacked 中。electron-builder.yml 自 1.3.1 以来未变。
 - 文字错乱修复（`npm run typecheck` 通过；`npm run build` 通过，产物 out/renderer/assets/index-*.js 中含全局页版本号 6 处、`_amSeenLayout` 3 处，无残留的 `_requestClearModel=!0`）：
   - 复现（未修补，全新 dev 实例，隔离 userData，窗口不激活；DPR 1.5、终端 122×36）：`atlas-stress.mjs 16000` 逐屏打印 16000 个不同汉字后打印探针屏，截图中多行汉字错乱 / 重叠、出现别行的字，与用户截图一致；连续两个全新实例都复现。同一实例里第二次运行未复现（图集状态已变，见 lessons）。
@@ -130,4 +142,5 @@
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
 - 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；自测工具在 `.devtest/`（先 `node .devtest/seed.mjs` 建测试数据，userData 用 `--user-data-dir=<项目>/.devtest/ud`，关闭用 `.devtest/close-dev.ps1`）；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
 - 图集自测：`sh .devtest/atlas-run.sh [字数] [标签]` 从全新 dev 实例跑一次压力 + 截图比较（输出 `A vs B {diffPixels}`，约 105 为正常）；在 Bash 工具里用 run_in_background 运行。
+- 真实鼠标点击：`node .devtest/mouse.mjs 9223 "<选择器>"`（`cdp.mjs eval` 里的 `el.click()` 不移动焦点，见 lessons.md）。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

@@ -244,17 +244,16 @@ class TerminalView {
     }
   }
 
-  /** 右键菜单「重启终端」：结束当前 PTY（如果有），清屏后在同一个 xterm 里重新启动 */
-  async restart(): Promise<void> {
-    if (this.state === 'starting') return
-    if (this.state === 'running') {
-      const result = await api.pty.kill(this.sessionId)
-      if (!result.ok) this.hooks.onError(result.error)
-    }
-    if (this.disposed) return
+  /**
+   * 「结束终端」：销毁 xterm 并结束 PTY 及其进程树。
+   * pty.open 进行中时也照常 kill：open 已先发出，主进程按顺序处理 IPC，kill 时会话已经创建。
+   */
+  end(): void {
     this.setState('idle')
-    this.term.reset()
-    await this.start()
+    this.dispose()
+    void api.pty.kill(this.sessionId).then((result) => {
+      if (!result.ok) this.hooks.onError(result.error)
+    })
   }
 
   write(data: string): void {
@@ -500,8 +499,9 @@ export class TerminalManager {
     this.activeId = null
   }
 
-  async restart(sessionId: string): Promise<void> {
-    await this.views.get(sessionId)?.restart()
+  /** 结束会话的终端（见 TerminalView.end），该会话回到「未启动」 */
+  end(sessionId: string): void {
+    this.take(sessionId)?.end()
   }
 
   /** 仅供开发期自测使用 */
@@ -512,10 +512,14 @@ export class TerminalManager {
   }
 
   dispose(sessionId: string): void {
+    this.take(sessionId)?.dispose()
+  }
+
+  /** 从管理器中摘除视图，之后到达的 PTY 输出 / 退出事件会被丢弃 */
+  private take(sessionId: string): TerminalView | undefined {
     const view = this.views.get(sessionId)
-    if (!view) return
-    view.dispose()
     this.views.delete(sessionId)
     if (this.activeId === sessionId) this.activeId = null
+    return view
   }
 }

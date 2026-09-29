@@ -40,6 +40,12 @@
 | M14 默认终端 | ✅ 完成 | shells.ts 检测 / 解析（pwsh、powershell、cmd、Git Bash）；设置字段与校验；pty.open 按设置启动并记录 shell 家族；按家族生成 claude / codex 启动命令；设置页下拉（通用化 select 菜单）；dev 验证各 shell 启动、cwd、换行键、claude / codex 启动与退出上报 |
 | M13 换行按键与光标样式（迭代 5，用户反馈） | ✅ 完成 | 实测 claude / codex / PowerShell 各自如何读 Enter 变体；Shift/Ctrl/Alt+Enter 发 win32-input-mode Shift+Enter（字符 LF）；设置「光标」竖线 / 下划线 / 方块（默认竖线）；dev 自测窗口不抢焦点 | theme.ts 按种子色选方案（单色浅 / 单色深纯黑 / 原动态深色）；浅色 ANSI 与最小对比度；color-scheme；色块描边；截图检查各界面 |
 
+## 迭代 6（需求见 docs/spec.md「迭代 6 需求」）
+
+| 里程碑 | 状态 | 任务 |
+|---|---|---|
+| M16 结束终端；点击项目不自动启动终端（用户反馈） | ✅ 完成（未提交、未打包） | 「重启终端」改为「结束终端」（顶部栏按钮仅在有终端时显示、右键菜单无终端时禁用）；点击 / Enter / 搜索 Enter / 添加项目只选中不启动；dev + CDP 验证（含真实鼠标点击后的焦点、已退出终端、启动中结束、助手状态清除、进程树已结束） |
+
 ## 阻塞
 - 无。
 

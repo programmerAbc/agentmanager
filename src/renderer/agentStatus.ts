@@ -122,7 +122,7 @@ export class AgentStatusTracker {
     if (current?.status === 'done') this.set(sessionId, { agent: current.agent, status: 'idle' })
   }
 
-  /** 终端退出 / 重启 / 移除 */
+  /** 终端退出 / 结束 / 移除 */
   reset(sessionId: string): void {
     if (this.states.has(sessionId)) this.set(sessionId, null)
   }

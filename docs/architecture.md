@@ -19,7 +19,7 @@ preload (src/preload/index.ts)
   sidebar.ts       项目列表 UI：搜索过滤、选中、行内重命名、右键菜单、宽度拖拽
   fuzzy.ts         模糊匹配与打分（纯函数，无 DOM 依赖）
   terminalView.ts  TerminalView（每个项目一个 xterm 实例 + DOM 容器，状态 idle/starting/running/exited/failed）
-                   TerminalManager（按 sessionId 管理视图，只切换可见性不 dispose，分发 PTY 输出）
+                   TerminalManager（按 sessionId 管理视图，切换项目只切换可见性，结束终端 / 移除项目时才 dispose；分发 PTY 输出）
   contextMenu.ts   DOM 右键菜单；toast.ts 右下角提示
 共享 (src/shared/types.ts)
   Project / 设置类型、IPC 通道名常量、window.api 接口
@@ -116,6 +116,15 @@ preload (src/preload/index.ts)
 | `PathLinkProvider`（`src/renderer/pathLinks.ts`）：按单元格重建逻辑行（含自动换行续行，宽字符按 2 格映射），正则识别路径，再经 IPC `links.resolvePaths` 让主进程以项目目录为基准判断存在，只返回存在的 | 路径常被自动换行截断；只链接存在的文件避免把「node.js」「v1.2」之类误判成链接 |
 | 主进程 `links.ts` 负责打开：协议白名单；file 链接拒绝主机名；本机路径拒绝 UNC；可执行扩展名只 `showItemInFolder`；`shell.openPath` 失败（无关联程序）时也改为定位 | 终端输出不可信：恶意文本里的 OSC 8 链接不应能直接运行程序或触发访问网络共享（NTLM 凭据泄露） |
 | 终端环境变量 `FORCE_HYPERLINK=1`（`??=`，尊重用户设置） | claude 的超链接判断（supports-hyperlinks + 终端白名单，Windows Terminal 靠 `WT_SESSION`）在我们的终端里为否，不会输出 OSC 8；该变量是 supports-hyperlinks 的标准开关 |
+
+## 迭代 6 设计（M16）
+
+| 决策 | 原因 |
+|---|---|
+| 「结束终端」= `TerminalManager.end(id)`：先把视图从管理器摘除（之后到达的输出 / 退出事件被丢弃）→ `setState('idle')`（运行中时触发 `onRunningChange(false)`：侧栏圆点、助手状态清除）→ dispose xterm → 异步 `pty.kill`（taskkill 整棵进程树，失败时 toast）。界面立即回到未启动面板，不等 taskkill | 与「移除项目」同一条清理路径；销毁而不是保留旧内容，使「有终端 ⇔ 有 TerminalView」成立，顶部栏按钮的显示与右键菜单项的禁用都只看 `terminals.has(id)`（已退出的终端也算有，可以结束） |
+| 启动中（`pty.open` 未返回）也照常结束 | open 请求已先发出，主进程按顺序处理 IPC 且 open 的 handler 是同步的，kill 到达时会话已创建；`doStart` 返回后发现已 dispose 直接返回。dev 实测 open 后 1 ms kill，shell 进程已结束 |
+| `select(id, start)`：侧栏单击 / Enter、搜索框 Enter、添加项目都用 `start=false`；只有未启动面板与「启动 Claude / Codex」（`ensureRunning`）会创建终端 | 用户要求点击项目不启动终端；已有终端时 `start=false` 也会显示并聚焦它，切换体验不变 |
+| 顶部栏「结束终端」用 `hidden` 隐藏；`.icon-btn` 设置了 `display: inline-grid`，所以 styles.css 里补 `.icon-btn[hidden] { display: none }` | 类选择器的 display 会覆盖 UA 样式里 `[hidden]` 的 `display: none`（见 lessons.md） |
 
 ## 打包（electron-builder.yml）
 

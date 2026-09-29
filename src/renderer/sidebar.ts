@@ -14,7 +14,9 @@ export interface SidebarCallbacks {
   onRename(id: string, name: string): void
   onRemove(id: string): void
   onOpenInExplorer(id: string): void
-  onRestartTerminal(id: string): void
+  onEndTerminal(id: string): void
+  /** 项目是否有终端（运行中或已退出），没有时右键菜单的「结束终端」禁用 */
+  hasTerminal(id: string): boolean
   /** 搜索框按 Esc 且搜索词已为空：把焦点还给终端 */
   onSearchDone(): void
   /** 拖动过程中 done=false，松开鼠标时 done=true（此时再持久化） */
@@ -329,7 +331,12 @@ export class Sidebar {
       { separator: true },
       { label: '重命名', icon: 'edit', action: () => this.beginRename(id) },
       { label: '在资源管理器中打开', icon: 'folderOpen', action: () => this.cb.onOpenInExplorer(id) },
-      { label: '重启终端', icon: 'restartAlt', action: () => this.cb.onRestartTerminal(id) },
+      {
+        label: '结束终端',
+        icon: 'stopCircle',
+        disabled: !this.cb.hasTerminal(id),
+        action: () => this.cb.onEndTerminal(id)
+      },
       { separator: true },
       { label: '移除项目', icon: 'delete', danger: true, action: () => this.cb.onRemove(id) }
     ])

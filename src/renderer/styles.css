@@ -535,7 +535,8 @@ select {
 }
 
 .status-chip[hidden],
-.launch-agent[hidden] {
+.launch-agent[hidden],
+.icon-btn[hidden] {
   display: none;
 }
 

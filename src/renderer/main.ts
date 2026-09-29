@@ -40,6 +40,7 @@ class App {
     subtitle: HTMLElement
     status: HTMLElement
     launch: Record<AgentKind, HTMLButtonElement>
+    end: HTMLButtonElement
     actions: HTMLElement
   }
   private readonly agents: AgentStatusTracker
@@ -91,7 +92,7 @@ class App {
       {
         onRunningChange: (id, running) => {
           this.sidebar.setRunning(id, running)
-          // 终端退出 / 重启 / 被结束，里面的助手也就没了
+          // 终端退出 / 被结束，里面的助手也就没了
           if (!running) this.agents.reset(id)
         },
         onInput: (id) => this.agents.markSeen(id),
@@ -103,12 +104,14 @@ class App {
       onAdd: () => void this.addProject(),
       onOpenSettings: () => this.openSettings(),
       onOpenAbout: () => openAboutDialog(() => this.openSettings()),
-      onSelect: (id) => this.select(id, true),
+      // 点击项目只选中，不启动终端（用户要求）；已有终端则显示
+      onSelect: (id) => this.select(id, false),
       onLaunchAgent: (id, agent) => void this.launchAgent(id, agent),
       onRename: (id, name) => void this.renameProject(id, name),
       onRemove: (id) => void this.removeProject(id),
       onOpenInExplorer: (id) => void this.openInExplorer(id),
-      onRestartTerminal: (id) => void this.restartTerminal(id),
+      onEndTerminal: (id) => this.endTerminal(id),
+      hasTerminal: (id) => this.terminals.has(id),
       onSearchDone: () => {
         if (this.selectedId) this.terminals.focus(this.selectedId)
       },
@@ -323,7 +326,7 @@ class App {
       this.projects = [...this.projects, project]
       this.sidebar.setProjects(this.projects)
     }
-    this.select(project.id, true)
+    this.select(project.id, false)
   }
 
   private async renameProject(id: string, name: string): Promise<void> {
@@ -362,9 +365,10 @@ class App {
     else this.render()
   }
 
-  private async restartTerminal(id: string): Promise<void> {
-    if (this.terminals.has(id)) await this.terminals.restart(id)
-    else this.select(id, true)
+  /** 结束项目的终端（PTY 及其进程树），项目回到「未启动」面板 */
+  private endTerminal(id: string): void {
+    this.terminals.end(id)
+    this.render()
   }
 
   private async openInExplorer(id: string): Promise<void> {
@@ -398,21 +402,23 @@ class App {
     }
     const launch = { claude: launchButton('claude', 'filled'), codex: launchButton('codex', 'tonal') }
 
+    const end = iconButton('stopCircle', '结束终端', () => {
+      if (this.selectedId) this.endTerminal(this.selectedId)
+    })
+
     const actions = document.createElement('div')
     actions.className = 'topbar-actions'
     actions.append(
       status,
       launch.claude,
       launch.codex,
-      iconButton('restartAlt', '重启终端', () => {
-        if (this.selectedId) void this.restartTerminal(this.selectedId)
-      }),
+      end,
       iconButton('folderOpen', '在资源管理器中打开', () => {
         if (this.selectedId) void this.openInExplorer(this.selectedId)
       })
     )
     root.append(titles, actions)
-    return { title, subtitle, status, launch, actions }
+    return { title, subtitle, status, launch, end, actions }
   }
 
   private renderAgentStatus(project: Project | null): void {
@@ -444,6 +450,8 @@ class App {
     this.renderAgentStatus(project)
 
     const terminalShown = project !== null && this.terminals.has(project.id)
+    // 没有终端时没有可结束的
+    this.topbar.end.hidden = !terminalShown
     this.emptyState.hidden = project !== null
     this.idlePanel.hidden = project === null || terminalShown
 

@@ -257,3 +257,23 @@ MSYS 的参数路径转换：传给原生 Windows 程序的、以 `/` 开头的�
 Vite 插件 `scripts/xtermWebglAtlasFix.ts` 在构建时按上游 beta 的思路修补压缩后的 addon：页版本号全局递增、布局变化计数由每个渲染器各自比较、更新途中合并则当帧重建、纹理上传不越界。任一替换没有恰好匹配一次就构建失败。dev 下必须把 `@xterm/addon-webgl` 排除出 `optimizeDeps`，预构建的依赖不经过插件 transform。已经错乱的旧版本：`Ctrl+=` 再 `Ctrl+0` 换一次字号即可恢复（重建图集并重新上传纹理）。
 ### Prevention
 渲染类问题先在 dev 里用可重复的压力脚本复现（`.devtest/atlas-stress.mjs` 逐屏打印上万个不同汉字，`atlas-test.mjs` 截图后换字号、重印同一屏、逐像素比较）。复现要从全新启动的实例开始：图集状态跨运行累积，同一实例里第二次运行不一定触发。升级 xterm / addon 时查看上游是否已修，已修就删除插件。给依赖打补丁优先在构建时做精确替换并校验匹配次数，不要手改 node_modules。
+
+## Lesson: 类选择器设置了 display 时，`hidden` 属性不生效
+### Problem
+给顶部栏的 `.icon-btn`（「结束终端」）设置 `hidden = true`，按钮仍然显示。
+### Root Cause
+`hidden` 只是 UA 样式表里的 `[hidden] { display: none }`，优先级低于作者样式；`.icon-btn { display: inline-grid }` 把它覆盖了。
+### Solution
+styles.css 里补 `.icon-btn[hidden] { display: none }`（与已有的 `.status-chip[hidden]`、`.launch-agent[hidden]` 等放在一起）。
+### Prevention
+用 `hidden` 控制显示前，先查该元素的类有没有设置 `display`；自测时用 `getComputedStyle(el).display` 确认，而不是只看 `el.hidden`。
+
+## Lesson: CDP 里的 `element.click()` 不会移动焦点
+### Problem
+验证「切到没有终端的项目后，键盘输入不会进入上一个项目隐藏的终端」时，用 `Runtime.evaluate` 执行 `li.click()`，焦点仍留在隐藏终端的输入框里，看起来像是缺陷。
+### Root Cause
+脚本调用的 `click()` 只派发 click 事件，不经过 mousedown 的默认行为，焦点不会转移；真实鼠标点击会把焦点移到可聚焦的 `li`（tabIndex=0）。
+### Solution
+焦点相关的验证用 `Input.dispatchMouseEvent` 发真实的按下 / 抬起：`node .devtest/mouse.mjs 9223 "<选择器>"`（点元素中心）。
+### Prevention
+只关心事件逻辑时可以用 `click()`；凡是结论依赖焦点、hover、选区的，一律用真实输入事件验证。
