@@ -204,6 +204,8 @@
 - 只有按键才算，切换到该项目不会让「等待确认」变化（「已完成」仍是切换到项目即视为已查看）。
 - 已知限制：claude 的 permission_prompt 通知若在用户已经作答之后才到，状态会回到「等待确认」，直到 PostToolUse。
 
+应用版本号 1.6.0（M19 + M20）。
+
 ## Open
 - codex 一轮对话出错（例如模型不可用）时不会有 Stop，状态停留在「工作中」直到下一次事件或 codex 退出。
 - 退出 claude 时连按三次以上 Ctrl+C：多出来的 Ctrl+C 会广播给控制台里的所有进程，可能打断正在上报 SessionEnd 的 `curl.exe`，状态停在「就绪」、启动按钮保持禁用（结束终端可恢复）。正常的两次 Ctrl+C 或 `/exit` 已验证能清除状态。可选改进：像 codex 一样用 PowerShell `try/finally` 兜底上报。
