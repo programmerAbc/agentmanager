@@ -150,6 +150,18 @@ preload (src/preload/index.ts)
 | 原生 SessionEnd 与 try/finally 的上报并存（第二次是空操作） | finally 覆盖 codex 崩溃、被结束等不触发 hook 的情况 |
 | **M20**：`TerminalHooks.onInput(sessionId, data)` 只在用户输入时调用——排除焦点上报（`ESC[I` / `ESC[O`）与鼠标上报（SGR `ESC[<b;x;yM/m`、URXVT `ESC[b;x;yM`）；`AgentStatusTracker.markInput(id, data)`：已完成 → 就绪；等待确认 → 工作中，但导航键（方向键、Tab、Shift+Tab、Home、End、PageUp、PageDown，含修饰键与应用光标模式的写法）不算 | 批准权限后没有事件；按键是渲染进程唯一能看到的「用户已处理」信号。导航键只移动确认框里的选择；鼠标上报在程序开启鼠标跟踪时滚轮 / 移动都会产生，不是作答 |
 
+## 缺陷修复：输入法组字时终端横向跳动
+
+**根因**（dev 用模拟重绘的程序 + CDP 组字复现，见 lessons.md）：xterm 6 在组字期间每次渲染都调用 `CompositionHelper.updateCompositionElements()`，把组字框和隐藏输入框（textarea，宽度 = 组字文字宽度）放到**当前光标**处。claude 重绘一帧时，ConPTY 会把中间状态单独输出（例如画满整行分隔线后光标停在最右列），xterm 恰好在这时渲染，textarea 就被移到右边缘并超出终端宽度；用户此时继续打拼音，浏览器为让输入框里的光标可见，把最近的可滚动祖先 `#terminal-host`（`overflow: hidden` 仍可被脚本 / 浏览器滚动）横向滚动，整个终端卡片内容左移；候选窗也跟着 textarea 跑到右下角。
+
+| 决策 | 原因 |
+|---|---|
+| `#terminal-host` 改为 `overflow: clip` | clip 只裁剪、不形成滚动容器，浏览器无法再横向滚动它；圆角裁剪不变。无论组字框放在哪里，终端画面都不会横移 |
+| 组字位置防抖：`TerminalView` 记录最近一次输出解析完成的时间（`term.write` 回调），包装 xterm 私有的 `_core._compositionHelper.updateCompositionElements`：输出静止不到 50ms 时推迟更新（最多推迟 400ms），静止后按光标定位；本次组字第一次定位不推迟 | 重绘中途的光标只停留一两个 ConPTY 刷新周期，等输出落定再定位就是输入框处的光标；没有程序重绘时立即更新，行为不变；输出一直不停时 400ms 兜底，位置不会卡住 |
+| 定位后若组字框超出终端右边缘，把组字框和 textarea 左移到刚好放下 | 光标确实在右边缘时（长行末尾）组字文字仍然可见，也不会让 textarea 超出 |
+| 私有 API 找不到（xterm 升级改了内部结构）时不包装，保持 xterm 默认行为，并在控制台警告 | CSS 的 `overflow: clip` 仍然保证不横移；升级 xterm 时按 lessons.md 复查 |
+| 开发期调试快照 `debugSnapshot().ime`：包装是否生效、距最近输出的毫秒数、光标位置 | 自测时判断组字定位时机（`.devtest/frame-cursor.mjs` 每帧读取） |
+
 ## 打包（electron-builder.yml）
 
 - 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。

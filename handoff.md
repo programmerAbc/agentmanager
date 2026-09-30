@@ -1,4 +1,5 @@
 ## Completed
+- 修复（2026-09-30 用户录屏「奇怪的屏幕闪烁」）：claude 工作时用输入法打字，终端画面整体左右跳、候选窗跳到右下角。录屏逐帧定位（ffmpeg 装在会话 scratchpad 的 venv 里）；根因为 xterm 组字时把隐藏输入框移到「当前光标」处，程序重绘中途光标停在右边缘时输入框超出终端，浏览器为显示输入光标横向滚动了 `overflow: hidden` 的 `#terminal-host`。修复：`#terminal-host` 改 `overflow: clip`（不可滚动，画面不会再横移）；组字定位等输出静止 50ms 再按光标（最多推迟 400ms），超出右边缘时收回。**未提交、未改版本号、未打包**。
 - 1.6.0（M19 + M20）：按用户要求提交（f6dde8d 功能、「版本 1.6.0」）、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.6.0-setup.exe`（SHA256 F94F6815…2B5124DE，与 dist 中一致）。为不打扰用户正在运行的 1.4.0，未启动打包版 GUI，改为解包 app.asar 静态检查（dev 与真实 codex 已验证）。release 目录里 1.3.2、1.4.0、1.5.0 安装包保留。
 - M20（2026-09-30 用户要求「等待确认时你在终端里按了键，就算已处理」）：状态为「等待确认」时，在该终端按键 → 「工作中」（claude / codex 都适用）。只移动确认框选择的导航键（方向键、Tab、Shift+Tab、Home、End、PageUp、PageDown）不算；鼠标上报与焦点上报序列不再算作输入（也不再让「已完成」变就绪）。切换项目不影响「等待确认」。已随 1.6.0 发布。
 - M19（2026-09-30 用户要求「把事件都加上」，接受重新信任一次）：codex hooks 从 5 个扩展到 codex 0.159.2 支持的全部 12 个。新增状态：Esc 中断（Interrupt）→ 就绪（之前会停在「工作中」）；手动 `/compact`（PreCompact / PostCompact 按 manual / auto 分组上报）→ 工作中 → 就绪；PreToolUse → 工作中；SessionEnd 原生 + try/finally 并存；Subagent 只记日志。原有 5 条 hook 文本逐字不变，用户只需信任新增的 9 条（本次自测已在用户的 codex 里信任过，与发布版文本相同，安装后不会再提示）。已随 1.6.0 发布。
@@ -40,6 +41,7 @@
 - 无。
 
 ## Next Steps
+- 输入法修复：等用户决定是否提交 / 定版本号（建议 1.6.1）/ 打包 / 推送；请用户在真实场景（claude 长时间工作 + 微软拼音）里确认画面不再跳、候选窗是否还会跳。
 - 用户安装 1.6.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）。1.5.0 的项目数据库升级、星标、折叠同样包含在内。codex hooks 已在用户的 codex 里信任过（与发布版文本相同），不会再弹「Hooks need review」；codex 启动时的「Running without the shared background server」提示是 `-c` 注入的固有提示。
 - 首次启动 1.5.0 及以上会把项目数据库升级到 schema 2（日志「schema 升级到 2（星标）」），已有项目保留；之后若退回 1.4.0 也能打开。
 - M17 / M18 未做（spec 中列为非目标，用户需要再加）：收藏分组内拖动排序、星标快捷键、顶部栏星标按钮；折叠动画、折叠时仍显示选中项 / 需要处理的项目、标题上的状态提醒（用户选了「完全隐藏」）。
@@ -58,6 +60,7 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- 输入法修复：src/renderer/styles.css（`#terminal-host` `overflow: clip`）、src/renderer/terminalView.ts（`stabilizeComposition` / `keepCompositionInside`、`lastOutputAt`、调试快照 `ime`）；docs/spec.md、docs/architecture.md、plans.md、lessons.md、handoff.md。自测工具（不提交）：`.devtest/ime-redraw.js`（模拟分两次写出的重绘）、`ime-sample.mjs`（模拟打拼音 + 采样滚动 / 输入框位置）、`ime-trace.mjs`、`frame-cursor.mjs`（每帧光标）、`cursor-dwell.mjs`（高频轮询，会饿死渲染，别用）、`ime-basic.mjs`（无重绘时的组字回归）；`cdp.mjs` 加 Ctrl+C（`key c ctrl`）。测试 userData 的 claude 命令改成了 `claude --model haiku --permission-mode bypassPermissions`。
 - M20：src/renderer/terminalView.ts（`REPORT_SEQUENCE` 排除焦点 / 鼠标上报，`onInput(sessionId, data)`）、src/renderer/agentStatus.ts（`NAVIGATION_KEY`、`markInput`）、src/renderer/main.ts；docs/spec.md（M20，删去对应 Open 项）、docs/architecture.md、plans.md、README.md、handoff.md。自测工具（不提交）：`.devtest/m20-sim.sh`（向 hooks 服务模拟事件 + 真实按键）、`wheel.mjs`（真实滚轮）、`mouse-mode.js`（开启原始输入 + SGR 鼠标跟踪的小程序）、`codex-approval-cmd.txt`（codex 审批模式测试命令）。
 - M19：src/shared/types.ts（`AgentHookEvent` 新增 6 个、`CODEX_HOOK_EVENTS` 12 个、`AgentEvent.trigger`）、src/main/hookServer.ts（压缩事件 matcher 分组、SessionEnd / Interrupt `timeout=3`、`codexEvent` 解析「事件:触发方式」、PreToolUse 记 debug）、src/renderer/agentStatus.ts（新事件的状态映射）；docs/spec.md（M19、Open）、docs/architecture.md（M19 设计）、plans.md、README.md、lessons.md、handoff.md。自测工具（不提交）：`.devtest/screen.sh`（读终端末尾 + 状态）、`.devtest/watch-status.mjs`（采样状态变化）、`.devtest/codex-test-cmd.txt`、`cdp.mjs` 加 F2。
 - M18：src/shared/types.ts（`SidebarGroup`、`SIDEBAR_GROUPS`、`AppSettings.collapsedGroups`）、src/main/{settingsStore（默认值、`parseGroups`）,ipc（patch 透传）}.ts、src/renderer/{sidebar（标题按钮、`VisibleGroup`、`toggleGroup`、`highlight` 闪标题）,main（恢复与保存折叠状态）,icons（keyboardArrowDown）}.ts、styles.css（`.group-header` 等，`.list-label` 不再有内边距）；docs/spec.md（M18）、docs/architecture.md（迭代 7 设计、settings.json 字段表补全）、plans.md、README.md、handoff.md。自测工具（不提交）：`.devtest/rows.js`（新，打印侧栏行：分组 / 折叠 / 星标 / 当前项）。
@@ -74,6 +77,13 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 输入法修复（`npm run typecheck`、`npm run build` 通过；dev 实例同前的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在）：
+  - 录屏（14 秒，30fps，418 帧）逐帧差分：第 71、141、143 帧整个终端卡片内容左移 1–4 列、候选窗在窗口右下、组字文字画在右边缘外，一两帧后恢复；253、260 帧是正常的新输出。
+  - 复现（修复前代码）：终端里跑 `.devtest/ime-redraw.js 40 120`（每帧先画整行分隔线、40ms 后把光标放回输入框），CDP 模拟逐字母打拼音 6 秒：`#terminal-host.scrollLeft` 9–14 个采样 > 0（最大 29px，其余祖先均为 0），隐藏输入框在输入框处与右边缘之间跳 80–95 次、超出右边缘 68–81 个采样。只设置一次组字串（不继续打字）时不滚动——浏览器只在组字更新时把输入光标滚到可见。
+  - 修复后同一复现：3 次 + 1 次共约 750 个采样，滚动 0、超出 0；输入框仍会跳到右边缘的比例从约 30% 降到 0–10%（模拟程序的中间状态受 Windows 计时精度影响有时超过 50ms，trace 看到一次停留 58ms）。
+  - 真实 claude（haiku，3 轮：列数字、Start-Sleep 工具调用、输入框里有「屏幕」+ 排队消息）：每帧记录光标 1300–2200 帧，光标始终在输入框处，没能复现中途的临时位置；同时模拟打拼音，滚动 0、输入框位置不变。用户录屏的场景（Opus xhigh、长时间 shell 命令）未能重现，候选窗跳动的改善需用户实测确认。
+  - 无重绘时的回归（PowerShell 提示符）：组字框位置 = 光标处（536px）；光标在第 174 列时组字框收回到右边缘内（右边 1416 = 终端宽度），文字可见；上屏「闪烁」只出现一次。
+  - 未测：打包版；真实微软拼音（CDP 模拟组字事件，不经过系统输入法）。
 - 1.6.0 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar（`.devtest/asar-check.cjs`，新增 M19 / M20 检查）：package.json 版本 1.6.0；渲染进程 bundle 含 `REPORT_SEQUENCE`、`NAVIGATION_KEY` 正则（与源码逐字相同，`.devtest/asar-grep.cjs` 确认）、Interrupt / PostCompact 分支；main 含压缩事件标记 4 处、`,timeout=3` 1 处（生成两次）、Interrupt、SubagentStop；M17 / M18（星标、收藏、折叠、schema 2）、图集修补、Esc 序列、「结束终端」仍在；node-pty 原生模块在 app.asar.unpacked 中。安装包复制到 release 目录后 SHA256 与 dist 一致。未启动打包版 GUI。
 - M20（`npm run typecheck`、`npm run build` 通过；dev 实例同前的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在；`~/.codex/config.toml` 没有新增项目条目）：
   - 从源码取出两个正则做表格测试 33 项全过：导航键 15 种（含 Ctrl+方向键、应用光标模式、`ESC[1~` / `ESC[5;5~` 等）不算；Enter、Esc（含 win32-input-mode 写法）、数字、y / n、Ctrl+C、粘贴、Delete、Insert、F1、Shift+Enter、普通文字都算；焦点上报、SGR / URXVT 鼠标上报识别为上报。
@@ -197,6 +207,7 @@
 - 图集自测：`sh .devtest/atlas-run.sh [字数] [标签]` 从全新 dev 实例跑一次压力 + 截图比较（输出 `A vs B {diffPixels}`，约 105 为正常）；在 Bash 工具里用 run_in_background 运行。
 - 真实鼠标点击：`node .devtest/mouse.mjs 9223 "<选择器>"`（`cdp.mjs eval` 里的 `el.click()` 不移动焦点，见 lessons.md）；真实悬浮 + 截图：`node .devtest/move.mjs 9223 "<选择器>" [截图.png]`。两者都会先把元素滚动到可见。
 - codex 自测：测试 userData 的 Codex 命令见 `.devtest/codex-test-cmd.txt`（低推理 + 会话级目录信任，不会写用户配置；需要审批时用 `codex-approval-cmd.txt`，0.159.2 的 `-a` 只接受 on-request / never）；`sh .devtest/screen.sh p1 [行数]` 看终端与状态；`node .devtest/watch-status.mjs 9223 <秒>` 记录状态变化；向 claude / codex 输入斜杠命令用 `MSYS_NO_PATHCONV=1 node .devtest/cdp.mjs 9223 type '/exit'`。
+- 输入法 / 重绘自测：`node .devtest/ime-redraw.js [间隔ms] [帧ms]` 在 dev 终端里模拟重绘（Ctrl+C 退出，CDP 发 `key c ctrl`），再 `node .devtest/ime-sample.mjs 9223 <秒>`；真实程序的每帧光标用 `frame-cursor.mjs`。
 - 侧栏状态速览：`node .devtest/cdp.mjs 9223 eval "$(cat .devtest/rows.js)"`（`[项目(8) >]` = 折叠，`*` = 星标，`(active)` = 搜索当前项）。
 - 星标测试数据：`node .devtest/seed.mjs && node .devtest/seed-star.mjs` 得到 schema 1、12 个项目的测试库（可测迁移）。当前 `.devtest/ud` 已是 schema 2、4 个星标项目；`.devtest/star-v1-backup.db` 是迁移前的副本。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

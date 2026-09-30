@@ -297,3 +297,23 @@ codex 对没信任过的目录（按 git 根目录算）都会询问并保存决
 选「Quit」退出，把测试 userData 的 Codex 命令改为带会话级覆盖：`codex … -c "projects={'d:\develop\workspace_lab3\agentmanager'={trust_level='trusted'}}"`（整个 projects 表作为 TOML 值传入，避免带引号的键路径），不再询问，也不写配置文件（测试前后 grep 确认）。
 ### Prevention
 在用户真实的 codex / claude 配置上自测前，先想清楚每个提示选项会持久化什么；能用 `-c` 等会话级覆盖就不用持久化的选择。另：在 Windows 上测 hook 耗时不要连已关闭的端口（连接被拒要约 2 秒重试），要连正在监听的服务。
+
+## Lesson: `overflow: hidden` 的容器仍会被浏览器滚动，纯裁剪用 `overflow: clip`
+### Problem
+用户录屏：claude 工作时用输入法打字，整个终端画面（连同内边距）左右跳一两帧，候选窗跳到窗口右下角。
+### Root Cause
+xterm 组字时每次渲染都把组字框和隐藏输入框（宽度 = 组字文字宽度）放到当前光标处；程序重绘一帧的中途光标可能停在右边缘，输入框就超出终端。用户继续打拼音时，浏览器为了让输入框里的光标可见，会滚动最近的滚动容器——`overflow: hidden` 只是不显示滚动条，仍然可以被脚本和浏览器滚动，于是 `#terminal-host` 被横向滚动。
+### Solution
+只需裁剪、不需要滚动的容器用 `overflow: clip`（不形成滚动容器，圆角裁剪照常）；另外把组字定位推迟到输出静止后、超出右边缘时收回（见 architecture.md「输入法组字时终端横向跳动」）。
+### Prevention
+画面「整体平移一下又回来」先查 `scrollLeft / scrollTop`（逐个祖先），多半是某个 `overflow: hidden` 的容器被滚动了。复现输入法问题时组字串要持续更新（CDP `Input.imeSetComposition` 逐字母调用），只设一次不会触发滚动。
+
+## Lesson: 用录屏定位界面闪烁，用页面内逐帧记录代替高频轮询
+### Problem
+用户只给了一段 14 秒的录屏；肉眼看不出闪烁发生在哪几帧、是什么在动。自测时用 CDP 高频轮询（每 0.4ms 一次）读光标位置，结果 10 秒内光标「一动不动」。
+### Root Cause
+录屏需要逐帧看；本机没有 ffmpeg。高频的 `Runtime.evaluate` 占满渲染进程主线程，xterm 来不及解析输出和渲染，测到的是被饿死的状态。
+### Solution
+在会话 scratchpad 建 venv 装 `imageio-ffmpeg` 拿到 ffmpeg（不改系统环境），抽全部帧后按帧差分找出变化大的帧，再并排看前后几帧；页面里的时序数据用注入的 `requestAnimationFrame` 循环每帧记录一次（`.devtest/frame-cursor.mjs`），一次性取回。
+### Prevention
+测量渲染相关的时序不要高频轮询 CDP；按渲染节奏在页面内采集。复现不了用户的现象时，先保证能在模拟环境复现机制，再说明真实场景未能重现、需要用户确认。

@@ -36,6 +36,19 @@ const ESC_KEY = '\x1b[27;1;27;1;0;1_\x1b[27;1;27;0;0;1_'
  */
 const REPORT_SEQUENCE = /^\x1b\[(?:[IO]|<\d+;\d+;\d+[Mm]|\d+;\d+;\d+M)$/
 
+/** 终端输出静止多久后，光标位置才算落定（程序重绘一帧的中间状态一般只停留一两个 ConPTY 刷新周期） */
+const OUTPUT_SETTLE_MS = 50
+/** 输出一直不停时，组字位置最多推迟这么久也要更新一次 */
+const COMPOSITION_MAX_DEFER_MS = 400
+
+/** xterm 6 内部的组字助手（私有 API，只用来稳定输入法组字位置；结构不符时不包装） */
+interface XtermCompositionHelper {
+  readonly isComposing: boolean
+  updateCompositionElements(dontRecurse?: boolean): void
+  _compositionView: HTMLElement
+  _textarea: HTMLTextAreaElement
+}
+
 /** Shift / Ctrl / Alt + Enter（输入法组字时的 Enter 交给输入法） */
 function isNewlineKey(e: KeyboardEvent): boolean {
   return (
@@ -116,6 +129,10 @@ class TerminalView {
   private disposed = false
   /** 当前 PTY 是否已收到过 win32-input-mode 序列（见 ESC_KEY）；ConPTY 的这个状态直到 PTY 结束都不会恢复 */
   private win32InputSent = false
+  /** 最近一次输出解析完成的时间（performance.now()），用于判断光标是否已落定 */
+  private lastOutputAt = 0
+  /** 是否已包装 xterm 的组字定位（见 stabilizeComposition） */
+  private compositionStabilized = false
 
   constructor(
     readonly sessionId: string,
@@ -170,6 +187,7 @@ class TerminalView {
     )
     this.term.open(mount)
     this.loadWebgl()
+    this.stabilizeComposition()
 
     this.term.onData((data) => this.handleInput(data))
     this.term.attachCustomKeyEventHandler((e) => this.handleKey(e))
@@ -263,7 +281,68 @@ class TerminalView {
   }
 
   write(data: string): void {
-    this.term.write(data)
+    this.term.write(data, () => {
+      this.lastOutputAt = performance.now()
+    })
+  }
+
+  /**
+   * 输入法组字时，xterm 每次渲染都把组字框和隐藏输入框移到光标处。claude 等程序重绘一帧的中途，光标会临时停在别处
+   * （例如画满整行分隔线后停在最右列），组字框和候选窗就跟着乱跳，隐藏输入框超出右边缘时还会引起画面横移。
+   * 这里改为：输出静止 OUTPUT_SETTLE_MS 后才按光标定位（最多推迟 COMPOSITION_MAX_DEFER_MS），并把超出右边缘的组字框收回。
+   */
+  private stabilizeComposition(): void {
+    const core = (this.term as unknown as { _core?: { _compositionHelper?: Partial<XtermCompositionHelper> } })._core
+    const helper = core?._compositionHelper
+    const original = helper?.updateCompositionElements
+    if (!helper || typeof original !== 'function' || !helper._compositionView || !helper._textarea) {
+      console.warn('[terminal] xterm 内部结构已变化，未启用输入法组字位置稳定')
+      return
+    }
+    const h = helper as XtermCompositionHelper
+    this.compositionStabilized = true
+    let timer: number | undefined
+    let deferredSince = 0
+    /** 本次组字是否已经定位过：第一次不推迟，否则组字框会先出现在上一次组字的位置 */
+    let placed = false
+    h._textarea.addEventListener('compositionstart', () => {
+      placed = false
+    })
+    h.updateCompositionElements = (dontRecurse?: boolean): void => {
+      window.clearTimeout(timer)
+      if (!h.isComposing) {
+        deferredSince = 0
+        return
+      }
+      const now = performance.now()
+      const wait = this.lastOutputAt + OUTPUT_SETTLE_MS - now
+      if (placed && wait > 0) {
+        if (deferredSince === 0) deferredSince = now
+        if (now - deferredSince < COMPOSITION_MAX_DEFER_MS) {
+          timer = window.setTimeout(() => {
+            if (!this.disposed) h.updateCompositionElements(dontRecurse)
+          }, wait)
+          return
+        }
+      }
+      deferredSince = 0
+      placed = true
+      original.call(h, dontRecurse)
+      this.keepCompositionInside(h)
+    }
+  }
+
+  /** 光标就在右边缘时（长行末尾），把组字框和隐藏输入框左移到刚好放下，组字文字仍然可见 */
+  private keepCompositionInside(h: XtermCompositionHelper): void {
+    const screen = this.term.element?.querySelector<HTMLElement>('.xterm-screen')
+    const view = h._compositionView
+    if (!screen || !view.style.left) return
+    const left = parseFloat(view.style.left)
+    const overflow = left + view.offsetWidth - screen.clientWidth
+    if (overflow <= 0) return
+    const fixed = `${Math.max(0, left - overflow)}px`
+    view.style.left = fixed
+    h._textarea.style.left = fixed
   }
 
   handleExit(exitCode: number): void {
@@ -288,6 +367,8 @@ class TerminalView {
     viewportY: number
     /** 链接悬浮提示（终端容器的 title） */
     hint: string
+    /** 输入法组字位置稳定是否生效；距最近一次输出的毫秒数；光标位置 */
+    ime: { stabilized: boolean; msSinceOutput: number; cursor: string }
   } {
     const buffer = this.term.buffer.active
     const lines: string[] = []
@@ -301,7 +382,12 @@ class TerminalView {
       webgl: this.webgl !== null,
       text: lines.join('\n'),
       viewportY: buffer.viewportY,
-      hint: this.pane.title
+      hint: this.pane.title,
+      ime: {
+        stabilized: this.compositionStabilized,
+        msSinceOutput: Math.round(performance.now() - this.lastOutputAt),
+        cursor: `${buffer.cursorX},${buffer.cursorY}`
+      }
     }
   }
 

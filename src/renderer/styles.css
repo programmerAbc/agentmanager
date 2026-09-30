@@ -872,7 +872,9 @@ select {
   flex: 1;
   min-height: 0;
   margin: 0 12px 12px 4px;
-  overflow: hidden;
+  /* clip 而不是 hidden：hidden 的元素仍能被浏览器滚动——输入法组字时 xterm 的隐藏输入框超出右边缘，
+     浏览器为显示输入光标会把整个终端卡片横向滚动（画面左右跳） */
+  overflow: clip;
   border-radius: var(--md-shape-xl);
   background: var(--md-sys-color-surface);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent);
