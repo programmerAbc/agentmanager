@@ -54,7 +54,7 @@
 | M18 分组折叠（用户要求） | ✅ 完成（1.5.0） | 设置 `collapsedGroups`（类型、默认值、解析与校验、IPC patch）；分组标题按钮（箭头、数量、aria-expanded、键盘）；折叠分组不渲染；搜索时临时展开；星标进入折叠分组时闪标题；dev + CDP 验证（真实鼠标、持久化、搜索、↑↓） |
 | M19 Codex 全部生命周期 hooks（用户要求） | ✅ 完成（1.6.0） | `CODEX_HOOK_EVENTS` 扩展到 12 个；压缩事件按 manual / auto 分组上报；SessionEnd / Interrupt `timeout=3`；状态机映射（Interrupt → 就绪、手动压缩结束 → 就绪、Subagent 只记日志）；真实 codex 验证（信任、工具调用、中断、/compact、退出） |
 | M20 等待确认时按键视为已处理（用户要求） | ✅ 完成（1.6.0） | 终端输入排除鼠标上报；`markInput`（导航键不算）；dev 验证（模拟 PermissionRequest + 各类按键；真实 codex 审批一轮） |
-| 修复：输入法组字时终端横向跳动（用户录屏） | ✅ 完成（未提交、未打包） | 录屏逐帧定位；模拟重绘 + CDP 组字复现（`#terminal-host` 被横向滚动）；`overflow: clip`；组字位置防抖 + 右边缘收回；复测模拟与真实 claude |
+| 修复：输入法组字时终端横向跳动（用户录屏） | ✅ 完成（1.6.1） | 录屏逐帧定位；模拟重绘 + CDP 组字复现（`#terminal-host` 被横向滚动）；`overflow: clip`；组字位置防抖 + 右边缘收回；复测模拟与真实 claude |
 
 ## 阻塞
 - 无。
