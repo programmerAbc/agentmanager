@@ -108,6 +108,8 @@ class App {
       onSelect: (id) => this.select(id, false),
       onLaunchAgent: (id, agent) => void this.launchAgent(id, agent),
       onRename: (id, name) => void this.renameProject(id, name),
+      onSetStarred: (id, starred) => void this.setStarred(id, starred),
+      onCollapsedChange: (groups) => this.changeSettings({ collapsedGroups: groups }),
       onRemove: (id) => void this.removeProject(id),
       onOpenInExplorer: (id) => void this.openInExplorer(id),
       onEndTerminal: (id) => this.endTerminal(id),
@@ -120,6 +122,7 @@ class App {
       }
     })
     this.sidebar.setWidth(settings.sidebarWidth)
+    this.sidebar.setCollapsedGroups(settings.collapsedGroups)
     this.sidebar.setProjects(this.projects)
 
     // 应用级快捷键：字号（Ctrl+= / - / 0）、设置（Ctrl+,）、搜索项目（Ctrl+Shift+F）。焦点在侧栏时也可用
@@ -338,6 +341,18 @@ class App {
     this.projects = this.projects.map((p) => (p.id === id ? { ...p, name } : p))
     this.sidebar.setProjects(this.projects)
     this.render()
+  }
+
+  /** 加星标的项目移到侧栏「收藏」分组，取消后回到「项目」分组原来的位置 */
+  private async setStarred(id: string, starred: boolean): Promise<void> {
+    const result = await api.projects.setStarred(id, starred)
+    if (!result.ok) {
+      toast(result.error)
+      return
+    }
+    this.projects = this.projects.map((p) => (p.id === id ? { ...p, starred } : p))
+    this.sidebar.setProjects(this.projects)
+    this.sidebar.highlight(id)
   }
 
   private async removeProject(id: string): Promise<void> {

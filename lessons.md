@@ -277,3 +277,13 @@ styles.css 里补 `.icon-btn[hidden] { display: none }`（与已有的 `.status-
 焦点相关的验证用 `Input.dispatchMouseEvent` 发真实的按下 / 抬起：`node .devtest/mouse.mjs 9223 "<选择器>"`（点元素中心）。
 ### Prevention
 只关心事件逻辑时可以用 `click()`；凡是结论依赖焦点、hover、选区的，一律用真实输入事件验证。
+
+## Lesson: 真实鼠标点击滚动容器里被裁掉的元素，会点到别的东西上
+### Problem
+M17 自测时用 `mouse.mjs` 点列表最底部项目的星标按钮，星标没变，焦点还离开了终端，看起来像是星标按钮失灵、并且会抢焦点。
+### Root Cause
+该项目有一半在侧栏列表（`overflow-y: auto`）可见区域之外；`getBoundingClientRect()` 仍返回元素的真实位置，按坐标发的鼠标事件落在列表下方的抽屉底部（`elementFromPoint` 证实），不是应用的问题。
+### Solution
+`mouse.mjs` / `move.mjs` 取坐标前先 `scrollIntoView({ block: 'nearest' })`；滚到可见后同一操作结果正常（星标生效、焦点留在终端）。
+### Prevention
+按坐标发送真实输入前，先把目标滚动到可见区域；结果异常时先用 `document.elementFromPoint(x, y)` 确认点到的是不是目标，再判断是否为缺陷。

@@ -7,6 +7,7 @@ import {
   DEFAULT_SHELL,
   DEFAULT_THEME_SEED,
   SHELL_IDS,
+  SIDEBAR_GROUPS,
   FONT_FAMILY_PATTERN,
   FONT_SIZE,
   LINE_HEIGHT,
@@ -17,6 +18,7 @@ import {
   type SettingsFile,
   type SettingsPatch,
   type ShellId,
+  type SidebarGroup,
   type WindowState
 } from '../shared/types'
 import { JsonFileWriter, readJsonFile } from './jsonFile'
@@ -32,6 +34,7 @@ const DEFAULTS: AppSettings = {
   themeSeed: DEFAULT_THEME_SEED,
   claudeCommand: DEFAULT_CLAUDE_COMMAND,
   codexCommand: DEFAULT_CODEX_COMMAND,
+  collapsedGroups: [],
   lastProjectId: null,
   window: null
 }
@@ -51,7 +54,11 @@ export class SettingsStore {
   }
 
   get(): AppSettings {
-    return { ...this.settings, window: this.settings.window ? { ...this.settings.window } : null }
+    return {
+      ...this.settings,
+      collapsedGroups: [...this.settings.collapsedGroups],
+      window: this.settings.window ? { ...this.settings.window } : null
+    }
   }
 
   /** 非法值抛错（由 IPC 层转成错误返回值）；数值自动限幅 */
@@ -83,6 +90,7 @@ export class SettingsStore {
     }
     if (patch.claudeCommand !== undefined) next.claudeCommand = checkCommand(patch.claudeCommand)
     if (patch.codexCommand !== undefined) next.codexCommand = checkCommand(patch.codexCommand)
+    if (patch.collapsedGroups !== undefined) next.collapsedGroups = parseGroups(patch.collapsedGroups)
     if (patch.lastProjectId !== undefined) next.lastProjectId = patch.lastProjectId
     this.settings = next
     await this.save()
@@ -148,6 +156,7 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
         : DEFAULTS.themeSeed,
     claudeCommand: parseCommand(r.claudeCommand, DEFAULTS.claudeCommand),
     codexCommand: parseCommand(r.codexCommand, DEFAULTS.codexCommand),
+    collapsedGroups: parseGroups(r.collapsedGroups),
     lastProjectId: typeof r.lastProjectId === 'string' ? r.lastProjectId : null,
     window: parseWindowState(r.window)
   }
@@ -159,6 +168,11 @@ function isCursorStyle(v: unknown): v is CursorStyle {
 
 function isShellId(v: unknown): v is ShellId {
   return typeof v === 'string' && (SHELL_IDS as readonly string[]).includes(v)
+}
+
+/** 只保留已知的分组，去重并按固定顺序 */
+function parseGroups(raw: unknown): SidebarGroup[] {
+  return Array.isArray(raw) ? SIDEBAR_GROUPS.filter((g) => raw.includes(g)) : []
 }
 
 function parseCommand(raw: unknown, fallback: string): string {

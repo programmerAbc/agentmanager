@@ -9,12 +9,15 @@ import folderOpen from '@material-symbols/svg-400/rounded/folder_open.svg?raw'
 import formatSize from '@material-symbols/svg-400/rounded/format_size.svg?raw'
 import frontHandFill from '@material-symbols/svg-400/rounded/front_hand-fill.svg?raw'
 import info from '@material-symbols/svg-400/rounded/info.svg?raw'
+import keyboardArrowDown from '@material-symbols/svg-400/rounded/keyboard_arrow_down.svg?raw'
 import palette from '@material-symbols/svg-400/rounded/palette.svg?raw'
 import playArrowFill from '@material-symbols/svg-400/rounded/play_arrow-fill.svg?raw'
 import rocketLaunch from '@material-symbols/svg-400/rounded/rocket_launch.svg?raw'
 import search from '@material-symbols/svg-400/rounded/search.svg?raw'
 import searchOff from '@material-symbols/svg-400/rounded/search_off.svg?raw'
 import settings from '@material-symbols/svg-400/rounded/settings.svg?raw'
+import star from '@material-symbols/svg-400/rounded/star.svg?raw'
+import starFill from '@material-symbols/svg-400/rounded/star-fill.svg?raw'
 import stopCircle from '@material-symbols/svg-400/rounded/stop_circle.svg?raw'
 import terminal from '@material-symbols/svg-400/rounded/terminal.svg?raw'
 import check from '@material-symbols/svg-400/rounded/check.svg?raw'
@@ -37,12 +40,15 @@ const ICONS = {
   formatSize,
   frontHandFill,
   info,
+  keyboardArrowDown,
   palette,
   playArrowFill,
   rocketLaunch,
   search,
   searchOff,
   settings,
+  star,
+  starFill,
   stopCircle,
   terminal
 } as const

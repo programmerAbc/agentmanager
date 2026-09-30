@@ -126,6 +126,19 @@ preload (src/preload/index.ts)
 | `select(id, start)`：侧栏单击 / Enter、搜索框 Enter、添加项目都用 `start=false`；只有未启动面板与「启动 Claude / Codex」（`ensureRunning`）会创建终端 | 用户要求点击项目不启动终端；已有终端时 `start=false` 也会显示并聚焦它，切换体验不变 |
 | 顶部栏「结束终端」用 `hidden` 隐藏；`.icon-btn` 设置了 `display: inline-grid`，所以 styles.css 里补 `.icon-btn[hidden] { display: none }` | 类选择器的 display 会覆盖 UA 样式里 `[hidden]` 的 `display: none`（见 lessons.md） |
 
+## 迭代 7 设计（M17 星标 / 收藏）
+
+| 决策 | 原因 |
+|---|---|
+| 星标存为 `projects.starred`（INTEGER 0/1），schema 版本 1 → 2：`ALTER TABLE projects ADD COLUMN starred INTEGER NOT NULL DEFAULT 0`；`Project.starred: boolean`；新增 IPC `projects:set-starred`（`projects.setStarred(id, starred)` → `OpResult`） | 星标是项目的属性，和项目记录一起存、一起删；加列带默认值，旧数据无需改写。旧版本（schema 1）打开新库只记一条警告，照常工作：它只查询显式列出的列，插入时 starred 取默认值 |
+| 分组只在渲染进程做：数据库仍按 `sort_order` 返回全部项目，`Sidebar.visibleGroups()` 拆成「收藏」「项目」两组，每组各自过滤 / 按得分排序，空组不显示 | 「取消星标回到原位」天然成立（两组都按添加顺序）；搜索、状态、选中沿用原来的整列表重建路径 |
+| 分组标题是 `<ul>` 里的 `li.list-label`（与项目一起滚动），列表键盘 ↑↓ 改为在 `li.project-item` 之间移动 | 原来的「项目」标题在列表外面，两个分组需要跟随列表滚动；标题不能被当成项目行 |
+| 星标按钮绝对定位在行的右侧：已加星标的行一直显示，并给文字留出右边距；未加星标的行悬浮 / 聚焦时才显示，文字右端用 `mask-image` 渐隐，不改变文字宽度 | 不给每一行都预留按钮宽度（侧栏本来就窄，路径已经在截断），悬浮时也不会让文字截断位置跳动 |
+| 星标按钮 `tabIndex=-1`，点击 `stopPropagation`；键盘用户用右键菜单（菜单键 / Shift+F10） | 每行只有一个 Tab 停靠点；点星标不应该同时选中项目 |
+| **M18 折叠**：设置新增 `collapsedGroups: SidebarGroup[]`（`'starred' \| 'projects'`，settings.json，主进程校验：只保留已知 id 并去重）；分组标题改为 `li.list-label > button.group-header`（`aria-expanded`），折叠的分组不渲染项目行 | 折叠是界面偏好，与侧栏宽度同类，放 settings.json 而不是项目数据库；不渲染而不是隐藏，`visibleIds`、列表 ↑↓、搜索 ↑↓ 自然只作用于看得见的项目 |
+| 有搜索词时忽略折叠（全部展开、标题按钮 disabled），不修改保存的状态 | 搜索命中藏在折叠分组里会被误以为「没有匹配」 |
+| 加 / 取消星标后若项目落进折叠的分组，`highlight` 改为闪该分组标题 | 项目行不渲染，没有东西可闪；标题数量变化 + 闪烁说明它去了哪里 |
+
 ## 打包（electron-builder.yml）
 
 - 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。
@@ -137,12 +150,12 @@ preload (src/preload/index.ts)
 ## 存储
 
 - **项目**：`userData/agentmanager.db`（SQLite，Electron 44 内置 Node 24 的 `node:sqlite` / `DatabaseSync`，SQLite 3.53；迭代 3 起）。
-  - 表 `projects(id TEXT PK, name, path, path_key TEXT UNIQUE, sort_order INTEGER, created_at INTEGER, last_opened_at INTEGER)`；`path_key` 为小写、去末尾分隔符的路径，用唯一约束去重；按 `sort_order` 排序（添加顺序）。
-  - `PRAGMA journal_mode=WAL`、`synchronous=FULL`；schema 版本用 `PRAGMA user_version`（当前 1），升级在 `migrateSchema` 中按版本递增处理。
+  - 表 `projects(id TEXT PK, name, path, path_key TEXT UNIQUE, sort_order INTEGER, created_at INTEGER, last_opened_at INTEGER, starred INTEGER NOT NULL DEFAULT 0)`；`path_key` 为小写、去末尾分隔符的路径，用唯一约束去重；按 `sort_order` 排序（添加顺序）。
+  - `PRAGMA journal_mode=WAL`、`synchronous=FULL`；schema 版本用 `PRAGMA user_version`（当前 2：1 建表，2 加 `starred`），升级在 `migrateSchema` 中按版本逐级处理，每级一个事务。
   - 打开时执行 `PRAGMA quick_check`；打开失败或检查不通过 → 把 `.db` / `-wal` / `-shm` 改名为 `*.bak-YYYYMMDD-HHmmss` → 新建空库；连备份都失败时用内存数据库保证能启动。
   - 所有写操作同步执行，返回时已落盘；退出时 `close()` 合并 WAL。
   - 选择 `node:sqlite` 而非 better-sqlite3：零新增依赖，不需要再编译 / 打包一个原生模块（已验证打包版可用）。
-- **设置**：`userData/settings.json`：`{version:1, sidebarWidth, fontSize, fontFamily, lineHeight, themeSeed, claudeCommand, lastProjectId, window}`。写入：`<file>.tmp-<pid>-<ts>` → fsync → rename（EPERM/EBUSY/EACCES 时退避重试 5 次），同一文件的写入串行；顶层结构损坏时备份为 `.bak-<时间戳>`。
+- **设置**：`userData/settings.json`：`{version:1, sidebarWidth, fontSize, fontFamily, lineHeight, cursorStyle, shell, themeSeed, claudeCommand, codexCommand, collapsedGroups, lastProjectId, window}`。写入：`<file>.tmp-<pid>-<ts>` → fsync → rename（EPERM/EBUSY/EACCES 时退避重试 5 次），同一文件的写入串行；顶层结构损坏时备份为 `.bak-<时间戳>`。
 
 ## 依赖
 

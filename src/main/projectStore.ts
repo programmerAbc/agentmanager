@@ -7,9 +7,9 @@ import { timestamp } from './jsonFile'
 import log from './log'
 
 /** 数据库 schema 版本，记录在 PRAGMA user_version */
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
-const SELECT_COLUMNS = 'id, name, path, created_at, last_opened_at'
+const SELECT_COLUMNS = 'id, name, path, created_at, last_opened_at, starred'
 
 /**
  * 项目列表存在 SQLite（Electron 内置 Node 的 node:sqlite）里。
@@ -59,7 +59,8 @@ export class ProjectStore {
       id: randomUUID(),
       name: path.basename(absPath) || absPath,
       path: absPath,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      starred: false
     }
     db.prepare(
       `INSERT INTO projects (id, name, path, path_key, sort_order, created_at)
@@ -79,6 +80,12 @@ export class ProjectStore {
   async remove(id: string): Promise<void> {
     const result = this.database().prepare('DELETE FROM projects WHERE id = ?').run(id)
     if (Number(result.changes) > 0) log.info(`[projects] 移除 ${id}`)
+  }
+
+  async setStarred(id: string, starred: boolean): Promise<void> {
+    const result = this.database().prepare('UPDATE projects SET starred = ? WHERE id = ?').run(starred ? 1 : 0, id)
+    if (Number(result.changes) === 0) throw new Error('项目不存在')
+    log.info(`[projects] ${starred ? '加星标' : '取消星标'} ${id}`)
   }
 
   async touch(id: string): Promise<void> {
@@ -155,6 +162,16 @@ function migrateSchema(db: DatabaseSync): void {
       `)
     })
   }
+  if (version < 2) {
+    // 星标（M17）；旧版本只查询显式列出的列，插入时取默认值，仍能打开新库
+    transaction(db, () => {
+      db.exec(`
+        ALTER TABLE projects ADD COLUMN starred INTEGER NOT NULL DEFAULT 0;
+        PRAGMA user_version = 2;
+      `)
+    })
+    log.info('[projects] 数据库 schema 升级到 2（星标）')
+  }
 }
 
 function transaction(db: DatabaseSync, fn: () => void): void {
@@ -169,11 +186,11 @@ function transaction(db: DatabaseSync, fn: () => void): void {
 }
 
 function toProject(row: Record<string, unknown>): Project {
-  const { id, name, path: p, created_at: createdAt, last_opened_at: lastOpenedAt } = row
+  const { id, name, path: p, created_at: createdAt, last_opened_at: lastOpenedAt, starred } = row
   if (typeof id !== 'string' || typeof name !== 'string' || typeof p !== 'string') {
     throw new Error('项目数据格式错误')
   }
-  const project: Project = { id, name, path: p, createdAt: Number(createdAt) }
+  const project: Project = { id, name, path: p, createdAt: Number(createdAt), starred: Number(starred) === 1 }
   if (lastOpenedAt !== null && lastOpenedAt !== undefined) project.lastOpenedAt = Number(lastOpenedAt)
   return project
 }

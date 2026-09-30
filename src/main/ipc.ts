@@ -13,7 +13,8 @@ import {
   type Project,
   type SettingsPatch,
   type ShellId,
-  type ShellInfo
+  type ShellInfo,
+  type SidebarGroup
 } from '../shared/types'
 import type { AgentHookServer } from './hookServer'
 import { openLink, openLocalPath, resolveLocalPaths } from './links'
@@ -68,6 +69,12 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
   ipcMain.handle(IPC.projectsTouch, (_e, id: unknown) =>
     guard('更新打开时间', async () => {
       await projects.touch(asString(id))
+    })
+  )
+
+  ipcMain.handle(IPC.projectsSetStarred, (_e, id: unknown, starred: unknown) =>
+    guard('星标', async () => {
+      await projects.setStarred(asString(id), asBoolean(starred))
     })
   )
 
@@ -249,6 +256,11 @@ function asString(v: unknown): string {
   return v
 }
 
+function asBoolean(v: unknown): boolean {
+  if (typeof v !== 'boolean') throw new Error('参数类型错误')
+  return v
+}
+
 function asAgentKind(v: unknown): AgentKind {
   if (v !== 'claude' && v !== 'codex') throw new Error('参数类型错误')
   return v
@@ -279,6 +291,7 @@ function asSettingsPatch(v: unknown): SettingsPatch {
   if (typeof r.themeSeed === 'string') patch.themeSeed = r.themeSeed
   if (typeof r.claudeCommand === 'string') patch.claudeCommand = r.claudeCommand
   if (typeof r.codexCommand === 'string') patch.codexCommand = r.codexCommand
+  if (Array.isArray(r.collapsedGroups)) patch.collapsedGroups = r.collapsedGroups as SidebarGroup[]
   if (typeof r.lastProjectId === 'string' || r.lastProjectId === null) patch.lastProjectId = r.lastProjectId
   return patch
 }

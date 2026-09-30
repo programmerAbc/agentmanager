@@ -1,4 +1,6 @@
 ## Completed
+- M18（2026-09-30 用户要求）：侧栏分组折叠。点击「收藏」/「项目」标题（或 Tab 聚焦后 Enter / 空格）折叠 / 展开；折叠后完全隐藏（用户选择），只显示标题和数量「项目 (8)」；状态存 settings.json 的 `collapsedGroups`，重启后保留；搜索时临时全部展开、标题禁用；星标项目进入折叠分组时闪标题。与 M17 一起**未提交、未改版本号、未打包**。
+- M17（2026-09-30 用户要求）：项目星标 / 收藏。加星标的项目移到侧栏最上方「收藏」分组（不在「项目」里重复，用户选择），取消后回到原位置；入口为项目行右侧的星标按钮（悬浮显示空心星，已加星标常显实心星）+ 右键菜单「加星标 / 取消星标」；搜索时两组分别过滤排序、收藏在前。数据库 schema 1 → 2（`starred` 列），旧版 1.4.0 仍可打开新库。**未提交、未改版本号、未打包**（等用户决定）。
 - 1.4.0（M16）：按用户要求提交、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.4.0-setup.exe`（SHA256 E60150CE…46BE9D75，与 dist 中一致）。为不打扰用户正在运行的 1.3.x，未启动打包版 GUI，改为解包 app.asar 静态检查（dev 已完整验证）。release 目录里 1.3.2 安装包保留。
 - M16（2026-09-29 用户反馈）：「重启终端」改为「结束终端」（顶部栏 ⏹ 按钮只在当前项目有终端时显示；项目右键菜单里没有终端时禁用）——结束 PTY 整棵进程树、丢弃终端内容，项目回到「终端尚未启动」面板；点击项目（及键盘 Enter、搜索 Enter、添加项目）只选中不启动终端。没有加结束前确认（与原「重启终端」一致，用户若想要可再加）。
 - 1.3.2（文字错乱修复）：按用户要求提交、打包并推送，安装包 `D:\agnent_manager_release\agentmanager-1.3.2-setup.exe`（SHA256 86DEA055…BC9CEC1B，与 dist 中一致）。为不打扰用户正在运行的 1.3.1，未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后留意长时间 claude 会话里文字是否还会错乱。注：打包时 release 目录里只剩这一个安装包（以前的 1.0.0–1.3.1 已不在，非本次操作所致）。
@@ -34,6 +36,8 @@
 - 无。
 
 ## Next Steps
+- M17 + M18：请用户确认效果后决定是否提交、定版本号（建议 1.5.0）、打包 / 推送。打包后用 `.devtest/asar-check.cjs` 静态检查（可加「加星标」「收藏」字符串计数）。
+- M17 / M18 未做（spec 中列为非目标，用户需要再加）：收藏分组内拖动排序、星标快捷键、顶部栏星标按钮；折叠动画、折叠时仍显示选中项 / 需要处理的项目、标题上的状态提醒（用户选了「完全隐藏」）。
 - 用户安装 1.4.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后点击项目应不再启动终端，顶部栏 / 右键菜单为「结束终端」。
 - 用户安装 1.3.2（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后留意长时间 claude 会话里文字是否还会错乱。
 - 上游发布 @xterm/addon-webgl 0.20 正式版后：升级（xterm 同步升级）→ 构建会因插件匹配失败而中止 → 确认 #4480 已修后删除插件与 optimizeDeps.exclude。
@@ -49,6 +53,8 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- M18：src/shared/types.ts（`SidebarGroup`、`SIDEBAR_GROUPS`、`AppSettings.collapsedGroups`）、src/main/{settingsStore（默认值、`parseGroups`）,ipc（patch 透传）}.ts、src/renderer/{sidebar（标题按钮、`VisibleGroup`、`toggleGroup`、`highlight` 闪标题）,main（恢复与保存折叠状态）,icons（keyboardArrowDown）}.ts、styles.css（`.group-header` 等，`.list-label` 不再有内边距）；docs/spec.md（M18）、docs/architecture.md（迭代 7 设计、settings.json 字段表补全）、plans.md、README.md、handoff.md。自测工具（不提交）：`.devtest/rows.js`（新，打印侧栏行：分组 / 折叠 / 星标 / 当前项）。
+- M17：src/shared/types.ts（`Project.starred`、`IPC.projectsSetStarred`、`Api.projects.setStarred`）、src/main/{projectStore（schema 2、`setStarred`）,ipc（`asBoolean`）}.ts、src/preload/index.ts、src/renderer/{sidebar（分组、星标按钮、菜单、↑↓）,main（`setStarred`）,icons（star / starFill）}.ts、styles.css（星标按钮、分组标题、`moved` 闪烁）；docs/spec.md（迭代 7）、docs/architecture.md（迭代 7 设计、存储 schema 2）、plans.md、README.md、lessons.md、handoff.md。自测工具（不提交）：`.devtest/seed-star.mjs`（新，往 schema 1 测试库补 9 个项目）、`.devtest/move.mjs`（新，真实鼠标悬浮 + 截图）、`mouse.mjs` 改为先滚动到可见。
 - M16：src/renderer/{main,sidebar,terminalView,icons,agentStatus}.ts、styles.css（`.icon-btn[hidden]`）；docs/spec.md、docs/architecture.md、plans.md、README.md、lessons.md、handoff.md。`.devtest/mouse.mjs`（新，不提交：真实鼠标点击）。
 - 文字错乱修复：scripts/xtermWebglAtlasFix.ts（新）、electron.vite.config.ts（渲染进程插件 + optimizeDeps.exclude）、tsconfig.node.json（include scripts/**/*.ts）；docs/architecture.md、docs/spec.md、plans.md、lessons.md、handoff.md。自测工具（不提交）：.devtest/atlas-stress.mjs、atlas-test.mjs、atlas-multi.mjs、atlas-run.sh。
 - Esc 修复：src/renderer/terminalView.ts（WIN32_INPUT_KEYS、ESC_KEY、win32InputSent）；docs/spec.md、docs/architecture.md、plans.md、lessons.md、handoff.md。`.devtest/cdp.mjs` 新增 `[` 按键（不提交）。
@@ -61,6 +67,24 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- M18（`npm run typecheck`、`npm run build` 通过；dev 实例同 M17 的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在）：
+  - 真实鼠标点「项目」标题 → 折叠为「项目 (8)」、箭头朝右（截图确认与星标列对齐）、悬浮提示「展开「项目」」；终端运行中点击标题，焦点仍在 xterm 输入框；settings.json 写入 `["projects"]`。
+  - 搜索（项目分组折叠时）`标准` → 两组都展开、标题 disabled，↓ 跨分组；点禁用的标题无效；Esc 清空后恢复折叠，保存的状态不变。
+  - 键盘：Tab 聚焦标题 Enter → 展开，焦点仍在该标题且 `:focus-visible`；再 Enter → 折叠。项目分组折叠时从收藏最后一项按 ↓ 不移动。
+  - 折叠「收藏」后给 s0 加星标 → 「收藏 (5)」、标题带 `moved` 闪烁（截图确认）。
+  - 重启：settings.json 手工写成 `["bogus","starred","starred",5]` → 启动后「收藏」折叠、「项目」展开（解析为 `["starred"]`）。IPC：`update({collapsedGroups:['x','projects','projects']})` → `["projects"]`；非数组值被忽略。
+  - 测试数据已恢复（4 个星标：p0 / s3 / s6 / s8，两组展开）。
+  - 未测：打包版。
+- M17（`npm run typecheck`、`npm run build` 通过；dev 实例 `AGENTMANAGER_TEST_INACTIVE=1`、userData `.devtest/ud`，前台窗口始终是用户的 AgentManager，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在；dev 实例用 close-dev.ps1 按 PID 关闭）：
+  - 迁移：schema 1 的测试库（12 个项目）启动后日志「schema 升级到 2（星标）」，`user_version` = 2，项目全部保留；重启后不再升级。全新库（version 0）按源码中的 SQL 依次执行得到 version 2、`starred` 默认 0。
+  - 旧版兼容：对迁移后的 v2 库副本执行 1.4.0 的 list / add / rename / touch / remove 语句全部成功，旧代码插入的项目 starred = 0，已有星标不变。
+  - 真实鼠标：悬浮项目行 → 空心星出现（opacity 1）、文字右端渐隐，其他行不显示；点击星标 → 项目移到「收藏」、选中项不变、焦点不变（终端运行中点击星标，焦点仍在 xterm 输入框，随后键入的 `echo star-ok` 进入终端）；运行中圆点、选中样式保留；截图检查深色与白色主题。
+  - 分组：收藏内按添加顺序（p0、s3、s6）；取消星标回到原位置（s2 与 s4 之间）；全部加星标只显示「收藏」，全部取消只显示「项目」；右键菜单按状态显示「加星标 / 取消星标」，点菜单项生效；重命名星标项目后仍在收藏；星标写入数据库、重启后保留。
+  - 搜索：`标准` → 收藏（s3、s6）在前、项目（s4、s2、s1）在后，默认当前项为第一个收藏项，Enter 打开 s3；↓ 跨过分组标题；`demo` 只显示「项目」组；无结果显示「没有匹配的项目」；Esc 清空后恢复分组。
+  - 列表键盘：s6（收藏最后一项）↓ → p1（跳过「项目」标题），↑↑ → s3；键盘聚焦的行也显示星标按钮。
+  - IPC 校验：`setStarred('p0', 'yes')` / `setStarred(1, true)` → 参数类型错误；不存在的 id → 项目不存在；数据库未被改动。
+  - 测试工具问题（非缺陷）：点击被列表裁掉的最后一项的星标时点到了抽屉底部，见 lessons.md；滚到可见后正常。
+  - 未测：打包版；「添加项目」对话框新增的项目（`add` 返回 `starred: false`，与数据库默认值一致）；移除星标项目（与普通项目同一路径）。
 - 1.4.0 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar（`.devtest/asar-check.cjs`，新增 M16 字符串计数）：package.json 版本 1.4.0；渲染进程 bundle 含「结束终端」3 处、「重启终端」0 处；图集修补（全局页版本号 6 处、`_amSeenLayout` 3 处、纹理上传上限 1 处、无 `_requestClearModel=!0`）与 Esc 序列仍在；node-pty 原生模块在 app.asar.unpacked 中。electron-builder.yml 自 1.3.2 以来未变。安装包复制到 release 目录后 SHA256 与 dist 一致。
 - M16（`npm run typecheck`、`npm run build` 通过；dev 实例以 `AGENTMANAGER_TEST_INACTIVE=1` 启动、userData `.devtest/ud`，全程只操作 dev electron，用户的 AgentManager.exe 4 个进程未受影响）：
   - 单击 / 列表项 Enter / 搜索框 Enter 选中项目：不创建终端，显示未启动面板，顶部栏「结束终端」隐藏（computed display none）。
@@ -144,5 +168,7 @@
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
 - 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；自测工具在 `.devtest/`（先 `node .devtest/seed.mjs` 建测试数据，userData 用 `--user-data-dir=<项目>/.devtest/ud`，关闭用 `.devtest/close-dev.ps1`）；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
 - 图集自测：`sh .devtest/atlas-run.sh [字数] [标签]` 从全新 dev 实例跑一次压力 + 截图比较（输出 `A vs B {diffPixels}`，约 105 为正常）；在 Bash 工具里用 run_in_background 运行。
-- 真实鼠标点击：`node .devtest/mouse.mjs 9223 "<选择器>"`（`cdp.mjs eval` 里的 `el.click()` 不移动焦点，见 lessons.md）。
+- 真实鼠标点击：`node .devtest/mouse.mjs 9223 "<选择器>"`（`cdp.mjs eval` 里的 `el.click()` 不移动焦点，见 lessons.md）；真实悬浮 + 截图：`node .devtest/move.mjs 9223 "<选择器>" [截图.png]`。两者都会先把元素滚动到可见。
+- 侧栏状态速览：`node .devtest/cdp.mjs 9223 eval "$(cat .devtest/rows.js)"`（`[项目(8) >]` = 折叠，`*` = 星标，`(active)` = 搜索当前项）。
+- 星标测试数据：`node .devtest/seed.mjs && node .devtest/seed-star.mjs` 得到 schema 1、12 个项目的测试库（可测迁移）。当前 `.devtest/ud` 已是 schema 2、4 个星标项目；`.devtest/star-v1-backup.db` 是迁移前的副本。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

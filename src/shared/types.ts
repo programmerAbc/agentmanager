@@ -7,6 +7,8 @@ export interface Project {
   path: string // 绝对路径
   createdAt: number
   lastOpenedAt?: number
+  /** 加了星标：显示在侧栏的「收藏」分组 */
+  starred: boolean
 }
 
 /** 操作结果。主进程不抛异常给渲染进程，错误通过返回值传递。 */
@@ -37,6 +39,8 @@ export interface AppSettings {
   claudeCommand: string
   /** 「启动 Codex」按钮执行的命令 */
   codexCommand: string
+  /** 折叠起来的侧栏分组 */
+  collapsedGroups: SidebarGroup[]
   lastProjectId: string | null
   window: WindowState | null
 }
@@ -49,6 +53,9 @@ export interface SettingsFile extends AppSettings {
 export type SettingsPatch = Partial<Omit<AppSettings, 'window'>>
 
 export const SIDEBAR_WIDTH = { default: 240, min: 180, max: 400 } as const
+/** 侧栏分组：收藏（加了星标的项目）/ 项目（其余项目） */
+export type SidebarGroup = 'starred' | 'projects'
+export const SIDEBAR_GROUPS: readonly SidebarGroup[] = ['starred', 'projects']
 export const FONT_SIZE = { default: 14, min: 8, max: 32 } as const
 export const LINE_HEIGHT = { default: 1.0, min: 1.0, max: 1.6 } as const
 export const DEFAULT_FONT_FAMILY = 'Maple Mono NF CN'
@@ -115,6 +122,7 @@ export const IPC = {
   projectsRename: 'projects:rename',
   projectsRemove: 'projects:remove',
   projectsTouch: 'projects:touch',
+  projectsSetStarred: 'projects:set-starred',
   projectsOpenInExplorer: 'projects:open-in-explorer',
   ptyOpen: 'pty:open',
   ptyWrite: 'pty:write',
@@ -195,6 +203,7 @@ export interface Api {
     rename(id: string, name: string): Promise<OpResult>
     remove(id: string): Promise<OpResult>
     touch(id: string): Promise<OpResult>
+    setStarred(id: string, starred: boolean): Promise<OpResult>
     openInExplorer(id: string): Promise<OpResult>
   }
   pty: {

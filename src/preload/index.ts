@@ -27,6 +27,7 @@ const api: Api = {
     rename: (id, name) => ipcRenderer.invoke(IPC.projectsRename, id, name),
     remove: (id) => ipcRenderer.invoke(IPC.projectsRemove, id),
     touch: (id) => ipcRenderer.invoke(IPC.projectsTouch, id),
+    setStarred: (id, starred) => ipcRenderer.invoke(IPC.projectsSetStarred, id, starred),
     openInExplorer: (id) => ipcRenderer.invoke(IPC.projectsOpenInExplorer, id)
   },
   pty: {

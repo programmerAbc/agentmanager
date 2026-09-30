@@ -1,4 +1,4 @@
-import { SIDEBAR_WIDTH, type AgentKind, type Project } from '../shared/types'
+import { SIDEBAR_GROUPS, SIDEBAR_WIDTH, type AgentKind, type Project, type SidebarGroup } from '../shared/types'
 import { ALL_STATUSES, statusIndicator, statusText, type AgentState } from './agentStatus'
 import { showContextMenu } from './contextMenu'
 import { matchProject, searchTokens, type ProjectMatch } from './fuzzy'
@@ -12,6 +12,10 @@ export interface SidebarCallbacks {
   onSelect(id: string): void
   onLaunchAgent(id: string, agent: AgentKind): void
   onRename(id: string, name: string): void
+  /** 加星标 / 取消星标（加了星标的项目显示在「收藏」分组） */
+  onSetStarred(id: string, starred: boolean): void
+  /** 分组折叠状态变化（持久化） */
+  onCollapsedChange(groups: SidebarGroup[]): void
   onRemove(id: string): void
   onOpenInExplorer(id: string): void
   onEndTerminal(id: string): void
@@ -23,16 +27,37 @@ export interface SidebarCallbacks {
   onWidthChange(width: number, done: boolean): void
 }
 
-/** 左侧项目列表：添加、搜索、选中、行内重命名、右键菜单、宽度拖拽。 */
+interface ListEntry {
+  project: Project
+  match: ProjectMatch | null
+}
+
+interface VisibleGroup {
+  id: SidebarGroup
+  label: string
+  /** 分组里的项目总数（折叠时显示） */
+  count: number
+  collapsed: boolean
+  /** 显示出来的项目；折叠时为空 */
+  entries: ListEntry[]
+}
+
+const GROUPS: { id: SidebarGroup; label: string; has(p: Project): boolean }[] = [
+  { id: 'starred', label: '收藏', has: (p) => p.starred },
+  { id: 'projects', label: '项目', has: (p) => !p.starred }
+]
+
+/** 左侧项目列表：添加、搜索、「收藏 / 项目」分组（可折叠）、星标、选中、行内重命名、右键菜单、宽度拖拽。 */
 export class Sidebar {
   private projects: Project[] = []
   private selectedId: string | null = null
   private readonly running = new Set<string>()
   private readonly agents = new Map<string, AgentState>()
+  private readonly collapsed = new Set<SidebarGroup>()
   private readonly list: HTMLUListElement
   private readonly search: SearchBar
   private tokens: string[] = []
-  /** 当前显示的项目（搜索时为过滤、排序后的结果） */
+  /** 当前显示的项目，按显示顺序（收藏在前；不含折叠分组里的；搜索时为过滤、排序后的结果） */
   private visibleIds: string[] = []
   /** 搜索框中 ↑↓ 选到的项目，Enter 打开它 */
   private activeId: string | null = null
@@ -61,10 +86,6 @@ export class Sidebar {
 
     this.search = this.buildSearch()
 
-    const label = document.createElement('div')
-    label.className = 'list-label'
-    label.textContent = '项目'
-
     // 抽屉底部：设置
     const footer = document.createElement('div')
     footer.className = 'drawer-footer'
@@ -90,7 +111,7 @@ export class Sidebar {
       this.openItemMenu(id, e.clientX, e.clientY)
     })
 
-    root.append(header, this.search.box, label, this.list, footer)
+    root.append(header, this.search.box, this.list, footer)
     this.setupResizer()
   }
 
@@ -99,6 +120,13 @@ export class Sidebar {
     // 没有项目时不显示搜索框，也不保留看不见的搜索词
     this.search.box.hidden = projects.length === 0
     if (projects.length === 0) this.clearQuery()
+    this.render()
+  }
+
+  /** 启动时恢复保存的折叠状态（在 setProjects 之前调用） */
+  setCollapsedGroups(groups: readonly SidebarGroup[]): void {
+    this.collapsed.clear()
+    for (const g of groups) this.collapsed.add(g)
     this.render()
   }
 
@@ -135,6 +163,17 @@ export class Sidebar {
     for (const s of ALL_STATUSES) li.classList.toggle(`agent-${s}`, s === status)
     li.querySelector('.status-slot')?.replaceChildren(statusIndicator(status))
     li.title = state ? `${project.path}\n${statusText(state)}` : project.path
+  }
+
+  /**
+   * 项目换了位置（加 / 取消星标）后闪一下，方便看出它去了哪里；列表下次重建时自然去掉。
+   * 落进折叠的分组时闪该分组的标题。
+   */
+  highlight(id: string): void {
+    const project = this.projects.find((p) => p.id === id)
+    const group = project && GROUPS.find((g) => g.has(project))
+    const target = this.itemById(id) ?? (group ? this.groupHeader(group.id) : null)
+    target?.classList.add('moved')
   }
 
   setWidth(width: number): void {
@@ -181,39 +220,18 @@ export class Sidebar {
   }
 
   private render(): void {
-    const entries = this.visibleEntries()
-    this.visibleIds = entries.map((e) => e.project.id)
+    const groups = this.visibleGroups()
+    this.visibleIds = groups.flatMap((g) => g.entries.map((e) => e.project.id))
     // 有搜索词时默认选中第一个结果（Enter 直接打开它）
     if (this.tokens.length === 0) this.activeId = null
     else if (!this.activeId || !this.visibleIds.includes(this.activeId)) this.activeId = this.visibleIds[0] ?? null
 
     const fragment = document.createDocumentFragment()
-    for (const { project, match } of entries) {
-      const li = document.createElement('li')
-      li.className = 'project-item'
-      li.dataset.id = project.id
-      li.tabIndex = 0
-      li.title = project.path
-      li.classList.toggle('selected', project.id === this.selectedId)
-      li.classList.toggle('running', this.running.has(project.id))
-      li.classList.toggle('search-active', project.id === this.activeId)
-
-      const slot = document.createElement('span')
-      slot.className = 'status-slot'
-      const text = document.createElement('div')
-      text.className = 'project-text'
-      const name = document.createElement('div')
-      name.className = 'project-name'
-      appendHighlighted(name, project.name, match?.nameHits)
-      const pathEl = document.createElement('div')
-      pathEl.className = 'project-path'
-      appendHighlighted(pathEl, shortenPath(project.path), match?.pathHits)
-      text.append(name, pathEl)
-      li.append(slot, text)
-      this.applyAgentState(li, project)
-      fragment.appendChild(li)
+    for (const group of groups) {
+      fragment.appendChild(this.renderGroupHeader(group))
+      for (const entry of group.entries) fragment.appendChild(this.renderItem(entry))
     }
-    if (entries.length === 0 && this.tokens.length > 0) {
+    if (this.visibleIds.length === 0 && this.tokens.length > 0) {
       const empty = document.createElement('li')
       empty.className = 'list-empty'
       empty.append(icon('searchOff'), document.createTextNode('没有匹配的项目'))
@@ -222,11 +240,112 @@ export class Sidebar {
     this.list.replaceChildren(fragment)
   }
 
+  private renderItem({ project, match }: ListEntry): HTMLLIElement {
+    const li = document.createElement('li')
+    li.className = 'project-item'
+    li.dataset.id = project.id
+    li.tabIndex = 0
+    li.title = project.path
+    li.classList.toggle('selected', project.id === this.selectedId)
+    li.classList.toggle('running', this.running.has(project.id))
+    li.classList.toggle('search-active', project.id === this.activeId)
+    li.classList.toggle('starred', project.starred)
+
+    const slot = document.createElement('span')
+    slot.className = 'status-slot'
+    const text = document.createElement('div')
+    text.className = 'project-text'
+    const name = document.createElement('div')
+    name.className = 'project-name'
+    appendHighlighted(name, project.name, match?.nameHits)
+    const pathEl = document.createElement('div')
+    pathEl.className = 'project-path'
+    appendHighlighted(pathEl, shortenPath(project.path), match?.pathHits)
+    text.append(name, pathEl)
+
+    // 星标按钮：只切换星标，不选中项目，也不从终端抢走焦点；每行只留 li 一个 Tab 停靠点
+    const star = document.createElement('button')
+    star.type = 'button'
+    star.className = 'icon-btn star-btn'
+    star.tabIndex = -1
+    star.title = project.starred ? '取消星标' : '加星标'
+    star.setAttribute('aria-pressed', String(project.starred))
+    star.append(icon(project.starred ? 'starFill' : 'star'))
+    star.addEventListener('mousedown', (e) => e.preventDefault())
+    star.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this.cb.onSetStarred(project.id, !project.starred)
+    })
+
+    li.append(slot, text, star)
+    this.applyAgentState(li, project)
+    return li
+  }
+
+  /** 标题按钮：点击 / Enter / 空格折叠或展开；折叠时显示数量；搜索时不可点 */
+  private renderGroupHeader(group: VisibleGroup): HTMLLIElement {
+    const searching = this.tokens.length > 0
+    const li = document.createElement('li')
+    li.className = 'list-label'
+    li.setAttribute('role', 'presentation')
+    li.dataset.group = group.id
+
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'group-header'
+    button.disabled = searching
+    button.setAttribute('aria-expanded', String(!group.collapsed))
+    if (!searching) button.title = group.collapsed ? `展开「${group.label}」` : `折叠「${group.label}」`
+    const label = document.createElement('span')
+    label.textContent = group.label
+    button.append(label)
+    if (group.collapsed) {
+      const count = document.createElement('span')
+      count.className = 'group-count'
+      count.textContent = `(${group.count})`
+      button.append(count)
+    }
+    button.append(icon('keyboardArrowDown', 'group-chevron'))
+    // 鼠标点击不从终端抢走焦点；键盘（Tab 聚焦后 Enter / 空格）操作时，重建后焦点回到同一个标题
+    button.addEventListener('mousedown', (e) => e.preventDefault())
+    button.addEventListener('click', () => {
+      const hadFocus = document.activeElement === button
+      this.toggleGroup(group.id)
+      if (hadFocus) this.groupHeader(group.id)?.focus()
+    })
+    li.append(button)
+    return li
+  }
+
+  private toggleGroup(id: SidebarGroup): void {
+    if (this.collapsed.has(id)) this.collapsed.delete(id)
+    else this.collapsed.add(id)
+    this.render()
+    this.cb.onCollapsedChange(SIDEBAR_GROUPS.filter((g) => this.collapsed.has(g)))
+  }
+
+  private groupHeader(id: SidebarGroup): HTMLButtonElement | null {
+    return this.list.querySelector<HTMLButtonElement>(`li[data-group="${id}"] .group-header`)
+  }
+
+  /**
+   * 「收藏」（加了星标的）在前、「项目」在后，两组都按添加顺序；空的分组不显示。
+   * 折叠的分组只有标题；有搜索词时忽略折叠，各组分别过滤、排序，没有命中的分组不显示。
+   */
+  private visibleGroups(): VisibleGroup[] {
+    const searching = this.tokens.length > 0
+    return GROUPS.map(({ id, label, has }) => {
+      const members = this.projects.filter(has)
+      const collapsed = !searching && this.collapsed.has(id)
+      return { id, label, count: members.length, collapsed, entries: collapsed ? [] : this.filtered(members) }
+    }).filter((g) => (searching ? g.entries.length > 0 : g.count > 0))
+  }
+
   /** 没有搜索词时按原顺序；有搜索词时只保留匹配的项目，按得分从高到低，同分保持原顺序 */
-  private visibleEntries(): { project: Project; match: ProjectMatch | null }[] {
-    if (this.tokens.length === 0) return this.projects.map((project) => ({ project, match: null }))
+  private filtered(projects: Project[]): ListEntry[] {
+    if (this.tokens.length === 0) return projects.map((project) => ({ project, match: null }))
     const matched: { project: Project; match: ProjectMatch; index: number }[] = []
-    this.projects.forEach((project, index) => {
+    projects.forEach((project, index) => {
       // 只匹配侧栏上显示出来的路径（盘符 + 最后两级），缩写成 … 的部分看不见，不参与匹配
       const match = matchProject(this.tokens, project.name, shortenPath(project.path))
       if (match) matched.push({ project, match, index })
@@ -315,6 +434,7 @@ export class Sidebar {
   }
 
   private openItemMenu(id: string, x: number, y: number): void {
+    const starred = this.projects.find((p) => p.id === id)?.starred === true
     showContextMenu(x, y, [
       {
         label: '启动 Claude',
@@ -329,6 +449,11 @@ export class Sidebar {
         action: () => this.cb.onLaunchAgent(id, 'codex')
       },
       { separator: true },
+      {
+        label: starred ? '取消星标' : '加星标',
+        icon: starred ? 'starFill' : 'star',
+        action: () => this.cb.onSetStarred(id, !starred)
+      },
       { label: '重命名', icon: 'edit', action: () => this.beginRename(id) },
       { label: '在资源管理器中打开', icon: 'folderOpen', action: () => this.cb.onOpenInExplorer(id) },
       {
@@ -353,9 +478,10 @@ export class Sidebar {
       this.beginRename(id)
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
-      const li = (e.target as HTMLElement).closest('li')
-      const next = e.key === 'ArrowDown' ? li?.nextElementSibling : li?.previousElementSibling
-      if (next instanceof HTMLElement) next.focus()
+      // 在项目之间移动，跳过分组标题
+      const items = this.items()
+      const index = items.findIndex((li) => li.dataset.id === id)
+      items[index + (e.key === 'ArrowDown' ? 1 : -1)]?.focus()
     }
   }
 

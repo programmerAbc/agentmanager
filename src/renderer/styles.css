@@ -301,12 +301,88 @@ select {
   transform: scale(0.96);
 }
 
-.list-label {
-  padding: 8px 16px 4px;
+/* 分组标题（「收藏」「项目」），在列表里与项目一起滚动；点击折叠 / 展开 */
+.project-item + .list-label {
+  margin-top: 8px;
+}
+
+.list-label + .list-label {
+  margin-top: 2px;
+}
+
+.group-header {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 32px;
+  /* 箭头与项目行的星标按钮对齐 */
+  padding: 0 14px 0 16px;
+  border: none;
+  border-radius: var(--md-shape-full);
+  background: transparent;
   color: var(--md-sys-color-on-surface-variant);
+  font: inherit;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.group-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--md-duration-effects) var(--md-motion-default-effects);
+  pointer-events: none;
+}
+
+.group-header:hover:not(:disabled)::before {
+  opacity: 0.08;
+}
+
+.group-header:active:not(:disabled)::before {
+  opacity: 0.12;
+}
+
+.group-header:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 搜索时分组临时全部展开，标题不可点 */
+.group-header:disabled {
+  cursor: default;
+}
+
+.group-header:disabled .group-chevron {
+  visibility: hidden;
+}
+
+.group-count {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.group-chevron {
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  transition: transform var(--md-duration-fast) var(--md-motion-fast-spatial);
+}
+
+.group-header[aria-expanded='false'] .group-chevron {
+  transform: rotate(-90deg);
+}
+
+/* 加 / 取消星标后项目进了折叠的分组：闪标题 */
+.group-header.moved::before {
+  animation: project-moved 900ms var(--md-motion-default-effects);
 }
 
 /* 项目搜索：MD3 搜索栏（胶囊形，前置图标，有内容时显示清除按钮） */
@@ -608,6 +684,69 @@ select {
   font-size: 12px;
   line-height: 16px;
   opacity: 0.85;
+}
+
+/* 星标按钮：行的右侧。已加星标的行一直显示，文字留出右边距；
+   其他行悬浮 / 键盘聚焦时才显示，文字右端渐隐让出位置（不改变文字宽度，截断位置不跳动） */
+.project-item .star-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 36px;
+  height: 36px;
+  margin-top: -18px;
+  opacity: 0;
+  transition:
+    opacity var(--md-duration-effects) var(--md-motion-default-effects),
+    border-radius var(--md-duration-fast) var(--md-motion-fast-spatial);
+}
+
+.project-item .star-btn .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.project-item:hover .star-btn,
+.project-item:focus-visible .star-btn,
+.project-item.starred .star-btn {
+  opacity: 1;
+}
+
+.project-item.starred .star-btn {
+  color: var(--md-sys-color-primary);
+}
+
+.project-item.starred .project-text {
+  padding-right: 28px;
+}
+
+.project-item:not(.starred):is(:hover, :focus-visible) .project-text {
+  mask-image: linear-gradient(to left, transparent 26px, #000 44px);
+}
+
+/* 按星标按钮时整行不做按压形变 */
+.project-item:has(.star-btn:active) {
+  border-radius: var(--md-shape-full);
+}
+
+.project-item:has(.star-btn:active)::before {
+  opacity: 0.08;
+}
+
+/* 加 / 取消星标后项目换了位置：闪一下 */
+.project-item.moved::before {
+  animation: project-moved 900ms var(--md-motion-default-effects);
+}
+
+@keyframes project-moved {
+  from {
+    background: var(--md-sys-color-primary);
+    opacity: 0.24;
+  }
+  to {
+    background: var(--md-sys-color-primary);
+    opacity: 0;
+  }
 }
 
 .rename-input {
