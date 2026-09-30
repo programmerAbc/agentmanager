@@ -1,6 +1,7 @@
 ## Completed
-- M18（2026-09-30 用户要求）：侧栏分组折叠。点击「收藏」/「项目」标题（或 Tab 聚焦后 Enter / 空格）折叠 / 展开；折叠后完全隐藏（用户选择），只显示标题和数量「项目 (8)」；状态存 settings.json 的 `collapsedGroups`，重启后保留；搜索时临时全部展开、标题禁用；星标项目进入折叠分组时闪标题。与 M17 一起**未提交、未改版本号、未打包**。
-- M17（2026-09-30 用户要求）：项目星标 / 收藏。加星标的项目移到侧栏最上方「收藏」分组（不在「项目」里重复，用户选择），取消后回到原位置；入口为项目行右侧的星标按钮（悬浮显示空心星，已加星标常显实心星）+ 右键菜单「加星标 / 取消星标」；搜索时两组分别过滤排序、收藏在前。数据库 schema 1 → 2（`starred` 列），旧版 1.4.0 仍可打开新库。**未提交、未改版本号、未打包**（等用户决定）。
+- 1.5.0（M17 + M18）：按用户要求提交（447fb46 功能、「版本 1.5.0」）、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.5.0-setup.exe`（SHA256 0AE3C06E…1B253AC9，与 dist 中一致）。为不打扰用户正在运行的 1.4.0，未启动打包版 GUI，改为解包 app.asar 静态检查（dev 已完整验证）。release 目录里 1.3.2、1.4.0 安装包保留。
+- M18（2026-09-30 用户要求）：侧栏分组折叠。点击「收藏」/「项目」标题（或 Tab 聚焦后 Enter / 空格）折叠 / 展开；折叠后完全隐藏（用户选择），只显示标题和数量「项目 (8)」；状态存 settings.json 的 `collapsedGroups`，重启后保留；搜索时临时全部展开、标题禁用；星标项目进入折叠分组时闪标题。已随 1.5.0 发布。
+- M17（2026-09-30 用户要求）：项目星标 / 收藏。加星标的项目移到侧栏最上方「收藏」分组（不在「项目」里重复，用户选择），取消后回到原位置；入口为项目行右侧的星标按钮（悬浮显示空心星，已加星标常显实心星）+ 右键菜单「加星标 / 取消星标」；搜索时两组分别过滤排序、收藏在前。数据库 schema 1 → 2（`starred` 列），旧版 1.4.0 仍可打开新库。已随 1.5.0 发布。
 - 1.4.0（M16）：按用户要求提交、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.4.0-setup.exe`（SHA256 E60150CE…46BE9D75，与 dist 中一致）。为不打扰用户正在运行的 1.3.x，未启动打包版 GUI，改为解包 app.asar 静态检查（dev 已完整验证）。release 目录里 1.3.2 安装包保留。
 - M16（2026-09-29 用户反馈）：「重启终端」改为「结束终端」（顶部栏 ⏹ 按钮只在当前项目有终端时显示；项目右键菜单里没有终端时禁用）——结束 PTY 整棵进程树、丢弃终端内容，项目回到「终端尚未启动」面板；点击项目（及键盘 Enter、搜索 Enter、添加项目）只选中不启动终端。没有加结束前确认（与原「重启终端」一致，用户若想要可再加）。
 - 1.3.2（文字错乱修复）：按用户要求提交、打包并推送，安装包 `D:\agnent_manager_release\agentmanager-1.3.2-setup.exe`（SHA256 86DEA055…BC9CEC1B，与 dist 中一致）。为不打扰用户正在运行的 1.3.1，未启动打包版 GUI，改为解包 app.asar 静态检查。请用户安装后留意长时间 claude 会话里文字是否还会错乱。注：打包时 release 目录里只剩这一个安装包（以前的 1.0.0–1.3.1 已不在，非本次操作所致）。
@@ -36,7 +37,7 @@
 - 无。
 
 ## Next Steps
-- M17 + M18：请用户确认效果后决定是否提交、定版本号（建议 1.5.0）、打包 / 推送。打包后用 `.devtest/asar-check.cjs` 静态检查（可加「加星标」「收藏」字符串计数）。
+- 用户安装 1.5.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）。首次启动会把项目数据库升级到 schema 2（日志「schema 升级到 2（星标）」），已有项目保留；之后若退回 1.4.0 也能打开。
 - M17 / M18 未做（spec 中列为非目标，用户需要再加）：收藏分组内拖动排序、星标快捷键、顶部栏星标按钮；折叠动画、折叠时仍显示选中项 / 需要处理的项目、标题上的状态提醒（用户选了「完全隐藏」）。
 - 用户安装 1.4.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后点击项目应不再启动终端，顶部栏 / 右键菜单为「结束终端」。
 - 用户安装 1.3.2（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后留意长时间 claude 会话里文字是否还会错乱。
@@ -67,6 +68,7 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 1.5.0 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar（`.devtest/asar-check.cjs`，新增 M17 / M18 字符串计数，并检查 main / preload）：package.json 版本 1.5.0；渲染进程 bundle 含「加星标」3 处、「收藏」4 处、`group-header` 2 处、`collapsedGroups` 2 处；main 含 `ADD COLUMN starred` 1 处、`projects:set-starred` 1 处；preload 含 `projects:set-starred`；图集修补（全局页版本号 6、`_amSeenLayout` 3、纹理上传上限 1、无 `_requestClearModel=!0`）、Esc 序列、「结束终端」仍在；node-pty 原生模块在 app.asar.unpacked 中。electron-builder.yml 未变。安装包复制到 release 目录后 SHA256 与 dist 一致。未启动打包版 GUI。
 - M18（`npm run typecheck`、`npm run build` 通过；dev 实例同 M17 的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在）：
   - 真实鼠标点「项目」标题 → 折叠为「项目 (8)」、箭头朝右（截图确认与星标列对齐）、悬浮提示「展开「项目」」；终端运行中点击标题，焦点仍在 xterm 输入框；settings.json 写入 `["projects"]`。
   - 搜索（项目分组折叠时）`标准` → 两组都展开、标题 disabled，↓ 跨分组；点禁用的标题无效；Esc 清空后恢复折叠，保存的状态不变。

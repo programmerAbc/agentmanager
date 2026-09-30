@@ -39,7 +39,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 - node-pty 整体放在 `app.asar.unpacked`（原生模块、conout Worker 脚本、console list agent 都需要在 asar 外）。
 - `npmRebuild: false`：postinstall 已针对同一 Electron 版本编译过 node-pty，打包时不再重复编译。
 - 原生模块只依赖系统 DLL（静态链接 CRT），目标机器不需要安装 Node 或 VC++ 运行库。
-- 静默安装 / 卸载：`agentmanager-1.4.0-setup.exe /S /D=<目录>`；`"<目录>\Uninstall AgentManager.exe" /S /currentuser`。
+- 静默安装 / 卸载：`agentmanager-1.5.0-setup.exe /S /D=<目录>`；`"<目录>\Uninstall AgentManager.exe" /S /currentuser`。
 - 1.0.0 由 Agent Desk 改名而来：`appId` 未变，安装时会先静默卸载已安装的 Agent Desk；数据目录改为 `%APPDATA%\AgentManager`，不迁移旧数据（旧目录 `%APPDATA%\Agent Desk` 保留，可手动删除）。
 - 目前使用 Electron 默认图标（未提供应用图标）。
 
