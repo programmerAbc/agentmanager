@@ -50,7 +50,7 @@
 - **状态与显示**（侧栏项目、顶部栏状态标签）：
   - 工作中：`UserPromptSubmit`、`PostToolUse` → MD3 Expressive 形状变换加载指示器。
   - 等待确认：`Notification` 且 `notification_type` 为 `permission_prompt` / `elicitation_dialog`。
-  - 已完成：`Stop`；一直保持，直到用户切换到该项目或在该终端里输入（焦点上报序列不算输入）后转为空闲。
+  - 已完成：`Stop`；一直保持，直到用户切换到该项目或在该终端里输入（焦点上报、鼠标上报序列不算输入）后转为空闲。
   - 空闲（Claude 已就绪）：`SessionStart`；`Notification(idle_prompt)` 时若仍是「工作中」则回落为空闲（用户中断时不会触发 Stop）。
   - 结束：`SessionEnd`、终端退出 / 结束 / 移除 → 清除状态。
 - 非目标：快捷键启动、修改全局 claude 配置、系统通知。
@@ -173,6 +173,36 @@
 - 非目标：折叠 / 展开动画（只有箭头旋转）、折叠时显示选中项或需要处理的项目、标题上的状态提醒。
 
 应用版本号 1.5.0（M17 + M18）。
+
+### M19 Codex 全部生命周期 hooks（2026-09-30 用户要求）
+- 用户要求「把事件都加上」，并接受 codex 再提示一次「Hooks need review」、重新信任。
+- codex 0.159.2 支持 12 个 hook 事件（从 codex 二进制与官方文档 learn.chatgpt.com/docs/hooks 确认），全部注入，状态对应：
+
+| 事件 | 状态 |
+|---|---|
+| SessionStart | 刚启动时 → 就绪（resume / clear / compact 触发的不改变状态；0.159.2 实测仍在第一轮对话时才触发，所以点击启动后直接显示就绪） |
+| UserPromptSubmit、PreToolUse、PostToolUse | 工作中 |
+| PermissionRequest | 等待确认 |
+| PreCompact | 工作中（手动 `/compact` 与自动压缩都是） |
+| PostCompact | 手动 `/compact` 结束 → 就绪；自动压缩（一轮对话中间）不改变状态 |
+| SubagentStart、SubagentStop | 不改变状态（主线程的事件已经反映工作状态；子代理可能在后台运行，不能据此判断整体完成），只记日志 |
+| Stop | 已完成 |
+| Interrupt | 用户中断一轮（Esc）→ 就绪（官方文档：中断后不会有 Stop） |
+| SessionEnd | 清除状态（codex 原生事件）；启动命令外层的 try/finally 仍然保留上报，覆盖崩溃 / 被结束 |
+
+- 实测（0.159.2）：`/new` 不触发 SessionEnd / SessionStart（状态保持就绪）；退出时每个对话线程各触发一次 SessionEnd，加上 finally 的上报，重复的都是空操作。
+- 每个 hook 都会启动一次 PowerShell，codex 同步等待：实测每次约 0.1–0.3 秒（Windows PowerShell 约 0.13 秒、pwsh 约 0.3 秒），新增的 PreToolUse 让每次工具调用多等这么久。
+- SessionEnd / Interrupt 是同步执行的 hook，codex 默认只等 1 秒，PowerShell 冷启动可能超过，这两个设置 `timeout = 3`（官方上限）。
+- 要求 codex 支持这些事件（已验证 0.159.2）；更老的 codex 可能不认识新事件名，按钮启动会失败，届时升级 codex。
+- 非目标：用 `--dangerously-bypass-hook-trust` 跳过信任（会连同用户 / 仓库自己的 hooks 一起免审，不安全）；改用 `~/.codex/hooks.json` 全局配置（沿用 M10 决定，不改 codex 的配置文件）。
+
+### M20 等待确认时按键视为已处理（2026-09-30 用户要求）
+- 背景：批准权限后到工具执行完之间，claude 与 codex 都没有事件（codex 的 PreToolUse 在 PermissionRequest 之前），状态一直显示「等待确认」，要等 PostToolUse 才回到「工作中」。
+- 规则（用户原话「等待确认时你在终端里按了键，就算已处理」）：状态为「等待确认」时，用户在该终端里按键 → 「工作中」。claude 与 codex 相同。
+  - 不算：只在确认框里移动选择的按键——方向键、Tab / Shift+Tab、Home / End / PageUp / PageDown（按了之后确认框仍在等待）；焦点上报与鼠标上报序列（不是按键）。
+  - 算：其余一切输入，包括 Enter、Esc、数字、y / n、输入文字、粘贴、Ctrl+C。
+- 只有按键才算，切换到该项目不会让「等待确认」变化（「已完成」仍是切换到项目即视为已查看）。
+- 已知限制：claude 的 permission_prompt 通知若在用户已经作答之后才到，状态会回到「等待确认」，直到 PostToolUse。
 
 ## Open
 - codex 一轮对话出错（例如模型不可用）时不会有 Stop，状态停留在「工作中」直到下一次事件或 codex 退出。

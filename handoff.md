@@ -1,4 +1,6 @@
 ## Completed
+- M20（2026-09-30 用户要求「等待确认时你在终端里按了键，就算已处理」）：状态为「等待确认」时，在该终端按键 → 「工作中」（claude / codex 都适用）。只移动确认框选择的导航键（方向键、Tab、Shift+Tab、Home、End、PageUp、PageDown）不算；鼠标上报与焦点上报序列不再算作输入（也不再让「已完成」变就绪）。切换项目不影响「等待确认」。与 M19 一起**未提交、未改版本号、未打包**。
+- M19（2026-09-30 用户要求「把事件都加上」，接受重新信任一次）：codex hooks 从 5 个扩展到 codex 0.159.2 支持的全部 12 个。新增状态：Esc 中断（Interrupt）→ 就绪（之前会停在「工作中」）；手动 `/compact`（PreCompact / PostCompact 按 manual / auto 分组上报）→ 工作中 → 就绪；PreToolUse → 工作中；SessionEnd 原生 + try/finally 并存；Subagent 只记日志。原有 5 条 hook 文本逐字不变，用户只需信任新增的 9 条（本次自测已在用户的 codex 里信任过，与发布版文本相同，安装后不会再提示）。**未提交、未改版本号、未打包**。
 - 1.5.0（M17 + M18）：按用户要求提交（447fb46 功能、「版本 1.5.0」）、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.5.0-setup.exe`（SHA256 0AE3C06E…1B253AC9，与 dist 中一致）。为不打扰用户正在运行的 1.4.0，未启动打包版 GUI，改为解包 app.asar 静态检查（dev 已完整验证）。release 目录里 1.3.2、1.4.0 安装包保留。
 - M18（2026-09-30 用户要求）：侧栏分组折叠。点击「收藏」/「项目」标题（或 Tab 聚焦后 Enter / 空格）折叠 / 展开；折叠后完全隐藏（用户选择），只显示标题和数量「项目 (8)」；状态存 settings.json 的 `collapsedGroups`，重启后保留；搜索时临时全部展开、标题禁用；星标项目进入折叠分组时闪标题。已随 1.5.0 发布。
 - M17（2026-09-30 用户要求）：项目星标 / 收藏。加星标的项目移到侧栏最上方「收藏」分组（不在「项目」里重复，用户选择），取消后回到原位置；入口为项目行右侧的星标按钮（悬浮显示空心星，已加星标常显实心星）+ 右键菜单「加星标 / 取消星标」；搜索时两组分别过滤排序、收藏在前。数据库 schema 1 → 2（`starred` 列），旧版 1.4.0 仍可打开新库。已随 1.5.0 发布。
@@ -37,6 +39,7 @@
 - 无。
 
 ## Next Steps
+- M19 + M20：等用户决定是否提交 / 定版本号（建议 1.6.0）/ 打包 / 推送。
 - 用户安装 1.5.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）。首次启动会把项目数据库升级到 schema 2（日志「schema 升级到 2（星标）」），已有项目保留；之后若退回 1.4.0 也能打开。
 - M17 / M18 未做（spec 中列为非目标，用户需要再加）：收藏分组内拖动排序、星标快捷键、顶部栏星标按钮；折叠动画、折叠时仍显示选中项 / 需要处理的项目、标题上的状态提醒（用户选了「完全隐藏」）。
 - 用户安装 1.4.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后点击项目应不再启动终端，顶部栏 / 右键菜单为「结束终端」。
@@ -54,6 +57,8 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- M20：src/renderer/terminalView.ts（`REPORT_SEQUENCE` 排除焦点 / 鼠标上报，`onInput(sessionId, data)`）、src/renderer/agentStatus.ts（`NAVIGATION_KEY`、`markInput`）、src/renderer/main.ts；docs/spec.md（M20，删去对应 Open 项）、docs/architecture.md、plans.md、README.md、handoff.md。自测工具（不提交）：`.devtest/m20-sim.sh`（向 hooks 服务模拟事件 + 真实按键）、`wheel.mjs`（真实滚轮）、`mouse-mode.js`（开启原始输入 + SGR 鼠标跟踪的小程序）、`codex-approval-cmd.txt`（codex 审批模式测试命令）。
+- M19：src/shared/types.ts（`AgentHookEvent` 新增 6 个、`CODEX_HOOK_EVENTS` 12 个、`AgentEvent.trigger`）、src/main/hookServer.ts（压缩事件 matcher 分组、SessionEnd / Interrupt `timeout=3`、`codexEvent` 解析「事件:触发方式」、PreToolUse 记 debug）、src/renderer/agentStatus.ts（新事件的状态映射）；docs/spec.md（M19、Open）、docs/architecture.md（M19 设计）、plans.md、README.md、lessons.md、handoff.md。自测工具（不提交）：`.devtest/screen.sh`（读终端末尾 + 状态）、`.devtest/watch-status.mjs`（采样状态变化）、`.devtest/codex-test-cmd.txt`、`cdp.mjs` 加 F2。
 - M18：src/shared/types.ts（`SidebarGroup`、`SIDEBAR_GROUPS`、`AppSettings.collapsedGroups`）、src/main/{settingsStore（默认值、`parseGroups`）,ipc（patch 透传）}.ts、src/renderer/{sidebar（标题按钮、`VisibleGroup`、`toggleGroup`、`highlight` 闪标题）,main（恢复与保存折叠状态）,icons（keyboardArrowDown）}.ts、styles.css（`.group-header` 等，`.list-label` 不再有内边距）；docs/spec.md（M18）、docs/architecture.md（迭代 7 设计、settings.json 字段表补全）、plans.md、README.md、handoff.md。自测工具（不提交）：`.devtest/rows.js`（新，打印侧栏行：分组 / 折叠 / 星标 / 当前项）。
 - M17：src/shared/types.ts（`Project.starred`、`IPC.projectsSetStarred`、`Api.projects.setStarred`）、src/main/{projectStore（schema 2、`setStarred`）,ipc（`asBoolean`）}.ts、src/preload/index.ts、src/renderer/{sidebar（分组、星标按钮、菜单、↑↓）,main（`setStarred`）,icons（star / starFill）}.ts、styles.css（星标按钮、分组标题、`moved` 闪烁）；docs/spec.md（迭代 7）、docs/architecture.md（迭代 7 设计、存储 schema 2）、plans.md、README.md、lessons.md、handoff.md。自测工具（不提交）：`.devtest/seed-star.mjs`（新，往 schema 1 测试库补 9 个项目）、`.devtest/move.mjs`（新，真实鼠标悬浮 + 截图）、`mouse.mjs` 改为先滚动到可见。
 - M16：src/renderer/{main,sidebar,terminalView,icons,agentStatus}.ts、styles.css（`.icon-btn[hidden]`）；docs/spec.md、docs/architecture.md、plans.md、README.md、lessons.md、handoff.md。`.devtest/mouse.mjs`（新，不提交：真实鼠标点击）。
@@ -68,6 +73,24 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- M20（`npm run typecheck`、`npm run build` 通过；dev 实例同前的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在；`~/.codex/config.toml` 没有新增项目条目）：
+  - 从源码取出两个正则做表格测试 33 项全过：导航键 15 种（含 Ctrl+方向键、应用光标模式、`ESC[1~` / `ESC[5;5~` 等）不算；Enter、Esc（含 win32-input-mode 写法）、数字、y / n、Ctrl+C、粘贴、Delete、Insert、F1、Shift+Enter、普通文字都算；焦点上报、SGR / URXVT 鼠标上报识别为上报。
+  - 模拟（直接向 hooks 服务上报 codex 事件 + CDP 真实按键）：PermissionRequest → 等待；↓ / ↑ → 仍等待；切到 demo2 再切回 → 仍等待；按 y → 工作中；Stop → 已完成，按 x → 就绪（原有行为）；等待时按 Esc / Enter → 工作中；SessionEnd → 清除。
+  - 鼠标上报：终端里运行开启原始输入 + SGR 鼠标跟踪的小程序（`.devtest/mouse-mode.js`），滚轮 ×2 与单击时程序收到 `ESC[<65;…M` / `ESC[<0;…M/m`，状态保持「等待确认」。（PowerShell 里 `Write-Host` 开鼠标跟踪不会被 ConPTY 转发，必须由开启了 VT 输入的程序来开。）
+  - 真实 codex（`-a on-request -s read-only`，低推理，1 轮）：UserPromptSubmit → PreToolUse → PermissionRequest（等待确认）；↓ 选中第 2 项、↑ 回到第 1 项，状态都保持等待；按 y → 工作中 → PostToolUse → Stop（已完成），文件已创建（测试后删除）。该命令很快，PostToolUse 与按 y 几乎同时到达，所以「按键触发转换」以模拟测试为准。沿用上一轮的 hooks 信任，没有再弹「Hooks need review」。
+  - 未测：claude 的权限确认（逻辑相同，未消耗 claude 额度去触发）、打包版。
+- M19（`npm run typecheck`、`npm run build` 通过；dev 实例同前的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在；真实 codex 0.159.2（用户的 gpt-6.1-sol，测试命令加 `-c model_reasoning_effort=low`，共 3 轮对话 + 1 次压缩）：
+  - 注入的 `AGENT_DESK_CODEX_HOOKS` 中原有 5 个事件的条目与上一版逐字相同；codex 提示「9 hooks are new or changed」（7 个新事件，压缩事件各 2 个分组），选「Trust all and continue」后 `~/.codex/config.toml` 的 `[hooks.state]` 覆盖全部 12 个事件。
+  - 工具调用一轮：SessionStart → UserPromptSubmit → PreToolUse → PostToolUse → Stop；状态 就绪 → 工作中 → 已完成。
+  - Esc 中断：UserPromptSubmit → Interrupt，之后没有 Stop；状态 工作中 → 就绪（约 3.5 秒后按 Esc，立即回落）。
+  - 手动 `/compact`：PreCompact(manual) → PostCompact(manual)，没有 Stop；状态 就绪 → 工作中 → 就绪。
+  - `/new`：没有任何 hook 事件，状态保持就绪。
+  - `/exit`：SessionEnd ×2（codex 原生，推测两个对话线程各一次）+ finally 上报 ×1，状态清除、启动按钮恢复。
+  - Claude 回归：误点到「启动 Claude」一次（未发消息）：SessionStart → 就绪，`/exit` → SessionEnd → 清除。
+  - hook 耗时（连到正在监听的 hooks 服务）：Windows PowerShell 约 0.13 秒、pwsh 约 0.3 秒、curl 本身约 0.01 秒。
+  - codex 的目录信任提示选了 Quit，改用会话级 `-c projects=…` 覆盖；`~/.codex/config.toml` 中没有新增项目条目（grep workspace_lab3 = 0）。见 lessons.md。
+  - 观察：codex 启动时提示「Running without the shared background server: command-line configuration overrides (-c …) requires embedded mode」——用 `-c` 注入 hooks 的固有提示，1.5.0 起就有，不影响使用。dev 进程关闭后 `electron-vite dev` 以退出码 127 结束（应用日志「退出清理完成」，与以前偶发的退出码 9 同类，未查明）。
+  - 未测：PermissionRequest（测试用 bypass 模式不会请求权限；映射与 M10 相同）、Subagent 事件、自动压缩、打包版。
 - 1.5.0 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar（`.devtest/asar-check.cjs`，新增 M17 / M18 字符串计数，并检查 main / preload）：package.json 版本 1.5.0；渲染进程 bundle 含「加星标」3 处、「收藏」4 处、`group-header` 2 处、`collapsedGroups` 2 处；main 含 `ADD COLUMN starred` 1 处、`projects:set-starred` 1 处；preload 含 `projects:set-starred`；图集修补（全局页版本号 6、`_amSeenLayout` 3、纹理上传上限 1、无 `_requestClearModel=!0`）、Esc 序列、「结束终端」仍在；node-pty 原生模块在 app.asar.unpacked 中。electron-builder.yml 未变。安装包复制到 release 目录后 SHA256 与 dist 一致。未启动打包版 GUI。
 - M18（`npm run typecheck`、`npm run build` 通过；dev 实例同 M17 的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在）：
   - 真实鼠标点「项目」标题 → 折叠为「项目 (8)」、箭头朝右（截图确认与星标列对齐）、悬浮提示「展开「项目」」；终端运行中点击标题，焦点仍在 xterm 输入框；settings.json 写入 `["projects"]`。
@@ -171,6 +194,7 @@
 - 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；自测工具在 `.devtest/`（先 `node .devtest/seed.mjs` 建测试数据，userData 用 `--user-data-dir=<项目>/.devtest/ud`，关闭用 `.devtest/close-dev.ps1`）；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
 - 图集自测：`sh .devtest/atlas-run.sh [字数] [标签]` 从全新 dev 实例跑一次压力 + 截图比较（输出 `A vs B {diffPixels}`，约 105 为正常）；在 Bash 工具里用 run_in_background 运行。
 - 真实鼠标点击：`node .devtest/mouse.mjs 9223 "<选择器>"`（`cdp.mjs eval` 里的 `el.click()` 不移动焦点，见 lessons.md）；真实悬浮 + 截图：`node .devtest/move.mjs 9223 "<选择器>" [截图.png]`。两者都会先把元素滚动到可见。
+- codex 自测：测试 userData 的 Codex 命令见 `.devtest/codex-test-cmd.txt`（低推理 + 会话级目录信任，不会写用户配置；需要审批时用 `codex-approval-cmd.txt`，0.159.2 的 `-a` 只接受 on-request / never）；`sh .devtest/screen.sh p1 [行数]` 看终端与状态；`node .devtest/watch-status.mjs 9223 <秒>` 记录状态变化；向 claude / codex 输入斜杠命令用 `MSYS_NO_PATHCONV=1 node .devtest/cdp.mjs 9223 type '/exit'`。
 - 侧栏状态速览：`node .devtest/cdp.mjs 9223 eval "$(cat .devtest/rows.js)"`（`[项目(8) >]` = 折叠，`*` = 星标，`(active)` = 搜索当前项）。
 - 星标测试数据：`node .devtest/seed.mjs && node .devtest/seed-star.mjs` 得到 schema 1、12 个项目的测试库（可测迁移）。当前 `.devtest/ud` 已是 schema 2、4 个星标项目；`.devtest/star-v1-backup.db` 是迁移前的副本。
 - 注意：在 Claude Code 里启动 dev 实例时，dev 窗口会出现在用户桌面上，用户可能会点击它（曾出现两个终端「自动」启动的假象）。

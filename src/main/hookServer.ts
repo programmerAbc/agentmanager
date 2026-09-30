@@ -18,17 +18,31 @@ const HOOK_TIMEOUT_SECONDS = 5
 const URL_PATTERN = /^\/hook\/([0-9a-f]{32})\/([A-Za-z0-9-]{1,64})\/([A-Za-z]+)$/
 
 /**
- * codex 的 hook 命令。codex 在 Windows 上用 PowerShell 执行 hook（实测）。
+ * codex 的 hook 命令，上报 marker（事件名，压缩事件为「事件:触发方式」）。codex 在 Windows 上用 PowerShell 执行 hook（实测）。
  * 文本必须固定：codex 对新增 / 变化的 hook 会要求用户重新信任，所以端口、token、会话 id
- * 都通过终端环境变量 AGENT_DESK_HOOK_URL 传入；不含引号；先读完 stdin 再上报。
+ * 都通过终端环境变量 AGENT_DESK_HOOK_URL 传入；不含引号和空格；先读完 stdin 再上报（不转发 stdin：
+ * PostToolUse 的 tool_response 可能很大，且 Windows PowerShell 管道给原生程序会破坏非 ASCII 字符）。
  */
-const codexHookCommand = (event: AgentHookEvent): string =>
-  `$null = @($input); curl.exe -s -m 2 -d ${event} $env:AGENT_DESK_HOOK_URL`
+const codexHookCommand = (marker: string): string =>
+  `$null = @($input); curl.exe -s -m 2 -d ${marker} $env:AGENT_DESK_HOOK_URL`
+
+/** 这两个事件同步执行，codex 默认只等 1 秒（上限 3 秒），PowerShell 冷启动 + curl 可能不够 */
+const SYNC_CODEX_EVENTS: readonly AgentHookEvent[] = ['SessionEnd', 'Interrupt']
+/** 压缩事件按触发方式分组（matcher）上报：手动 /compact 结束后没有 Stop，要据此回到就绪 */
+const COMPACT_CODEX_EVENTS: readonly AgentHookEvent[] = ['PreCompact', 'PostCompact']
+const COMPACT_TRIGGERS = ['manual', 'auto'] as const
+
+const codexHook = (event: AgentHookEvent, marker: string): string =>
+  `{type='command',command='${codexHookCommand(marker)}'${SYNC_CODEX_EVENTS.includes(event) ? ',timeout=3' : ''}}`
+
+/** 一个事件的分组；原有 5 个事件生成的内容与 M10 逐字相同（保持已信任） */
+const codexHookGroups = (event: AgentHookEvent): string =>
+  COMPACT_CODEX_EVENTS.includes(event)
+    ? COMPACT_TRIGGERS.map((t) => `{matcher='${t}',hooks=[${codexHook(event, `${event}:${t}`)}]}`).join(',')
+    : `{hooks=[${codexHook(event, event)}]}`
 
 /** 通过 `codex -c $env:AGENT_DESK_CODEX_HOOKS` 注入的配置（TOML，字符串用单引号字面量） */
-const CODEX_HOOKS_TOML = `hooks={${CODEX_HOOK_EVENTS.map(
-  (event) => `${event}=[{hooks=[{type='command',command='${codexHookCommand(event)}'}]}]`
-).join(',')}}`
+const CODEX_HOOKS_TOML = `hooks={${CODEX_HOOK_EVENTS.map((event) => `${event}=[${codexHookGroups(event)}]`).join(',')}}`
 
 /**
  * 接收 claude / codex hooks 上报的本地 HTTP 服务（只监听 127.0.0.1，随机端口 + 随机 token）。
@@ -105,7 +119,8 @@ export class AgentHookServer {
   }
 
   /**
-   * codex：在用户命令后追加 hooks，codex 退出（包括 Ctrl+C）后上报 SessionEnd（codex 自身没有这个事件）。
+   * codex：在用户命令后追加 hooks，codex 退出（包括 Ctrl+C）后上报 SessionEnd
+   * （codex 自己的 SessionEnd hook 不覆盖崩溃 / 被结束，这里兜底；重复上报是空操作）。
    * 按终端的 shell 写法不同，hooks 配置都从环境变量 AGENT_DESK_CODEX_HOOKS 取（其中没有双引号，可安全放进双引号）：
    * - PowerShell：try/finally
    * - cmd：`&` 串联（codex 以原始模式读 Ctrl+C，不会中断 cmd 的这一行）
@@ -142,9 +157,9 @@ export class AgentHookServer {
         const body = size <= MAX_BODY_BYTES ? Buffer.concat(chunks).toString('utf8') : ''
         const event = m[3] === 'codex' ? codexEvent(body) : claudeEvent(m[3], body)
         if (!event) return
-        const detail = event.notificationType ? `(${event.notificationType})` : ''
-        const text = `[agents] ${event.agent} ${event.name}${detail} session=${sessionId}`
-        if (event.name === 'PostToolUse') log.debug(text)
+        const detail = event.notificationType ?? event.trigger
+        const text = `[agents] ${event.agent} ${event.name}${detail ? `(${detail})` : ''} session=${sessionId}`
+        if (event.name === 'PreToolUse' || event.name === 'PostToolUse') log.debug(text)
         else log.info(text)
         this.onEvent(sessionId, event)
       } catch (err) {
@@ -167,10 +182,13 @@ function claudeEvent(name: string, body: string): AgentEvent | null {
   return event
 }
 
+/** 请求体为事件名，压缩事件为「事件:manual」/「事件:auto」 */
 function codexEvent(body: string): AgentEvent | null {
-  const name = body.trim()
-  const known: readonly string[] = [...CODEX_HOOK_EVENTS, 'SessionEnd']
-  return known.includes(name) ? { agent: 'codex', name: name as AgentHookEvent } : null
+  const [name, trigger] = body.trim().split(':')
+  if (!(CODEX_HOOK_EVENTS as readonly string[]).includes(name)) return null
+  const event: AgentEvent = { agent: 'codex', name: name as AgentHookEvent }
+  if (trigger === 'manual' || trigger === 'auto') event.trigger = trigger
+  return event
 }
 
 function notificationTypeOf(body: string): string | undefined {

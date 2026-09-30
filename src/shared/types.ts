@@ -150,14 +150,20 @@ export type AgentKind = 'claude' | 'codex'
 
 export const AGENT_LABEL: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
 
-/** 各助手的 hooks 会上报的事件（codex 没有 SessionEnd，由启动命令的 finally 上报） */
+/** 各助手的 hooks 会上报的事件 */
 export type AgentHookEvent =
   | 'SessionStart'
   | 'UserPromptSubmit'
+  | 'PreToolUse'
   | 'PostToolUse'
   | 'PermissionRequest'
   | 'Notification'
+  | 'PreCompact'
+  | 'PostCompact'
+  | 'SubagentStart'
+  | 'SubagentStop'
   | 'Stop'
+  | 'Interrupt'
   | 'SessionEnd'
 
 export const CLAUDE_HOOK_EVENTS: readonly AgentHookEvent[] = [
@@ -169,13 +175,23 @@ export const CLAUDE_HOOK_EVENTS: readonly AgentHookEvent[] = [
   'SessionEnd'
 ]
 
-/** 注入 codex 的 hooks（顺序与内容一旦改变，用户需要在 codex 里重新信任） */
+/**
+ * 注入 codex 的 hooks：codex 0.159.2 支持的全部事件。
+ * codex 按「事件 + 分组下标 + hook 下标」记录每条 hook 的信任，已有条目的内容一旦改变，用户需要重新信任。
+ */
 export const CODEX_HOOK_EVENTS: readonly AgentHookEvent[] = [
   'SessionStart',
   'UserPromptSubmit',
   'PermissionRequest',
   'PostToolUse',
-  'Stop'
+  'Stop',
+  'PreToolUse',
+  'PreCompact',
+  'PostCompact',
+  'SubagentStart',
+  'SubagentStop',
+  'Interrupt',
+  'SessionEnd'
 ]
 
 export interface AgentEvent {
@@ -183,6 +199,8 @@ export interface AgentEvent {
   name: AgentHookEvent
   /** 仅 claude 的 Notification：permission_prompt / idle_prompt / elicitation_dialog / auth_success … */
   notificationType?: string
+  /** 仅 codex 的 PreCompact / PostCompact：manual（/compact）或 auto（自动压缩） */
+  trigger?: 'manual' | 'auto'
 }
 
 /**

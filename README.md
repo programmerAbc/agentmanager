@@ -66,9 +66,9 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 
 - **终端**：点击项目只选中它，不会启动终端；在「终端尚未启动」面板上点击（或点「启动终端」「启动 Claude」「启动 Codex」）才启动。切换项目时终端保持运行。顶部栏的「结束终端」按钮（⏹，或项目右键菜单）结束该终端及其中运行的程序，项目回到未启动状态。
 - **启动 Claude / 启动 Codex**：顶部栏按钮（也在「点击启动」面板和项目右键菜单里）。在当前项目终端里执行设置中的命令，默认分别为 `claude --permission-mode bypassPermissions`、`codex --dangerously-bypass-approvals-and-sandbox`；终端未启动时先启动。
-- **工作状态**：通过按钮启动的 claude / codex 会在侧栏和顶部栏显示「就绪 / 工作中（形状变换动画）/ 等待确认 / 已完成」。「已完成」会一直保留，直到你切换到该项目或在它的终端里输入。手动输入的 `claude` / `codex` 没有状态。助手运行时顶部栏只显示状态，两个启动按钮隐藏。
+- **工作状态**：通过按钮启动的 claude / codex 会在侧栏和顶部栏显示「就绪 / 工作中（形状变换动画）/ 等待确认 / 已完成」。「已完成」会一直保留，直到你切换到该项目或在它的终端里输入；「等待确认」时在该终端里按键（方向键、Tab 等只移动选择的键除外）即视为已处理，转为「工作中」。手动输入的 `claude` / `codex` 没有状态。助手运行时顶部栏只显示状态，两个启动按钮隐藏。
   - Claude：追加 `--settings <userData>\agent-hooks\<会话>.json`，**不修改** `~/.claude/settings.json`。
-  - Codex：追加 `-c $env:AGENT_DESK_CODEX_HOOKS` 注入 hooks，并用 `try { … } finally { … }` 检测退出，**不修改** `~/.codex/config.toml`。首次启动时 codex 会提示「Hooks need review」，选「Trust all and continue」后不再提示（这条信任记录由 codex 自己保存）。需要系统自带的 `curl.exe`。
+  - Codex：追加 `-c $env:AGENT_DESK_CODEX_HOOKS` 注入 codex 支持的全部 12 个生命周期 hooks（按 Esc 中断、手动 `/compact` 结束后都会回到「就绪」），并用 `try { … } finally { … }` 检测退出，**不修改** `~/.codex/config.toml`。首次启动时 codex 会提示「Hooks need review」，选「Trust all and continue」后不再提示（这条信任记录由 codex 自己保存）。需要系统自带的 `curl.exe`。
 - **星标 / 收藏**：鼠标移到项目上点右侧的 ☆（或右键菜单「加星标」），项目移到侧栏最上方的「收藏」分组；点实心 ★（或「取消星标」）后回到「项目」分组原来的位置。适合给当前高频维护的项目加星标，维护期过了再取消。搜索时收藏的项目排在前面。点击「收藏」/「项目」标题可以折叠 / 展开该分组（折叠后只显示标题和项目数量，重启后保留；搜索时临时全部展开）。
 - **搜索项目**（侧栏搜索框，或 `Ctrl+Shift+F`）：输入即过滤，模糊匹配项目名和侧栏上显示的路径（如输入 `agm` 能找到 agentmanager），多个词用空格分开；`↑` / `↓` 选择、`Enter` 打开、`Esc` 清空 / 回到终端。
 - **设置**（侧栏底部，或 `Ctrl+,`）：默认终端（自动 / PowerShell 7 / Windows PowerShell / 命令提示符 / Git Bash）、终端字体（列出本机等宽字体，默认 Maple Mono NF CN）、字号、行高、光标样式（竖线 / 下划线 / 方块）、主题色（Material 3 动态配色；「白色」为浅色界面，「黑色」为纯黑界面）、Claude / Codex 启动命令。点击左上角的应用名可查看版本信息。

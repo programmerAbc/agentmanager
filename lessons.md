@@ -140,7 +140,7 @@ Electron 44 内置 Node 24.21，`node:sqlite`（`DatabaseSync`，SQLite 3.53）�
 ### Problem
 通过 `-c` 注入的 codex hooks 每次启动都弹「Hooks need review」；hook 命令在 codex 里没有生效。
 ### Root Cause
-codex 按 hook 命令内容的哈希记录信任（写在 `~/.codex/config.toml` 的 `[hooks.state]`，键为 `<session-flags>` + 事件 + 位置），命令文本一变就要重新信任；codex 在 Windows 上用 PowerShell 执行 hook，`@-`、`{{…}}` 等写法在 PowerShell 下不成立。codex 的 SessionStart 在第一轮对话时才触发，且没有 SessionEnd 事件。
+codex 按 hook 命令内容的哈希记录信任（写在 `~/.codex/config.toml` 的 `[hooks.state]`，键为 `<session-flags>` + 事件 + 位置），命令文本一变就要重新信任；codex 在 Windows 上用 PowerShell 执行 hook，`@-`、`{{…}}` 等写法在 PowerShell 下不成立。codex 的 SessionStart 在第一轮对话时才触发，且（M10 时的版本）没有 SessionEnd 事件。2026-09-30 从 codex 0.159.2 的二进制（`HookEventsToml`）确认已支持 12 个事件：PreToolUse、PermissionRequest、PostToolUse、PreCompact、PostCompact、SessionStart、SessionEnd、UserPromptSubmit、SubagentStart、SubagentStop、Stop、Interrupt（1.5.0 之后全部接入，见 architecture.md「M19」）。
 ### Solution
 hook 命令文本固定为 `$null = @($input); curl.exe -s -m 2 -d <事件> $env:AGENT_DESK_HOOK_URL`，会变的地址放在终端环境变量里，整段 hooks 配置放在 `AGENT_DESK_CODEX_HOOKS`；启动命令用 `try { … } finally { 上报 SessionEnd }` 包裹。
 ### Prevention
@@ -287,3 +287,13 @@ M17 自测时用 `mouse.mjs` 点列表最底部项目的星标按钮，星标没
 `mouse.mjs` / `move.mjs` 取坐标前先 `scrollIntoView({ block: 'nearest' })`；滚到可见后同一操作结果正常（星标生效、焦点留在终端）。
 ### Prevention
 按坐标发送真实输入前，先把目标滚动到可见区域；结果异常时先用 `document.elementFromPoint(x, y)` 确认点到的是不是目标，再判断是否为缺陷。
+
+## Lesson: 自测 codex 时不要让它把测试目录写进用户的信任列表
+### Problem
+M19 自测在 dev 实例里点「启动 Codex」，codex 先弹「Trust this folder?」，而且提示信任会作用到仓库根目录 `D:\develop\workspace_lab3\agentmanager`，选了就会永久写进用户的 `~/.codex/config.toml`（`[projects.'…'] trust_level`）。
+### Root Cause
+codex 对没信任过的目录（按 git 根目录算）都会询问并保存决定；`--dangerously-bypass-approvals-and-sandbox` 不跳过这一步。用户只同意了重新信任 hooks，没同意信任新目录。
+### Solution
+选「Quit」退出，把测试 userData 的 Codex 命令改为带会话级覆盖：`codex … -c "projects={'d:\develop\workspace_lab3\agentmanager'={trust_level='trusted'}}"`（整个 projects 表作为 TOML 值传入，避免带引号的键路径），不再询问，也不写配置文件（测试前后 grep 确认）。
+### Prevention
+在用户真实的 codex / claude 配置上自测前，先想清楚每个提示选项会持久化什么；能用 `-c` 等会话级覆盖就不用持久化的选择。另：在 Windows 上测 hook 耗时不要连已关闭的端口（连接被拒要约 2 秒重试），要连正在监听的服务。

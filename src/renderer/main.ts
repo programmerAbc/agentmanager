@@ -95,7 +95,7 @@ class App {
           // 终端退出 / 被结束，里面的助手也就没了
           if (!running) this.agents.reset(id)
         },
-        onInput: (id) => this.agents.markSeen(id),
+        onInput: (id, data) => this.agents.markInput(id, data),
         onError: (message) => toast(message)
       }
     )

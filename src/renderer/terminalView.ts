@@ -30,6 +30,12 @@ const NEWLINE_KEY = WIN32_INPUT_KEYS ? '\x1b[13;28;10;1;16;1_\x1b[13;28;10;0;16;
  */
 const ESC_KEY = '\x1b[27;1;27;1;0;1_\x1b[27;1;27;0;0;1_'
 
+/**
+ * xterm 替程序自动发送的上报序列，不是用户输入：焦点上报 ESC[I / ESC[O（DECSET 1004），
+ * 鼠标上报 SGR ESC[<b;x;yM/m 与 URXVT ESC[b;x;yM（程序开启鼠标跟踪时，滚轮 / 点击都会产生）
+ */
+const REPORT_SEQUENCE = /^\x1b\[(?:[IO]|<\d+;\d+;\d+[Mm]|\d+;\d+;\d+M)$/
+
 /** Shift / Ctrl / Alt + Enter（输入法组字时的 Enter 交给输入法） */
 function isNewlineKey(e: KeyboardEvent): boolean {
   return (
@@ -94,8 +100,8 @@ type ViewState = 'idle' | 'starting' | 'running' | 'exited' | 'failed'
 
 export interface TerminalHooks {
   onRunningChange(sessionId: string, running: boolean): void
-  /** 用户向运行中的终端输入 */
-  onInput(sessionId: string): void
+  /** 用户向运行中的终端输入（不含焦点 / 鼠标上报）；data 为发给 PTY 的内容 */
+  onInput(sessionId: string, data: string): void
   onError(message: string): void
 }
 
@@ -393,8 +399,7 @@ class TerminalView {
       if (data === NEWLINE_KEY && WIN32_INPUT_KEYS) this.win32InputSent = true
       else if (data === '\x1b' && this.win32InputSent) data = ESC_KEY
       api.pty.write(this.sessionId, data)
-      // 程序开启焦点上报（DECSET 1004）时，xterm 在获得 / 失去焦点时会自动发送 ESC[I / ESC[O，不算用户输入
-      if (data !== '\x1b[I' && data !== '\x1b[O') this.hooks.onInput(this.sessionId)
+      if (!REPORT_SEQUENCE.test(data)) this.hooks.onInput(this.sessionId, data)
     } else if ((this.state === 'exited' || this.state === 'failed') && data === '\r') {
       this.term.reset()
       void this.start()

@@ -54,6 +54,12 @@ const START_TIMEOUT_MS = 30_000
 
 const WAITING_NOTIFICATIONS = new Set(['permission_prompt', 'elicitation_dialog'])
 
+/**
+ * 只在确认框里移动选择、不作答的按键：方向键、Tab / Shift+Tab、Home / End / PageUp / PageDown
+ * （含修饰键写法 ESC[1;5A 与应用光标模式 ESC O A）
+ */
+const NAVIGATION_KEY = /^(?:\t|\x1b\[Z|\x1b\[(?:\d+(?:;\d+)?)?[A-DHF]|\x1bO[A-DHF]|\x1b\[[1456](?:;\d+)?~)$/
+
 /** 每个终端同一时间只跟踪一个助手 */
 export class AgentStatusTracker {
   private readonly states = new Map<string, AgentState>()
@@ -96,8 +102,22 @@ export class AgentStatusTracker {
         if (status === 'none' || status === 'starting') to('idle')
         break
       case 'UserPromptSubmit':
+      case 'PreToolUse':
       case 'PostToolUse':
+      case 'PreCompact':
         to('working')
+        break
+      case 'PostCompact':
+        // 手动 /compact 结束后不会有 Stop；自动压缩发生在一轮对话中间，保持工作中
+        if (event.trigger === 'manual' && status === 'working') to('idle')
+        break
+      case 'Interrupt':
+        // 用户中断一轮（Esc）：codex 之后不会再发 Stop
+        if (status === 'working' || status === 'waiting') to('idle')
+        break
+      case 'SubagentStart':
+      case 'SubagentStop':
+        // 只记日志：主线程的事件已反映工作状态，子代理可能在主线程结束后仍在后台运行
         break
       case 'PermissionRequest':
         to('waiting')
@@ -113,6 +133,19 @@ export class AgentStatusTracker {
       case 'SessionEnd':
         if (current?.agent === agent) this.set(sessionId, null)
         break
+    }
+  }
+
+  /**
+   * 用户在该终端里按键：「等待确认」视为已作答 → 工作中（批准后到工具执行完之间助手不发事件；导航键不算）；
+   * 「已完成」视为已查看 → 就绪
+   */
+  markInput(sessionId: string, data: string): void {
+    const current = this.get(sessionId)
+    if (current?.status === 'waiting') {
+      if (!NAVIGATION_KEY.test(data)) this.set(sessionId, { agent: current.agent, status: 'working' })
+    } else {
+      this.markSeen(sessionId)
     }
   }
 

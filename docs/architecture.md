@@ -139,6 +139,17 @@ preload (src/preload/index.ts)
 | 有搜索词时忽略折叠（全部展开、标题按钮 disabled），不修改保存的状态 | 搜索命中藏在折叠分组里会被误以为「没有匹配」 |
 | 加 / 取消星标后若项目落进折叠的分组，`highlight` 改为闪该分组标题 | 项目行不渲染，没有东西可闪；标题数量变化 + 闪烁说明它去了哪里 |
 
+## 迭代 7 设计（M19 Codex 全部 hooks）
+
+| 决策 | 原因 |
+|---|---|
+| `CODEX_HOOK_EVENTS` 扩展为 codex 0.159.2 的全部 12 个事件；hook 命令文本格式不变（`$null = @($input); curl.exe -s -m 2 -d <标记> $env:AGENT_DESK_HOOK_URL`），原有 5 个事件的命令逐字不变 | codex 按「事件 + 分组下标 + hook 下标」记录每条 hook 的哈希，原有条目保持不变就仍是已信任，只有新增的需要审查一次 |
+| PreCompact / PostCompact 各注册两个分组：`matcher='manual'` / `matcher='auto'`，上报 `PreCompact:manual` 这样的标记；服务端按 `事件[:trigger]` 解析，`AgentEvent.trigger` 传给状态机 | 手动 `/compact` 结束后没有 Stop，需要知道是不是手动的才能回到「就绪」；不转发 stdin 的 JSON：PostToolUse 的 `tool_response` 可能很大（超过 64KB 上限会被丢弃），而且 Windows PowerShell 5.1 管道给原生程序会把非 ASCII 改成 `?` |
+| SessionEnd / Interrupt 的 hook 设置 `timeout=3` | 官方：这两个事件同步执行，默认超时 1 秒、上限 3 秒；PowerShell 冷启动 + curl 可能超过 1 秒 |
+| Subagent 事件只记日志、不改状态 | 主线程的 UserPromptSubmit / 工具事件 / Stop 已反映工作状态；子代理可能在主线程结束后仍在后台，用它们推断状态容易卡在「工作中」 |
+| 原生 SessionEnd 与 try/finally 的上报并存（第二次是空操作） | finally 覆盖 codex 崩溃、被结束等不触发 hook 的情况 |
+| **M20**：`TerminalHooks.onInput(sessionId, data)` 只在用户输入时调用——排除焦点上报（`ESC[I` / `ESC[O`）与鼠标上报（SGR `ESC[<b;x;yM/m`、URXVT `ESC[b;x;yM`）；`AgentStatusTracker.markInput(id, data)`：已完成 → 就绪；等待确认 → 工作中，但导航键（方向键、Tab、Shift+Tab、Home、End、PageUp、PageDown，含修饰键与应用光标模式的写法）不算 | 批准权限后没有事件；按键是渲染进程唯一能看到的「用户已处理」信号。导航键只移动确认框里的选择；鼠标上报在程序开启鼠标跟踪时滚轮 / 移动都会产生，不是作答 |
+
 ## 打包（electron-builder.yml）
 
 - 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。

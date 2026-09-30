@@ -52,6 +52,8 @@
 |---|---|---|
 | M17 项目星标 / 收藏（用户要求） | ✅ 完成（1.5.0） | schema v2（`starred` 列）+ 迁移；`projects.setStarred` IPC；侧栏「收藏 / 项目」分组（搜索时各自过滤排序）；行内星标按钮 + 右键菜单；列表 ↑↓ 跳过分组标题；dev + CDP 验证（迁移、持久化、分组、搜索、真实鼠标悬浮 / 点击） |
 | M18 分组折叠（用户要求） | ✅ 完成（1.5.0） | 设置 `collapsedGroups`（类型、默认值、解析与校验、IPC patch）；分组标题按钮（箭头、数量、aria-expanded、键盘）；折叠分组不渲染；搜索时临时展开；星标进入折叠分组时闪标题；dev + CDP 验证（真实鼠标、持久化、搜索、↑↓） |
+| M19 Codex 全部生命周期 hooks（用户要求） | ✅ 完成（未提交、未打包） | `CODEX_HOOK_EVENTS` 扩展到 12 个；压缩事件按 manual / auto 分组上报；SessionEnd / Interrupt `timeout=3`；状态机映射（Interrupt → 就绪、手动压缩结束 → 就绪、Subagent 只记日志）；真实 codex 验证（信任、工具调用、中断、/compact、退出） |
+| M20 等待确认时按键视为已处理（用户要求） | ✅ 完成（未提交、未打包） | 终端输入排除鼠标上报；`markInput`（导航键不算）；dev 验证（模拟 PermissionRequest + 各类按键；真实 codex 审批一轮） |
 
 ## 阻塞
 - 无。
