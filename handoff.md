@@ -1,4 +1,6 @@
 ## Completed
+- 1.7.0交付（2026-10-06）：代码与版本提交ef46ab4已推送origin/main；本来就在main且fetch后0/0，无需额外合并。npm run test:dashboard（6组）、build / build:win通过。安装包D:\agnent_manager_release\agentmanager-1.7.0-setup.exe（123709035字节），SHA256：8A9AA0CA2A10DD7EF4D7BE4B0DDFAFCDBA44B81228ECEFF2E211C10FE29BD1EF，与dist一致。旧1.3.2 / 1.4.0 / 1.5.0 / 1.6.0 / 1.6.1包保留。
+- 交付保护：只构建和静态检查asar，未启动打包版GUI或安装。当前AgentManager进程34384 / 34968 / 39588 / 43748及2026-10-06 09:16:14启动时间与交付前一致。
 - M21（2026-10-06）正式源码实现：右侧AI仪表板、会话名 / cwd / 权限 / 模型 / 档位 / Fast / Git、剩余上下文与额度、详情与收起偏好。Codex通过两个新增元数据handler精确绑定JSONL，Claude通过会话级statusLine / hooks。原有状态handler保留；Token/s已按用户最终决定取消，代码中无速率计算 / OTel配置。
 - 最终验证：6组关键测试、typecheck / build、隔离Electron内Codex / Claude假CLI完整链路通过；测试只用独立userData / CODEX_HOME / shim，未复制凭据或调用真实模型。测试进程30644 / 42692及其子树按精确PID清理，端口9224无监听。
 - 当前安装版AgentManager四个PID34384 / 34968 / 39588 / 43748、启动时间2026-10-06 09:16:14，开始与结束均一致；没有关闭、重启、安装升级、向当前终端输入，也没有改用户全局配置。
@@ -49,10 +51,10 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 用户已授权M21交付：版本升至1.7.0，提交 / 推送main并打包到D:\agnent_manager_release；安装不在本次范围。待交付验证后更新完成记录。
+- 无；1.7.0代码已提交 / 推送、安装包已交付。等待用户自行安排安装与真实CLI实测。
 
 ## Next Steps
-- 完成1.7.0提交 / 推送和打包，校验release安装包SHA256并更新交接。不要自动安装或关闭当前实例。新版第一次启动Codex需要信任新增两条元数据hooks；真实CLI长会话、/resume / /new和配置变化需要后续实测。Codex初次数据通常第一轮输入后到达；JSONL与SQLite格式变化时应显示缺数据并复查解析。
+- 用户自行选择安装1.7.0的时机。不要自动安装或关闭当前实例。新版第一次启动Codex需要信任新增两条元数据hooks；真实CLI长会话、/resume / /new和配置变化需要后续实测。Codex初次数据通常第一轮输入后到达；JSONL与SQLite格式变化时应显示缺数据并复查解析。
 - 用户安装 1.6.1（安装会结束正在运行的 AgentManager 及其终端，由用户选时机；包含 1.5.0 / 1.6.0 的全部内容）。请用户在真实场景（claude 长时间工作 + 微软拼音）里确认画面不再跳、候选窗是否还会跳；若候选窗仍明显乱跳，可考虑把 `OUTPUT_SETTLE_MS` 调大或组字期间固定位置（见 architecture.md）。
 - 1.6.0–1.6.1 的原有codex hooks已信任；M21新增两条元数据handler仍需要审查；codex 启动时的「Running without the shared background server」提示是 `-c` 注入的固有提示。
 - 首次启动 1.5.0 及以上会把项目数据库升级到 schema 2（日志「schema 升级到 2（星标）」），已有项目保留；之后若退回 1.4.0 也能打开。
@@ -94,6 +96,9 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 1.7.0：git fetch origin后HEAD...origin/main为0/0；版本提升、6组测试和build通过后提交ef46ab4，git push origin main成功。npm run build:win退出0，产出NSIS x64。
+- 包静态检查：app.asar版本1.7.0，main / preload包含dashboard:get与dashboard:update，main含thread_settings_applied、UTF-8元数据命令和readOnly名称查询；renderer含AI仪表板 / dashboard-wave / dashboardCollapsed / 当前目录，CSS含收起按钮具体选择器，HTML包含dashboard，native node-pty在asar.unpacked。无GenerationSpeed模块。Windows asar必须按listPackage返回的原生路径extractFile；首次脚本用斜杠路径失败，修正后全部校验通过。
+- Copy-Item后Get-FileHash确认dist与发布目录SHA256完全一致，见Completed。未启动或安装打包版（用户当前进程受保护）；真实CLI长会话仍待用户实测。
 - M21最终：`npm run test:dashboard` 6组通过（UTF-8半行 / 截断 / 超长行、白名单指标、原hooks保留与2条新增、真实PowerShell中文请求、隔离会话 / 标题只读 / 历史保护 / 未知权限 / cwd换仓清理、停止异步结果）；`npm run build`含node / web typecheck通过；`git diff --check`通过。
 - 隔离Electron（主PID先30644、后42692，userData见Changed Files）：Codex假CLI执行真正的PowerShell元数据命令，精确ID / 中文标题 / workspace≠cwd / fixture-agent分支 / 80%、85%、70%显示；Claude假CLI的hooks+statusLine经过实际HTTP / IPC，名称 / 接受编辑 / Fast / 72%、78%、55% / 费用显示。两个项目切换不串数据。
 - 收起后xterm宽度1080→1416，恢复1080；settings.get确认dashboardCollapsed持久化。860px视口默认隐藏，展开浮层 / 详情 / 关闭 / 焦点返回通过；未运行项目为空值且隐藏Git。
@@ -232,7 +237,8 @@
   4. 新界面（MD3 Expressive）整体观感、默认字体效果。
 
 ## Resume Context
-- 当前优先看M21条目、docs/spec.md与architecture.md：三栏已实现；Token/s取消；当前安装版不能动。没有待编码任务。先确认用户是否安排交付，再处理版本 / 提交 / 打包；不要从旧设计轮次重做。
+- 最新交付为1.7.0：源功能提交ef46ab4已推送main，安装包与SHA见Completed。当前运行版未替换；后续先收集用户安装后反馈。不要再按旧“待提交 / 待打包”条目执行重复交付。
+- 当前优先看M21条目、docs/spec.md与architecture.md：三栏已实现；Token/s取消；当前安装版不能动。没有待编码任务。1.7.0已交付，等待安装后反馈；不要从旧设计轮次重做。
 - 核心入口：agentDashboardStore.accept精确绑定→JSONL / 字段解析→IPC→Dashboard.render；codexHooks固定元数据命令；dashboardCollapsed设置。测试`npm run test:dashboard`。隔离实例已清理，只有忽略的测试数据留下。
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
 - 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；自测工具在 `.devtest/`（先 `node .devtest/seed.mjs` 建测试数据，userData 用 `--user-data-dir=<项目>/.devtest/ud`，关闭用 `.devtest/close-dev.ps1`）；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。

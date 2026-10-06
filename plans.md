@@ -60,7 +60,7 @@
 - ✅ 完成：用户确认右侧三栏；会话指标类型 / IPC、精确绑定、增量解析 / 只读名称、Git、Claude statusLine / Codex元数据handler、Dashboard组件与收起持久化。
 - ✅ 验证：6组关键测试、TypeScript与构建、隔离Electron的两助手模拟上报链路、项目切换、收起后PTY resize、小窗口与详情。
 - ✅ 用户取消Token/s，相关代码已移除；没有修改或升级当前安装版。
-- 1.7.0交付中：用户已授权提交到main、推送和打包到D:\agnent_manager_release；安装与真实CLI长会话验证仍由用户安排。
+- ✅ 1.7.0已交付：ef46ab4提交并推送main；NSIS安装包在D:\agnent_manager_release，SHA256与dist一致。旧包保留；安装与真实CLI长会话由用户安排。
 
 ## 阻塞
 - 无。

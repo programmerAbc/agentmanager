@@ -60,7 +60,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 - Claude 使用会话级 statusLine + hooks；Codex 使用元数据 hooks 精确绑定会话并增量读取日志。只有通过应用入口启动的助手能被跟踪。
 - 下次启动 Codex 会要求信任新增的两条元数据 hooks；原有状态 hooks 文本与下标保留。不修改全局配置。Codex 初次会话元数据通常在第一轮输入时到达。
 - 未提供数据时显示未就绪；无自定义名称时显示未命名会话；Token/s 已按用户要求取消。
-- 本次没有安装更新或操作正在运行的安装版。构建 / 隔离链路已验证，真实 CLI 长会话仍需安装新版后验证。
+- 1.7.0安装包：`D:\agnent_manager_release\agentmanager-1.7.0-setup.exe`。未自动安装或操作正在运行的安装版；构建 / 隔离链路与包静态检查通过，真实CLI长会话仍待安装后验证。
 
 ## 字体
 

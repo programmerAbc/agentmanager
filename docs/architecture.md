@@ -175,7 +175,7 @@ preload (src/preload/index.ts)
 - 三栏布局：项目列表 / 终端 / 332px右栏（较窄桌面300px）；≤1000px按需展开浮层。收起偏好`dashboardCollapsed`保存在settings.json；既有ResizeObserver完成终端fit和PTY resize。
 - Canvas静止波浪按剩余比例绘制，16px高 / 3px线宽 / 最大2.5px振幅；DPR与ResizeObserver适配，提供progressbar语义。详情使用原生dialog，缺字段显示未就绪，不填0。
 - Token/s按用户最后决定取消；没有启用OTel或速率采集。运行时依赖不变，esbuild显式列为开发依赖供测试runner使用（沿用已锁定0.25.12）。
-- 设计参考：docs/design/ai-dashboard.html为离线可交互原型；生产组件使用同一Material Symbols、主题角色和右侧布局。正式构建和隔离IPC验证完成，真实CLI长会话 / 安装包验证仍待后续。
+- 设计参考：docs/design/ai-dashboard.html为离线可交互原型；生产组件使用同一Material Symbols、主题角色和右侧布局。正式构建、隔离IPC和1.7.0包静态验证完成；未启动打包GUI，真实CLI长会话仍待安装后验证。
 - 来源：https://code.claude.com/docs/en/statusline 、https://learn.chatgpt.com/docs/hooks 。
 
 ## 打包（electron-builder.yml）
