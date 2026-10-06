@@ -1,4 +1,5 @@
 ## Completed
+- 用户最终决定（2026-10-06）：删除AI仪表板，恢复原来界面并继续使用CLI自身statusline；不再继续启动数据补齐或Token/s工作。相关源码恢复到59bcee9（1.6.1），新增模块 / DTO / IPC / 原型 / 专用测试已删除，版本拟交付1.7.1。
 - 1.7.0交付（2026-10-06）：代码与版本提交ef46ab4已推送origin/main；本来就在main且fetch后0/0，无需额外合并。npm run test:dashboard（6组）、build / build:win通过。安装包D:\agnent_manager_release\agentmanager-1.7.0-setup.exe（123709035字节），SHA256：8A9AA0CA2A10DD7EF4D7BE4B0DDFAFCDBA44B81228ECEFF2E211C10FE29BD1EF，与dist一致。旧1.3.2 / 1.4.0 / 1.5.0 / 1.6.0 / 1.6.1包保留。
 - 交付保护：只构建和静态检查asar，未启动打包版GUI或安装。当前AgentManager进程34384 / 34968 / 39588 / 43748及2026-10-06 09:16:14启动时间与交付前一致。
 - M21（2026-10-06）正式源码实现：右侧AI仪表板、会话名 / cwd / 权限 / 模型 / 档位 / Fast / Git、剩余上下文与额度、详情与收起偏好。Codex通过两个新增元数据handler精确绑定JSONL，Claude通过会话级statusLine / hooks。原有状态handler保留；Token/s已按用户最终决定取消，代码中无速率计算 / OTel配置。
@@ -51,9 +52,10 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 无；1.7.0代码已提交 / 推送、安装包已交付。等待用户自行安排安装与真实CLI实测。
+- 1.7.1恢复版交付中：验证源码与1.6.1一致、构建、提交推送与打包。当前安装版进程3384 / 4776 / 15660 / 17356（11:14:23启动）不得操作。
 
 ## Next Steps
+- 优先完成1.7.1恢复版交付，不要按下面旧1.7.0条目继续开发仪表板。
 - 用户自行选择安装1.7.0的时机。不要自动安装或关闭当前实例。新版第一次启动Codex需要信任新增两条元数据hooks；真实CLI长会话、/resume / /new和配置变化需要后续实测。Codex初次数据通常第一轮输入后到达；JSONL与SQLite格式变化时应显示缺数据并复查解析。
 - 用户安装 1.6.1（安装会结束正在运行的 AgentManager 及其终端，由用户选时机；包含 1.5.0 / 1.6.0 的全部内容）。请用户在真实场景（claude 长时间工作 + 微软拼音）里确认画面不再跳、候选窗是否还会跳；若候选窗仍明显乱跳，可考虑把 `OUTPUT_SETTLE_MS` 调大或组字期间固定位置（见 architecture.md）。
 - 1.6.0–1.6.1 的原有codex hooks已信任；M21新增两条元数据handler仍需要审查；codex 启动时的「Running without the shared background server」提示是 `-c` 注入的固有提示。
@@ -74,6 +76,7 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- 恢复版：src中1.7.0修改文件逐一恢复59bcee9；删除agentDashboardStore / codexHooks / dashboardData / jsonlTail / renderer/dashboard、专用tests与runner、HTML原型与design-qa。package / lock使用1.6.1依赖配置，版本1.7.1；README与五份知识文档反映撤销决定。
 - M21生产：src/main/{agentDashboardStore,codexHooks,dashboardData,jsonlTail}.ts（新）、hookServer.ts、index.ts、ipc.ts、settingsStore.ts；src/shared/types.ts、src/preload/index.ts；src/renderer/dashboard.ts（新）、main.ts、index.html、icons.ts、styles.css。
 - M21验证与文档：tests/dashboard.test.ts、scripts/test-dashboard.mjs（新）；package.json / package-lock.json（测试script与显式esbuild开发依赖）；README.md、五份知识文档、design-qa.md / docs/design/ai-dashboard.html。
 - 隔离测试（不提交）：.devtest/dashboard-live-1791253830024（userData、Git fixture、假CLI / CODEX_HOME，无凭据）、dashboard-live-setup.mjs / dashboard-live-check.mjs、dashboard-production-*.png。
@@ -237,6 +240,7 @@
   4. 新界面（MD3 Expressive）整体观感、默认字体效果。
 
 ## Resume Context
+- 最新决定为撤销仪表板、交付1.7.1原界面恢复版。下列1.7.0开发 / 发布记录只作历史，不再代表当前目标。当前运行进程不得动；安装由用户自行安排。
 - 最新交付为1.7.0：源功能提交ef46ab4已推送main，安装包与SHA见Completed。当前运行版未替换；后续先收集用户安装后反馈。不要再按旧“待提交 / 待打包”条目执行重复交付。
 - 当前优先看M21条目、docs/spec.md与architecture.md：三栏已实现；Token/s取消；当前安装版不能动。没有待编码任务。1.7.0已交付，等待安装后反馈；不要从旧设计轮次重做。
 - 核心入口：agentDashboardStore.accept精确绑定→JSONL / 字段解析→IPC→Dashboard.render；codexHooks固定元数据命令；dashboardCollapsed设置。测试`npm run test:dashboard`。隔离实例已清理，只有忽略的测试数据留下。

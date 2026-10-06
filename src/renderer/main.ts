@@ -6,14 +6,12 @@ import {
   DEFAULT_CODEX_COMMAND,
   FONT_SIZE,
   type AgentKind,
-  type AgentDashboard,
   type AppSettings,
   type Project,
   type SettingsPatch
 } from '../shared/types'
-import { AgentStatusTracker } from './agentStatus'
-import { Dashboard } from './dashboard'
-import { confirmDialog, button } from './dialog'
+import { ALL_STATUSES, AgentStatusTracker, statusIndicator, statusText } from './agentStatus'
+import { confirmDialog, iconButton, button } from './dialog'
 import { ensureFontLoaded, fontStack } from './fonts'
 import { icon, type IconName } from './icons'
 import { openAboutDialog, openSettingsDialog, row, sectionEl } from './settingsDialog'
@@ -37,9 +35,14 @@ class App {
   private readonly emptyState: HTMLElement
   /** 选中了项目但终端还没启动时显示（启动时恢复上次选中的项目，不自动启动 PTY） */
   private readonly idlePanel: HTMLElement
-  private readonly dashboard: Dashboard
-  private readonly dashboardValues = new Map<string, AgentDashboard>()
-  private readonly dashboardRevisions = new Map<string, number>()
+  private readonly topbar: {
+    title: HTMLElement
+    subtitle: HTMLElement
+    status: HTMLElement
+    launch: Record<AgentKind, HTMLButtonElement>
+    end: HTMLButtonElement
+    actions: HTMLElement
+  }
   private readonly agents: AgentStatusTracker
   private pendingPatch: SettingsPatch = {}
   private saveTimer: number | undefined
@@ -69,15 +72,7 @@ class App {
     })
     host.append(this.emptyState, this.idlePanel)
 
-    this.dashboard = new Dashboard(mustGet('dashboard'), settings.dashboardCollapsed,
-      collapsed => this.changeSettings({ dashboardCollapsed: collapsed }))
-    this.buildTopbar(mustGet('topbar'))
-    api.dashboard.onUpdate((id, value) => {
-      this.dashboardRevisions.set(id, (this.dashboardRevisions.get(id) ?? 0) + 1)
-      if (value) this.dashboardValues.set(id, value)
-      else this.dashboardValues.delete(id)
-      if (id === this.selectedId) this.render()
-    })
+    this.topbar = this.buildTopbar(mustGet('topbar'))
 
     this.agents = new AgentStatusTracker((id, state) => {
       this.sidebar.setAgentState(id, state)
@@ -144,7 +139,7 @@ class App {
         } else if (isSearchShortcut(e)) {
           e.preventDefault()
           // 对话框打开时不把焦点移到它后面的侧栏
-          if (!document.querySelector('.dialog-scrim, dialog[open]')) this.sidebar.focusSearch()
+          if (!document.querySelector('.dialog-scrim')) this.sidebar.focusSearch()
         }
       },
       true
@@ -176,13 +171,6 @@ class App {
     if (changed) {
       this.changeSettings({ lastProjectId: id })
       if (id) {
-        const revision = this.dashboardRevisions.get(id) ?? 0
-        void api.dashboard.get(id).then(value => {
-          if ((this.dashboardRevisions.get(id) ?? 0) !== revision) return
-          if (value) this.dashboardValues.set(id, value)
-          else this.dashboardValues.delete(id)
-          if (id === this.selectedId) this.render()
-        }).catch(() => undefined)
         void api.projects.touch(id)
         this.agents.markSeen(id)
       }
@@ -293,7 +281,6 @@ class App {
 
     if (patch.themeSeed !== undefined && patch.themeSeed !== prev.themeSeed) {
       this.terminals.setAppearance(applyTheme(s.themeSeed))
-      this.dashboard.refreshTheme()
     }
     if (patch.fontFamily !== undefined && patch.fontFamily !== prev.fontFamily) {
       void ensureFontLoaded(s.fontFamily, s.fontSize).then(() =>
@@ -406,20 +393,80 @@ class App {
 
   // ---------------- 渲染 ----------------
 
-  private buildTopbar(root: HTMLElement): void {
-    const heading = document.createElement('div')
-    heading.className = 'terminal-heading'
-    heading.append(icon('terminal'), document.createTextNode('项目终端'))
-    root.append(heading, this.dashboard.toggleButton)
+  private buildTopbar(root: HTMLElement): App['topbar'] {
+    const titles = document.createElement('div')
+    titles.className = 'topbar-titles'
+    const title = document.createElement('div')
+    title.className = 'topbar-title'
+    const subtitle = document.createElement('div')
+    subtitle.className = 'topbar-subtitle'
+    titles.append(title, subtitle)
+
+    const status = document.createElement('div')
+    status.className = 'status-chip'
+
+    const launchButton = (agent: AgentKind, variant: 'filled' | 'tonal'): HTMLButtonElement => {
+      const name = AGENT_LABEL[agent]
+      const btn = button(`启动 ${name}`, variant, AGENT_ICON[agent])
+      btn.classList.add('launch-agent')
+      btn.title = `在当前项目的终端里运行设置中的 ${name} 启动命令`
+      btn.addEventListener('click', () => {
+        if (this.selectedId) void this.launchAgent(this.selectedId, agent)
+      })
+      return btn
+    }
+    const launch = { claude: launchButton('claude', 'filled'), codex: launchButton('codex', 'tonal') }
+
+    const end = iconButton('stopCircle', '结束终端', () => {
+      if (this.selectedId) this.endTerminal(this.selectedId)
+    })
+
+    const actions = document.createElement('div')
+    actions.className = 'topbar-actions'
+    actions.append(
+      status,
+      launch.claude,
+      launch.codex,
+      end,
+      iconButton('folderOpen', '在资源管理器中打开', () => {
+        if (this.selectedId) void this.openInExplorer(this.selectedId)
+      })
+    )
+    root.append(titles, actions)
+    return { title, subtitle, status, launch, end, actions }
+  }
+
+  private renderAgentStatus(project: Project | null): void {
+    const state = project ? this.agents.get(project.id) : null
+    const status = state?.status ?? 'none'
+    const chip = this.topbar.status
+    chip.hidden = state === null
+    for (const s of ALL_STATUSES) chip.classList.toggle(`agent-${s}`, s === status)
+    const key = state ? `${state.agent}:${state.status}` : 'none'
+    if (state && chip.dataset.state !== key) {
+      const text = document.createElement('span')
+      text.textContent = statusText(state)
+      chip.replaceChildren(statusIndicator(status), text)
+    }
+    chip.dataset.state = key
+
+    // 同一终端同时只跟踪一个助手：有助手在运行时隐藏两个启动按钮，只留状态标签（用户反馈：禁用的按钮多余）
+    for (const agent of ['claude', 'codex'] as const) this.topbar.launch[agent].hidden = state !== null
   }
 
   private render(): void {
     const project = this.projects.find((p) => p.id === this.selectedId) ?? null
     document.title = project ? `AgentManager — ${project.name}` : 'AgentManager'
 
-    this.dashboard.render(project, project ? this.dashboardValues.get(project.id) ?? null : null)
+    this.topbar.title.textContent = project ? project.name : 'AgentManager'
+    this.topbar.subtitle.textContent = project ? project.path : '项目终端管理器'
+    this.topbar.subtitle.title = project?.path ?? ''
+    this.topbar.actions.hidden = project === null
+    this.renderAgentStatus(project)
 
     const terminalShown = project !== null && this.terminals.has(project.id)
+    // 没有终端时没有可结束的
+    this.topbar.end.hidden = !terminalShown
     this.emptyState.hidden = project !== null
     this.idlePanel.hidden = project === null || terminalShown
 

@@ -41,7 +41,6 @@ export interface AppSettings {
   codexCommand: string
   /** 折叠起来的侧栏分组 */
   collapsedGroups: SidebarGroup[]
-  dashboardCollapsed: boolean
   lastProjectId: string | null
   window: WindowState | null
 }
@@ -143,9 +142,7 @@ export const IPC = {
   appInfo: 'app:info',
   appOpenDir: 'app:open-dir',
   agentLaunch: 'agent:launch',
-  agentEvent: 'agent:event',
-  dashboardGet: 'dashboard:get',
-  dashboardUpdate: 'dashboard:update'
+  agentEvent: 'agent:event'
 } as const
 
 /** 可以从按钮启动、并跟踪工作状态的 AI 助手 */
@@ -204,31 +201,6 @@ export interface AgentEvent {
   notificationType?: string
   /** 仅 codex 的 PreCompact / PostCompact：manual（/compact）或 auto（自动压缩） */
   trigger?: 'manual' | 'auto'
-}
-
-/** 仅白名单指标，不包含对话 / 工具输出。null 表示来源没有提供。 */
-export interface AgentDashboard {
-  agent: AgentKind
-  sessionId: string | null
-  title: string | null
-  cwd: string | null
-  model: string | null
-  effort: string | null
-  fast: boolean | null
-  permission: string | null
-  permissionDetail: string | null
-  context: { remainingPercent: number; usedTokens: number | null; windowTokens: number | null } | null
-  limits: { primary: AgentLimit | null; secondary: AgentLimit | null }
-  cost: number | null
-  git: { root: string; branch: string; detached: boolean } | null
-  updatedAt: number | null
-  usageUpdatedAt: number | null
-}
-
-export interface AgentLimit {
-  usedPercent: number
-  windowMinutes: number
-  resetsAt: number | null
 }
 
 /**
@@ -290,9 +262,5 @@ export interface Api {
     /** 在该会话的终端里执行设置中的助手启动命令（并注入 AgentManager 的 hooks 以跟踪状态） */
     launch(sessionId: string, agent: AgentKind): Promise<OpResult>
     onEvent(cb: (sessionId: string, event: AgentEvent) => void): () => void
-  }
-  dashboard: {
-    get(sessionId: string): Promise<AgentDashboard | null>
-    onUpdate(cb: (sessionId: string, value: AgentDashboard | null) => void): () => void
   }
 }

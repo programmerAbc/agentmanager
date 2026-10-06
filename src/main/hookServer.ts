@@ -10,13 +10,39 @@ import {
   type AgentHookEvent
 } from '../shared/types'
 import log from './log'
-import { CODEX_HOOKS_TOML } from './codexHooks'
 import type { ShellFamily } from './shells'
 
 const MAX_BODY_BYTES = 64 * 1024
 const HOOK_TIMEOUT_SECONDS = 5
 /** /hook/<token>/<sessionId>/<Event>（claude）或 /hook/<token>/<sessionId>/codex（codex，事件名在请求体里） */
 const URL_PATTERN = /^\/hook\/([0-9a-f]{32})\/([A-Za-z0-9-]{1,64})\/([A-Za-z]+)$/
+
+/**
+ * codex 的 hook 命令，上报 marker（事件名，压缩事件为「事件:触发方式」）。codex 在 Windows 上用 PowerShell 执行 hook（实测）。
+ * 文本必须固定：codex 对新增 / 变化的 hook 会要求用户重新信任，所以端口、token、会话 id
+ * 都通过终端环境变量 AGENT_DESK_HOOK_URL 传入；不含引号和空格；先读完 stdin 再上报（不转发 stdin：
+ * PostToolUse 的 tool_response 可能很大，且 Windows PowerShell 管道给原生程序会破坏非 ASCII 字符）。
+ */
+const codexHookCommand = (marker: string): string =>
+  `$null = @($input); curl.exe -s -m 2 -d ${marker} $env:AGENT_DESK_HOOK_URL`
+
+/** 这两个事件同步执行，codex 默认只等 1 秒（上限 3 秒），PowerShell 冷启动 + curl 可能不够 */
+const SYNC_CODEX_EVENTS: readonly AgentHookEvent[] = ['SessionEnd', 'Interrupt']
+/** 压缩事件按触发方式分组（matcher）上报：手动 /compact 结束后没有 Stop，要据此回到就绪 */
+const COMPACT_CODEX_EVENTS: readonly AgentHookEvent[] = ['PreCompact', 'PostCompact']
+const COMPACT_TRIGGERS = ['manual', 'auto'] as const
+
+const codexHook = (event: AgentHookEvent, marker: string): string =>
+  `{type='command',command='${codexHookCommand(marker)}'${SYNC_CODEX_EVENTS.includes(event) ? ',timeout=3' : ''}}`
+
+/** 一个事件的分组；原有 5 个事件生成的内容与 M10 逐字相同（保持已信任） */
+const codexHookGroups = (event: AgentHookEvent): string =>
+  COMPACT_CODEX_EVENTS.includes(event)
+    ? COMPACT_TRIGGERS.map((t) => `{matcher='${t}',hooks=[${codexHook(event, `${event}:${t}`)}]}`).join(',')
+    : `{hooks=[${codexHook(event, event)}]}`
+
+/** 通过 `codex -c $env:AGENT_DESK_CODEX_HOOKS` 注入的配置（TOML，字符串用单引号字面量） */
+const CODEX_HOOKS_TOML = `hooks={${CODEX_HOOK_EVENTS.map((event) => `${event}=[${codexHookGroups(event)}]`).join(',')}}`
 
 /**
  * 接收 claude / codex hooks 上报的本地 HTTP 服务（只监听 127.0.0.1，随机端口 + 随机 token）。
@@ -34,8 +60,7 @@ export class AgentHookServer {
 
   constructor(
     private readonly dir: string,
-    private readonly onEvent: (sessionId: string, event: AgentEvent) => void,
-    private readonly onTelemetry: (sessionId: string, agent: 'claude' | 'codex', source: 'metadata' | 'statusline', value: unknown) => void = () => {}
+    private readonly onEvent: (sessionId: string, event: AgentEvent) => void
   ) {}
 
   async start(): Promise<void> {
@@ -89,11 +114,7 @@ export class AgentHookServer {
     }
     await fs.mkdir(this.dir, { recursive: true })
     const file = path.join(this.dir, `${sessionId}.json`)
-    const statusLine = {
-      type: 'command',
-      command: `curl.exe -s -m 2 -X POST --data-binary "@-" http://127.0.0.1:${this.port}/hook/${this.token}/${sessionId}/StatusLine`
-    }
-    await fs.writeFile(file, JSON.stringify({ hooks, statusLine }, null, 2), 'utf8')
+    await fs.writeFile(file, JSON.stringify({ hooks }, null, 2), 'utf8')
     return file
   }
 
@@ -134,17 +155,6 @@ export class AgentHookServer {
         if (req.method !== 'POST' || !m || !this.tokenMatches(m[1])) return
         const sessionId = m[2]
         const body = size <= MAX_BODY_BYTES ? Buffer.concat(chunks).toString('utf8') : ''
-        if (m[3] === 'StatusLine') {
-          this.onTelemetry(sessionId, 'claude', 'statusline', JSON.parse(body))
-          return
-        }
-        if (m[3] === 'codex' && body.trimStart().startsWith('{')) {
-          this.onTelemetry(sessionId, 'codex', 'metadata', JSON.parse(body))
-          return
-        }
-        if (m[3] !== 'codex' && body) {
-          this.onTelemetry(sessionId, 'claude', 'metadata', { ...JSON.parse(body), hook_event_name: m[3] })
-        }
         const event = m[3] === 'codex' ? codexEvent(body) : claudeEvent(m[3], body)
         if (!event) return
         const detail = event.notificationType ?? event.trigger

@@ -1,5 +1,15 @@
 # Lessons
 
+## Lesson: 生命周期hooks不等于启动时的数据接口
+### Problem
+仪表板在Codex启动后、未实际对话时没有数据，体验落后于CLI自己的statusline；用户最终决定撤销仪表板。
+### Root Cause
+元数据绑定依赖第一轮hook事件，CLI内部配置 / 额度在此前已经可用于原生statusline。模拟CLI在启动时立即上报，未覆盖真实零对话时机。
+### Solution
+按用户决定恢复1.6.1界面和hooks，移除仪表板采集及statusLine覆盖，交付1.7.1恢复版。
+### Prevention
+迁移CLI原生UI数据前先验证无对话启动、resume与会话切换的数据可用性；模拟事件时机不能代替真实CLI启动验收。
+
 ## Lesson: 历史日志不能覆盖实时会话元数据
 ### Problem
 首次读取日志尾部会重放旧轮次，可能把当前模型或cwd改回之前的值；cwd变化时若保留旧Git缓存，也会短暂显示错误分支。

@@ -1,14 +1,13 @@
 {
   "name": "agentmanager",
   "productName": "AgentManager",
-  "version": "1.7.0",
-  "description": "项目终端管理器：保活终端与 AI 会话仪表板",
+  "version": "1.7.1",
+  "description": "项目终端管理器：左侧项目列表，右侧每个项目一个保活的嵌入式终端",
   "author": "consul",
   "license": "UNLICENSED",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
-    "test:dashboard": "node scripts/test-dashboard.mjs",
     "postinstall": "node scripts/postinstall.mjs",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
@@ -36,7 +35,6 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.6",
-    "esbuild": "^0.25.12"
+    "vite": "^7.3.6"
   }
 }
