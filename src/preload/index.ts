@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type AgentEvent, type Api } from '../shared/types'
+import { IPC, type AgentEvent, type AgentDashboard, type Api } from '../shared/types'
 
 // 沙箱 preload：只能用 electron 的少数模块，其余能力全部经 IPC 由主进程提供
 
@@ -62,6 +62,10 @@ const api: Api = {
   agents: {
     launch: (sessionId, agent) => ipcRenderer.invoke(IPC.agentLaunch, sessionId, agent),
     onEvent: (cb) => subscribe<[string, AgentEvent]>(IPC.agentEvent, cb)
+  },
+  dashboard: {
+    get: (id) => ipcRenderer.invoke(IPC.dashboardGet, id),
+    onUpdate: (cb) => subscribe<[string, AgentDashboard | null]>(IPC.dashboardUpdate, cb)
   }
 }
 

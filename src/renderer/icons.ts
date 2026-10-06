@@ -24,8 +24,14 @@ import check from '@material-symbols/svg-400/rounded/check.svg?raw'
 import contentCopy from '@material-symbols/svg-400/rounded/content_copy.svg?raw'
 import contentPaste from '@material-symbols/svg-400/rounded/content_paste.svg?raw'
 import expandMore from '@material-symbols/svg-400/rounded/arrow_drop_down.svg?raw'
+import dockToRight from '@material-symbols/svg-400/rounded/dock_to_right.svg?raw'
+import accountTree from '@material-symbols/svg-400/rounded/account_tree.svg?raw'
+import verifiedUser from '@material-symbols/svg-400/rounded/verified_user.svg?raw'
 
 const ICONS = {
+  dockToRight,
+  accountTree,
+  verifiedUser,
   add,
   check,
   checkCircleFill,

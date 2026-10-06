@@ -162,6 +162,22 @@ preload (src/preload/index.ts)
 | 私有 API 找不到（xterm 升级改了内部结构）时不包装，保持 xterm 默认行为，并在控制台警告 | CSS 的 `overflow: clip` 仍然保证不横移；升级 xterm 时按 lessons.md 复查 |
 | 开发期调试快照 `debugSnapshot().ime`：包装是否生效、距最近输出的毫秒数、光标位置 | 自测时判断组字定位时机（`.devtest/frame-cursor.mjs` 每帧读取） |
 
+## AI Dashboard（M21，1.7.0）
+
+- `agentDashboardStore.ts`按PTY id持有当前Agent会话指标，`dashboardData.ts`只解析白名单字段，`jsonlTail.ts`负责有界UTF-8增量读取，`codexHooks.ts`集中固定hook命令。
+- launch建立空记录；元数据给出精确session_id / transcript_path / cwd。按会话id校验文件，不用项目目录或最新日志猜绑定。换会话替换记录，停止 / 移除 / 退出 / renderer重载清理，异步旧结果不能写回。
+- Codex原有状态handler文本和下标不变，SessionStart / UserPromptSubmit各追加一个元数据handler；stdin先按UTF-8解析再以UTF-8 HTTP体发送少量字段，不传工具输出。新增两条需要用户下次启动信任一次。
+- Claude会话级`--settings`增加statusLine，把JSON上传到当前实例的127.0.0.1随机端口；已有hooks提供cwd / permission_mode。响应204无正文。不改全局配置，Codex底部statusline保留；Claude此会话statusLine改由仪表板展示。
+- Codex精确绑定的JSONL提供token_count、turn_context与thread_settings_applied；后者支持会话中模型 / Fast / 权限 / cwd更新。按时间保护实时元数据，历史重放不能覆盖当前模型 / cwd；未知新权限不保留旧“完全访问”。
+- 轮询1秒，初始读取日志末4MB，单轮最多2MB，单行1MB；保存字节半行、识别截断 / 文件替换并重置游标。每轮校验session_meta.id。会话名称每4秒查session_index，必要时只读SQLite threads.title；无可用名称显示未命名。
+- Git按Agent cwd执行只读rev-parse / symbolic-ref，2秒超时、5秒刷新；cwd改变立即清掉旧分支并重查。非Git隐藏分支，detached显示短提交。不以Project.path兜底。
+- 共享`AgentDashboard`与dashboard:get / dashboard:update经preload传到独立`renderer/dashboard.ts`。Project名称 / workspace与Agent目录 / 名称 / 权限独立；不向renderer发送对话。
+- 三栏布局：项目列表 / 终端 / 332px右栏（较窄桌面300px）；≤1000px按需展开浮层。收起偏好`dashboardCollapsed`保存在settings.json；既有ResizeObserver完成终端fit和PTY resize。
+- Canvas静止波浪按剩余比例绘制，16px高 / 3px线宽 / 最大2.5px振幅；DPR与ResizeObserver适配，提供progressbar语义。详情使用原生dialog，缺字段显示未就绪，不填0。
+- Token/s按用户最后决定取消；没有启用OTel或速率采集。运行时依赖不变，esbuild显式列为开发依赖供测试runner使用（沿用已锁定0.25.12）。
+- 设计参考：docs/design/ai-dashboard.html为离线可交互原型；生产组件使用同一Material Symbols、主题角色和右侧布局。正式构建和隔离IPC验证完成，真实CLI长会话 / 安装包验证仍待后续。
+- 来源：https://code.claude.com/docs/en/statusline 、https://learn.chatgpt.com/docs/hooks 。
+
 ## 打包（electron-builder.yml）
 
 - 目标：NSIS x64，`oneClick: false`、`perMachine: false`、允许修改安装目录。
@@ -178,7 +194,7 @@ preload (src/preload/index.ts)
   - 打开时执行 `PRAGMA quick_check`；打开失败或检查不通过 → 把 `.db` / `-wal` / `-shm` 改名为 `*.bak-YYYYMMDD-HHmmss` → 新建空库；连备份都失败时用内存数据库保证能启动。
   - 所有写操作同步执行，返回时已落盘；退出时 `close()` 合并 WAL。
   - 选择 `node:sqlite` 而非 better-sqlite3：零新增依赖，不需要再编译 / 打包一个原生模块（已验证打包版可用）。
-- **设置**：`userData/settings.json`：`{version:1, sidebarWidth, fontSize, fontFamily, lineHeight, cursorStyle, shell, themeSeed, claudeCommand, codexCommand, collapsedGroups, lastProjectId, window}`。写入：`<file>.tmp-<pid>-<ts>` → fsync → rename（EPERM/EBUSY/EACCES 时退避重试 5 次），同一文件的写入串行；顶层结构损坏时备份为 `.bak-<时间戳>`。
+- **设置**：`userData/settings.json`：`{version:1, sidebarWidth, fontSize, fontFamily, lineHeight, cursorStyle, shell, themeSeed, claudeCommand, codexCommand, collapsedGroups, dashboardCollapsed, lastProjectId, window}`。写入：`<file>.tmp-<pid>-<ts>` → fsync → rename（EPERM/EBUSY/EACCES 时退避重试 5 次），同一文件的写入串行；顶层结构损坏时备份为 `.bak-<时间戳>`。
 
 ## 依赖
 

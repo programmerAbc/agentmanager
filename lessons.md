@@ -1,5 +1,55 @@
 # Lessons
 
+## Lesson: 历史日志不能覆盖实时会话元数据
+### Problem
+首次读取日志尾部会重放旧轮次，可能把当前模型或cwd改回之前的值；cwd变化时若保留旧Git缓存，也会短暂显示错误分支。
+### Root Cause
+日志与hook来自不同时间点，缓存刷新周期独立；按接收顺序覆盖不足以表示真实先后。
+### Solution
+记录实时元数据时间；旧turn_context / thread_settings不覆盖更晚的模型 / cwd；cwd变化立即清掉Git并重查。未知新权限清空旧完全访问标签。
+### Prevention
+测试历史重放、未知权限、跨目录与非Git目录，以及停止后迟到异步结果。
+
+## Lesson: Flex 行改列时重新检查主轴尺寸
+### Problem
+Dashboard 从顶部移到右栏后，原型的指标与项目卡片出现大块空白。
+### Root Cause
+原来的flex-basis表示横向宽度，改为flex-direction:column后变成高度；旧交叉轴对齐也让文字居中。
+### Solution
+右栏子卡片显式flex:none并恢复align-items:stretch，根据内容计算高度。
+### Prevention
+改变Flex方向时同步检查flex-basis、grow / shrink、align-items及尺寸约束，用浏览器实测卡片高度。
+
+## Lesson: 信息齐全不代表顶部编排成立
+### Problem
+Dashboard 项目区无背景、会话区卡片偏高、指标卡片偏矮，用户指出整排高低不齐。
+### Root Cause
+按字段逐块加卡片，没有给整条信息区建立共同高度和文字基线，QA只检查了不溢出。
+### Solution
+统一surface，三段共享72px内容高度与三行24px基线；窄窗口按完整信息组换行。
+### Prevention
+同时检查整排轮廓、主次层级、共同基线与留白分配，不能仅以字段完整和无溢出判断视觉通过。
+
+## Lesson: 项目工作区不是 Agent 会话工作目录
+### Problem
+Dashboard 容易把项目标题旁的workspace当作Agent实际cwd，并据此显示错误分支或会话信息。
+### Root Cause
+项目记录是启动入口，Agent会话另有名称、cwd、权限，可能运行在项目子目录或另一个仓库。
+### Solution
+分开Project与AgentSession；按绑定会话的cwd查询Git工作树与分支，缺数据显示未就绪。
+### Prevention
+用workspace与cwd不同、跨仓库、非Git目录、切换项目后数据未到的场景验证；不能用项目数据静默填充Agent字段。
+
+## Lesson: 紧凑侧栏不要把图标容器一并隐藏
+### Problem
+Dashboard HTML 原型在小窗口里隐藏文字后，品牌 / 添加 / 设置图标也消失。
+### Root Cause
+`.brand span` 等选择器同时匹配文字 span 与图标 `.icon` 容器。
+### Solution
+只隐藏 `> span:not(.icon)`，在 Chrome 600px 视口重新截图确认图标可见。
+### Prevention
+响应式隐藏标签时区分图标和文字容器；同时检查窄窗口功能入口。
+
 ## Lesson: node-pty 源码编译需要 Spectre 缓解库
 ### Problem
 `electron-rebuild` 编译 node-pty 报 `MSB8040: 此项目需要缓解了 Spectre 漏洞的库`。

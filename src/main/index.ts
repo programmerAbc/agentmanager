@@ -8,6 +8,7 @@ import { ProjectStore } from './projectStore'
 import { PtyManager } from './ptyManager'
 import { SettingsStore } from './settingsStore'
 import { logDetectedShells } from './shells'
+import { AgentDashboardStore } from './agentDashboardStore'
 
 const QUIT_CLEANUP_TIMEOUT_MS = 2000
 const DEFAULT_SIZE = { width: 1280, height: 800 }
@@ -20,12 +21,15 @@ let cleanedUp = false
 const userData = app.getPath('userData')
 const projects = new ProjectStore(path.join(userData, 'agentmanager.db'))
 const settings = new SettingsStore(path.join(userData, 'settings.json'))
+const dashboard = new AgentDashboardStore((id, value) => sendToRenderer(IPC.dashboardUpdate, id, value))
 const ptys = new PtyManager(
   (sessionId, data) => sendToRenderer(IPC.ptyData, sessionId, data),
-  (sessionId, exitCode) => sendToRenderer(IPC.ptyExit, sessionId, exitCode)
+  (sessionId, exitCode) => { dashboard.clear(sessionId); sendToRenderer(IPC.ptyExit, sessionId, exitCode) }
 )
-const hooks = new AgentHookServer(path.join(userData, 'agent-hooks'), (sessionId, event) =>
+const hooks = new AgentHookServer(path.join(userData, 'agent-hooks'), (sessionId, event) => {
+  if (event.name === 'SessionEnd') dashboard.clear(sessionId)
   sendToRenderer(IPC.agentEvent, sessionId, event)
+}, (id, agent, source, value) => dashboard.accept(id, agent, source, value)
 )
 
 function sendToRenderer(channel: string, ...args: unknown[]): void {
@@ -68,11 +72,13 @@ function createWindow(): BrowserWindow {
   // 不用 did-start-navigation：它在导航可能被取消之前就触发。
   win.webContents.on('did-navigate', () => {
     if (ptys.size > 0) {
+      dashboard.clearAll()
       log.info('[app] 渲染进程重新加载，清理全部 PTY')
       void ptys.killAll(QUIT_CLEANUP_TIMEOUT_MS)
     }
   })
   win.webContents.on('render-process-gone', (_e, details) => {
+    dashboard.clearAll()
     log.error(`[app] 渲染进程退出 reason=${details.reason}`)
     void ptys.killAll(QUIT_CLEANUP_TIMEOUT_MS)
   })
@@ -190,6 +196,7 @@ function main(): void {
       .finally(() => {
         cleanedUp = true
         hooks.stop()
+        dashboard.stop()
         projects.close()
         log.info(`[app] 退出清理完成 用时 ${Date.now() - started}ms`)
         app.quit()
@@ -207,7 +214,8 @@ function main(): void {
       await Promise.all([projects.load(), settings.load()])
       // 状态服务启动失败不影响终端功能，只是没有助手状态
       await hooks.start().catch((err: unknown) => log.error('[agents] hooks 服务启动失败', err))
-      registerIpc({ projects, settings, ptys, hooks })
+      dashboard.start()
+      registerIpc({ projects, settings, ptys, hooks, dashboard })
       logDetectedShells()
       mainWindow = createWindow()
     })

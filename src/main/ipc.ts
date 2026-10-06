@@ -17,6 +17,7 @@ import {
   type SidebarGroup
 } from '../shared/types'
 import type { AgentHookServer } from './hookServer'
+import type { AgentDashboardStore } from './agentDashboardStore'
 import { openLink, openLocalPath, resolveLocalPaths } from './links'
 import log from './log'
 import { detectShells, type ShellFamily } from './shells'
@@ -29,6 +30,7 @@ export interface IpcDeps {
   settings: SettingsStore
   ptys: PtyManager
   hooks: AgentHookServer
+  dashboard: AgentDashboardStore
 }
 
 /** 目前一个项目一个会话，sessionId 就是 projectId。以后支持多会话时只需要改这里。 */
@@ -36,7 +38,7 @@ function projectIdOfSession(sessionId: string): string {
   return sessionId
 }
 
-export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void {
+export function registerIpc({ projects, settings, ptys, hooks, dashboard }: IpcDeps): void {
   // ---------- projects ----------
   ipcMain.handle(IPC.projectsList, (): Project[] => projects.list())
 
@@ -60,6 +62,7 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
   ipcMain.handle(IPC.projectsRemove, (_e, id: unknown) =>
     guard('移除项目', async () => {
       const projectId = asString(id)
+      dashboard.clear(projectId)
       // 当前 sessionId === projectId；有多会话后这里要杀掉该项目的所有会话
       await ptys.kill(projectId)
       await projects.remove(projectId)
@@ -118,7 +121,9 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
 
   ipcMain.handle(IPC.ptyKill, (_e, id: unknown) =>
     guard('结束终端', async () => {
-      await ptys.kill(asString(id))
+      const sessionId = asString(id)
+      dashboard.clear(sessionId)
+      await ptys.kill(sessionId)
     })
   )
 
@@ -181,10 +186,13 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
       const kind = asAgentKind(agent)
       if (!ptys.has(sessionId)) throw new Error('终端未启动')
       const line = await launchLine(kind, sessionId)
+      dashboard.begin(sessionId, kind)
       ptys.write(sessionId, `${line}\r`)
       log.info(`[agents] 启动 ${kind} session=${sessionId}`)
     })
   )
+
+  ipcMain.handle(IPC.dashboardGet, (_e, id: unknown) => typeof id === 'string' ? dashboard.get(id) : null)
 
   /**
    * 拼出写进终端的启动命令，写法取决于该终端实际使用的 shell（PowerShell / cmd / bash）。
@@ -292,6 +300,7 @@ function asSettingsPatch(v: unknown): SettingsPatch {
   if (typeof r.claudeCommand === 'string') patch.claudeCommand = r.claudeCommand
   if (typeof r.codexCommand === 'string') patch.codexCommand = r.codexCommand
   if (Array.isArray(r.collapsedGroups)) patch.collapsedGroups = r.collapsedGroups as SidebarGroup[]
+  if (typeof r.dashboardCollapsed === 'boolean') patch.dashboardCollapsed = r.dashboardCollapsed
   if (typeof r.lastProjectId === 'string' || r.lastProjectId === null) patch.lastProjectId = r.lastProjectId
   return patch
 }

@@ -56,6 +56,12 @@
 | M20 等待确认时按键视为已处理（用户要求） | ✅ 完成（1.6.0） | 终端输入排除鼠标上报；`markInput`（导航键不算）；dev 验证（模拟 PermissionRequest + 各类按键；真实 codex 审批一轮） |
 | 修复：输入法组字时终端横向跳动（用户录屏） | ✅ 完成（1.6.1） | 录屏逐帧定位；模拟重绘 + CDP 组字复现（`#terminal-host` 被横向滚动）；`overflow: clip`；组字位置防抖 + 右边缘收回；复测模拟与真实 claude |
 
+## AI Dashboard（M21）
+- ✅ 完成：用户确认右侧三栏；会话指标类型 / IPC、精确绑定、增量解析 / 只读名称、Git、Claude statusLine / Codex元数据handler、Dashboard组件与收起持久化。
+- ✅ 验证：6组关键测试、TypeScript与构建、隔离Electron的两助手模拟上报链路、项目切换、收起后PTY resize、小窗口与详情。
+- ✅ 用户取消Token/s，相关代码已移除；没有修改或升级当前安装版。
+- 1.7.0交付中：用户已授权提交到main、推送和打包到D:\agnent_manager_release；安装与真实CLI长会话验证仍由用户安排。
+
 ## 阻塞
 - 无。
 

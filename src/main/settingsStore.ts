@@ -35,6 +35,7 @@ const DEFAULTS: AppSettings = {
   claudeCommand: DEFAULT_CLAUDE_COMMAND,
   codexCommand: DEFAULT_CODEX_COMMAND,
   collapsedGroups: [],
+  dashboardCollapsed: false,
   lastProjectId: null,
   window: null
 }
@@ -91,6 +92,7 @@ export class SettingsStore {
     if (patch.claudeCommand !== undefined) next.claudeCommand = checkCommand(patch.claudeCommand)
     if (patch.codexCommand !== undefined) next.codexCommand = checkCommand(patch.codexCommand)
     if (patch.collapsedGroups !== undefined) next.collapsedGroups = parseGroups(patch.collapsedGroups)
+    if (patch.dashboardCollapsed !== undefined) next.dashboardCollapsed = patch.dashboardCollapsed
     if (patch.lastProjectId !== undefined) next.lastProjectId = patch.lastProjectId
     this.settings = next
     await this.save()
@@ -157,6 +159,7 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
     claudeCommand: parseCommand(r.claudeCommand, DEFAULTS.claudeCommand),
     codexCommand: parseCommand(r.codexCommand, DEFAULTS.codexCommand),
     collapsedGroups: parseGroups(r.collapsedGroups),
+    dashboardCollapsed: typeof r.dashboardCollapsed === 'boolean' ? r.dashboardCollapsed : false,
     lastProjectId: typeof r.lastProjectId === 'string' ? r.lastProjectId : null,
     window: parseWindowState(r.window)
   }

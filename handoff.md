@@ -1,4 +1,14 @@
 ## Completed
+- M21（2026-10-06）正式源码实现：右侧AI仪表板、会话名 / cwd / 权限 / 模型 / 档位 / Fast / Git、剩余上下文与额度、详情与收起偏好。Codex通过两个新增元数据handler精确绑定JSONL，Claude通过会话级statusLine / hooks。原有状态handler保留；Token/s已按用户最终决定取消，代码中无速率计算 / OTel配置。
+- 最终验证：6组关键测试、typecheck / build、隔离Electron内Codex / Claude假CLI完整链路通过；测试只用独立userData / CODEX_HOME / shim，未复制凭据或调用真实模型。测试进程30644 / 42692及其子树按精确PID清理，端口9224无监听。
+- 当前安装版AgentManager四个PID34384 / 34968 / 39588 / 43748、启动时间2026-10-06 09:16:14，开始与结束均一致；没有关闭、重启、安装升级、向当前终端输入，也没有改用户全局配置。
+- Dashboard 第五版（2026-10-06）：用户改选右侧仪表板。HTML现为项目列表 / 终端 / AI仪表板三栏；右栏332px（较窄桌面300px），纵向展示会话 / cwd / 权限 / 分支、三个波浪指标、项目workspace。提供收起 / 恢复，小于等于900px时默认收起、按需显示侧边浮层，Escape和关闭按钮可收起。仍为示例数据，未改生产源码。
+- Dashboard 第四版（2026-10-06）：用户指出前三段高低不齐，现改为一个统一surface，项目 / 会话 / 指标共用三行24px基线；宽屏三段均72px高，取消独立卡片背景，窄屏指标整组铺满下一行。保留全部会话字段与波浪指标，Chrome视觉 / 对齐检查通过，待用户评审。
+- Dashboard 第三版（2026-10-06）：按用户两张截图移除右上角重复状态 / 结束 / 打开目录；项目名称和workspace独立标注，中间新增Agent会话名、cwd、权限及该cwd所属Git分支。增加项目子目录 / 其他仓库 / 非Git目录和权限模拟开关，缺数据不冒充项目目录；仍为HTML示例，非真实采集。
+- Dashboard 第二版（2026-10-06）：按用户反馈将上下文 / 5 小时 / 每周合为 348–360px 的紧凑组，默认静止的波浪进度表示剩余比例；保留项目身份、模型与详情。Chrome DevTools MCP 预览成功并完成 QA，详见 design-qa.md。
+- Dashboard HTML 草稿（2026-10-06）：docs/design/ai-dashboard.html，离线单文件、内嵌现有 Material Symbols Rounded 图标。项目标题 / 路径按用户补充要求合入顶部信息带；提供 Codex / Claude、三主题、就绪 / 工作中 / 等待 / 低上下文 / 缺数据、窄窗口、指标详情、项目切换与模拟输入交互。示例数值非真实指标。
+- AI Dashboard 可行性调查（2026-10-06）：用户提出在顶部项目标题与操作按钮之间显示 Claude / Codex statusline 信息。现有 topbar（72px flex）与助手状态 IPC 可复用；Claude 官方 statusLine stdin JSON 提供模型、上下文、费用、effort、额度等（字段依版本 / 账号可能缺失）；本机 codex-cli 0.160.1 会话样本包含 turn_context（model / effort / 权限）和 token_count（用量 / 上下文窗口 / rate_limits）。现有 Codex hooks 只发事件标记，不能直接供应上述完整指标。仅做调查，未开始实现。
+- 恢复检查（2026-10-06）：已读取五份项目知识文档；本地 main 为 59bcee9（版本 1.6.1），检查前工作区干净，与本地 origin/main 引用无差异（未联网刷新远端）。1.6.1 release 安装包仍存在；当前没有进行中的开发任务，下一步仍为用户安装后的真实输入法 / 长会话验证。
 - 1.6.1（输入法组字时画面横移修复）：按用户要求提交（cd905a9 修复、「版本 1.6.1」）、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.6.1-setup.exe`（SHA256 669521BF…B75936F8，与 dist 中一致）。为不打扰用户正在运行的 1.4.0，未启动打包版 GUI，改为解包 app.asar 静态检查。release 目录里 1.3.2、1.4.0、1.5.0、1.6.0 安装包保留。
 - 修复（2026-09-30 用户录屏「奇怪的屏幕闪烁」）：claude 工作时用输入法打字，终端画面整体左右跳、候选窗跳到右下角。录屏逐帧定位（ffmpeg 装在会话 scratchpad 的 venv 里）；根因为 xterm 组字时把隐藏输入框移到「当前光标」处，程序重绘中途光标停在右边缘时输入框超出终端，浏览器为显示输入光标横向滚动了 `overflow: hidden` 的 `#terminal-host`。修复：`#terminal-host` 改 `overflow: clip`（不可滚动，画面不会再横移）；组字定位等输出静止 50ms 再按光标（最多推迟 400ms），超出右边缘时收回。已随 1.6.1 发布。
 - 1.6.0（M19 + M20）：按用户要求提交（f6dde8d 功能、「版本 1.6.0」）、推送并打包，安装包 `D:\agnent_manager_release\agentmanager-1.6.0-setup.exe`（SHA256 F94F6815…2B5124DE，与 dist 中一致）。为不打扰用户正在运行的 1.4.0，未启动打包版 GUI，改为解包 app.asar 静态检查（dev 与真实 codex 已验证）。release 目录里 1.3.2、1.4.0、1.5.0 安装包保留。
@@ -39,11 +49,12 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 无。
+- 用户已授权M21交付：版本升至1.7.0，提交 / 推送main并打包到D:\agnent_manager_release；安装不在本次范围。待交付验证后更新完成记录。
 
 ## Next Steps
+- 完成1.7.0提交 / 推送和打包，校验release安装包SHA256并更新交接。不要自动安装或关闭当前实例。新版第一次启动Codex需要信任新增两条元数据hooks；真实CLI长会话、/resume / /new和配置变化需要后续实测。Codex初次数据通常第一轮输入后到达；JSONL与SQLite格式变化时应显示缺数据并复查解析。
 - 用户安装 1.6.1（安装会结束正在运行的 AgentManager 及其终端，由用户选时机；包含 1.5.0 / 1.6.0 的全部内容）。请用户在真实场景（claude 长时间工作 + 微软拼音）里确认画面不再跳、候选窗是否还会跳；若候选窗仍明显乱跳，可考虑把 `OUTPUT_SETTLE_MS` 调大或组字期间固定位置（见 architecture.md）。
-- 1.6.0 起：codex hooks 已在用户的 codex 里信任过（与发布版文本相同），不会再弹「Hooks need review」；codex 启动时的「Running without the shared background server」提示是 `-c` 注入的固有提示。
+- 1.6.0–1.6.1 的原有codex hooks已信任；M21新增两条元数据handler仍需要审查；codex 启动时的「Running without the shared background server」提示是 `-c` 注入的固有提示。
 - 首次启动 1.5.0 及以上会把项目数据库升级到 schema 2（日志「schema 升级到 2（星标）」），已有项目保留；之后若退回 1.4.0 也能打开。
 - M17 / M18 未做（spec 中列为非目标，用户需要再加）：收藏分组内拖动排序、星标快捷键、顶部栏星标按钮；折叠动画、折叠时仍显示选中项 / 需要处理的项目、标题上的状态提醒（用户选了「完全隐藏」）。
 - 用户安装 1.4.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后点击项目应不再启动终端，顶部栏 / 右键菜单为「结束终端」。
@@ -61,6 +72,11 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- M21生产：src/main/{agentDashboardStore,codexHooks,dashboardData,jsonlTail}.ts（新）、hookServer.ts、index.ts、ipc.ts、settingsStore.ts；src/shared/types.ts、src/preload/index.ts；src/renderer/dashboard.ts（新）、main.ts、index.html、icons.ts、styles.css。
+- M21验证与文档：tests/dashboard.test.ts、scripts/test-dashboard.mjs（新）；package.json / package-lock.json（测试script与显式esbuild开发依赖）；README.md、五份知识文档、design-qa.md / docs/design/ai-dashboard.html。
+- 隔离测试（不提交）：.devtest/dashboard-live-1791253830024（userData、Git fixture、假CLI / CODEX_HOME，无凭据）、dashboard-live-setup.mjs / dashboard-live-check.mjs、dashboard-production-*.png。
+- Dashboard 设计会话：docs/design/ai-dashboard.html（新）、design-qa.md（新）、docs/spec.md、docs/architecture.md、plans.md、handoff.md。生产源码未改。
+- 2026-10-06 恢复会话：仅更新 handoff.md，记录恢复检查；未改源码、需求或架构。
 - 输入法修复：src/renderer/styles.css（`#terminal-host` `overflow: clip`）、src/renderer/terminalView.ts（`stabilizeComposition` / `keepCompositionInside`、`lastOutputAt`、调试快照 `ime`）；docs/spec.md、docs/architecture.md、plans.md、lessons.md、handoff.md。自测工具（不提交）：`.devtest/ime-redraw.js`（模拟分两次写出的重绘）、`ime-sample.mjs`（模拟打拼音 + 采样滚动 / 输入框位置）、`ime-trace.mjs`、`frame-cursor.mjs`（每帧光标）、`cursor-dwell.mjs`（高频轮询，会饿死渲染，别用）、`ime-basic.mjs`（无重绘时的组字回归）；`cdp.mjs` 加 Ctrl+C（`key c ctrl`）。测试 userData 的 claude 命令改成了 `claude --model haiku --permission-mode bypassPermissions`。
 - M20：src/renderer/terminalView.ts（`REPORT_SEQUENCE` 排除焦点 / 鼠标上报，`onInput(sessionId, data)`）、src/renderer/agentStatus.ts（`NAVIGATION_KEY`、`markInput`）、src/renderer/main.ts；docs/spec.md（M20，删去对应 Open 项）、docs/architecture.md、plans.md、README.md、handoff.md。自测工具（不提交）：`.devtest/m20-sim.sh`（向 hooks 服务模拟事件 + 真实按键）、`wheel.mjs`（真实滚轮）、`mouse-mode.js`（开启原始输入 + SGR 鼠标跟踪的小程序）、`codex-approval-cmd.txt`（codex 审批模式测试命令）。
 - M19：src/shared/types.ts（`AgentHookEvent` 新增 6 个、`CODEX_HOOK_EVENTS` 12 个、`AgentEvent.trigger`）、src/main/hookServer.ts（压缩事件 matcher 分组、SessionEnd / Interrupt `timeout=3`、`codexEvent` 解析「事件:触发方式」、PreToolUse 记 debug）、src/renderer/agentStatus.ts（新事件的状态映射）；docs/spec.md（M19、Open）、docs/architecture.md（M19 设计）、plans.md、README.md、lessons.md、handoff.md。自测工具（不提交）：`.devtest/screen.sh`（读终端末尾 + 状态）、`.devtest/watch-status.mjs`（采样状态变化）、`.devtest/codex-test-cmd.txt`、`cdp.mjs` 加 F2。
@@ -78,6 +94,18 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- M21最终：`npm run test:dashboard` 6组通过（UTF-8半行 / 截断 / 超长行、白名单指标、原hooks保留与2条新增、真实PowerShell中文请求、隔离会话 / 标题只读 / 历史保护 / 未知权限 / cwd换仓清理、停止异步结果）；`npm run build`含node / web typecheck通过；`git diff --check`通过。
+- 隔离Electron（主PID先30644、后42692，userData见Changed Files）：Codex假CLI执行真正的PowerShell元数据命令，精确ID / 中文标题 / workspace≠cwd / fixture-agent分支 / 80%、85%、70%显示；Claude假CLI的hooks+statusLine经过实际HTTP / IPC，名称 / 接受编辑 / Fast / 72%、78%、55% / 费用显示。两个项目切换不串数据。
+- 收起后xterm宽度1080→1416，恢复1080；settings.get确认dashboardCollapsed持久化。860px视口默认隐藏，展开浮层 / 详情 / 关闭 / 焦点返回通过；未运行项目为空值且隐藏Git。
+- 初次测试fixture对Windows短路径与Git长路径作字符串比较失败，改为realpath；源码元数据命令增加UTF-8设置后假CLI用旧前缀筛选失败，改为按Select-Object语义筛选后Codex重试成功（均为测试工具问题）。界面发现通用icon-btn覆写toggle布局，已用更具体选择器修复并截图复查。
+- 未执行真实Claude / Codex请求、真实新hooks审查、NSIS打包 / 安装：避免占用用户账号与当前工作，尚无发版要求。后续由用户安排时机实测。不把模拟链路称为真实模型验收。
+- 第五版：Chrome DevTools MCP检查1920×1080、1040×800和600×800浮层截图；三主题无水平溢出。桌面收起右栏后终端变宽、恢复正常；首会话卡与终端顶边同为y=138。小窗口默认隐藏 / 打开 / 关闭 / 焦点返回通过；Escape关闭详情保留右栏，不连带关闭。console无error / warn。截图.devtest/dashboard-right-*.png。生产构建未运行（仅原型和文档）。
+- 第四版：Chrome DevTools MCP在1920×1080验证黑 / 橙 / 白三主题的三段顶边与72px高度一致，无溢出；1040×800、600×800截图检查通过。非Git分支隐藏、缺数据、会话详情 / Esc焦点返回通过，控制台无error / warn；.devtest/dashboard-aligned-*.png保存全图、顶部参考对比。未改生产源码，不运行生产构建。
+- 第三版：Chrome DevTools MCP检查1920×1080、1040×800、600×800（DPR=1）；无水平溢出；目录与workspace独立、跨仓库分支、非Git隐藏分支、两助手权限映射、缺数据、详情 / Esc / 焦点返回7项检查通过；console error / warn为空。截图在.devtest/dashboard-session-*.png，Git差异检查通过；未做正式采集或生产构建。只读检查Codex session_index字段名称确认thread_name存在；官方Claude hooks确认permission_mode，字段缺失与更新时机仍需正式验证。
+- 第二版 Chrome DevTools MCP：1920×1080、1040×800、600×800（DPR=1）截图与布局检查，无水平溢出；30 组助手 / 状态 / 主题组合通过指标校验，详情 / Esc / 焦点返回、窄窗口切换、项目切换后指标清空、搜索过滤通过。刷新后控制台 error / warn 为空；截图及对比板在 .devtest/dashboard-*.png。最初 list_pages 返回 Target closed，随后 new_page 成功，未修改全局 MCP 配置。git diff --check 通过；仅改独立设计稿与文档，未运行生产构建。
+- HTML 原型：Node `new Function` 校验脚本语法、重复 id、静态 DOM 选择器引用与 Material Symbols 图标内嵌均通过；`git diff --check` 通过。尝试 CUA 打开 iab / chrome 均返回 Browser is not available；库存 apps / browsers 均为空。因此未完成实际渲染、交互、窄窗口、控制台或截图 QA，不宣称视觉通过。本地 Python 静态预览服务为 127.0.0.1:8796（会话结束后不保证存活）；HTML 可直接离线打开。
+- Dashboard 调查：只读检查 hookServer.ts、agentStatus.ts、main.ts 的 buildTopbar、styles.css；`codex --version` 返回 0.160.1；只解析本机当天会话样本的字段名称，确认 token_count.rate_limits 非空（不保证其他会话均有）。未测试数据转发 / 会话绑定 / UI，也未改源码，因此未运行构建。
+- 2026-10-06：`git status --short --branch` 检查前为干净的 main；`git log -3 --oneline` 确认 HEAD=59bcee9；`git rev-list --left-right --count HEAD...origin/main` 返回 `0 0`（本地引用，未 fetch）；读取 package.json 确认 1.6.1；`Get-Item -LiteralPath 'D:\agnent_manager_release\agentmanager-1.6.1-setup.exe'` 确认安装包存在（123699354 字节）。本次仅恢复上下文并更新文档，未重复构建或启动 GUI；真实微软拼音与安装版长会话验证仍待用户执行。
 - 1.6.1 打包：`npm run build:win`（含 typecheck）通过。解包 app.asar（`.devtest/asar-check.cjs`，新增 CSS 检查与输入法修复计数）：package.json 版本 1.6.1；渲染进程 CSS 中 `#terminal-host` 为 `overflow: clip`；JS 含 `stabilizeComposition` / `OUTPUT_SETTLE_MS`；M17–M20 各项、图集修补、Esc 序列、「结束终端」仍在；node-pty 原生模块在 app.asar.unpacked 中。安装包复制到 release 目录后 SHA256 与 dist 一致。未启动打包版 GUI。
 - 输入法修复（`npm run typecheck`、`npm run build` 通过；dev 实例同前的隔离方式，用户的 4 个 AgentManager.exe 进程（864 / 2792 / 49772 / 64476）测试前后都在）：
   - 录屏（14 秒，30fps，418 帧）逐帧差分：第 71、141、143 帧整个终端卡片内容左移 1–4 列、候选窗在窗口右下、组字文字画在右边缘外，一两帧后恢复；253、260 帧是正常的新输出。
@@ -204,6 +232,8 @@
   4. 新界面（MD3 Expressive）整体观感、默认字体效果。
 
 ## Resume Context
+- 当前优先看M21条目、docs/spec.md与architecture.md：三栏已实现；Token/s取消；当前安装版不能动。没有待编码任务。先确认用户是否安排交付，再处理版本 / 提交 / 打包；不要从旧设计轮次重做。
+- 核心入口：agentDashboardStore.accept精确绑定→JSONL / 字段解析→IPC→Dashboard.render；codexHooks固定元数据命令；dashboardCollapsed设置。测试`npm run test:dashboard`。隔离实例已清理，只有忽略的测试数据留下。
 - 需求：PLAN.md（迭代 1）+ docs/spec.md「迭代 2 需求」；设计：docs/architecture.md；坑：lessons.md。
 - 自测：`npx electron-vite dev --remoteDebuggingPort 9223 -- --user-data-dir=<临时目录> --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` + CDP（后两个参数防止窗口被遮挡时收不到输入，见 lessons.md）；命令前加 `AGENTMANAGER_TEST_INACTIVE=1` 让窗口不激活显示，cdp.mjs 每次调用会开启焦点模拟；自测工具在 `.devtest/`（先 `node .devtest/seed.mjs` 建测试数据，userData 用 `--user-data-dir=<项目>/.devtest/ud`，关闭用 `.devtest/close-dev.ps1`）；用户的安装版 AgentManager 可能正在使用，只能按 dev / 测试 PID 操作；dev 下 `window.__agentDesk.terminals()` 读终端缓冲区；原生对话框用 UI Automation + `WM_SETTEXT` / `BM_CLICK`；关闭窗口用 `WM_CLOSE`。
 - 图集自测：`sh .devtest/atlas-run.sh [字数] [标签]` 从全新 dev 实例跑一次压力 + 截图比较（输出 `A vs B {diffPixels}`，约 105 为正常）；在 Bash 工具里用 run_in_background 运行。

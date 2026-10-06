@@ -1,6 +1,6 @@
 # AgentManager
 
-Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保活的嵌入式终端（工作目录为项目目录）。在终端里手动运行 `claude` 等命令，切换项目时终端和其中的进程不会中断。
+Windows 桌面应用：项目列表、每项目保活终端、右侧 AI 仪表板。终端从项目工作区启动；Agent 会话可能使用另一个工作目录。切换项目时终端和其中的进程不会中断。
 
 需求见 [PLAN.md](PLAN.md)，设计见 [docs/architecture.md](docs/architecture.md)。
 
@@ -29,6 +29,7 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 npm install          # 安装依赖并编译 node-pty
 npm run dev          # 开发模式启动（F12 打开 DevTools）
 npm run typecheck    # TypeScript 类型检查（main/preload + renderer）
+npm run test:dashboard # 指标解析、精确绑定、UTF-8、日志增量与异步清理验证
 npm run build        # 类型检查 + 构建到 out/
 npm run build:win    # 打包 NSIS 安装包到 dist/
 ```
@@ -39,7 +40,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 - node-pty 整体放在 `app.asar.unpacked`（原生模块、conout Worker 脚本、console list agent 都需要在 asar 外）。
 - `npmRebuild: false`：postinstall 已针对同一 Electron 版本编译过 node-pty，打包时不再重复编译。
 - 原生模块只依赖系统 DLL（静态链接 CRT），目标机器不需要安装 Node 或 VC++ 运行库。
-- 静默安装 / 卸载：`agentmanager-1.6.1-setup.exe /S /D=<目录>`；`"<目录>\Uninstall AgentManager.exe" /S /currentuser`。
+- 静默安装 / 卸载：`agentmanager-1.7.0-setup.exe /S /D=<目录>`；`"<目录>\Uninstall AgentManager.exe" /S /currentuser`。
 - 1.0.0 由 Agent Desk 改名而来：`appId` 未变，安装时会先静默卸载已安装的 Agent Desk；数据目录改为 `%APPDATA%\AgentManager`，不迁移旧数据（旧目录 `%APPDATA%\Agent Desk` 保留，可手动删除）。
 - 目前使用 Electron 默认图标（未提供应用图标）。
 
@@ -48,9 +49,18 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 `%APPDATA%\AgentManager\`：
 
 - `agentmanager.db` — 项目列表与星标（SQLite，表 `projects`；损坏时自动备份为 `agentmanager.db.bak-<时间戳>` 并以空库启动）
-- `settings.json` — 侧栏宽度与分组折叠状态、终端字体 / 字号 / 行高、主题色、Claude / Codex 启动命令、最后选中的项目、窗口位置
+- `settings.json` — 侧栏宽度与分组折叠状态、仪表板收起偏好、终端字体 / 字号 / 行高、主题色、Claude / Codex 启动命令、最后选中的项目、窗口位置
 - `agent-hooks\` — 「启动 Claude」时生成的会话 hooks 文件（每次启动应用时清空）
 - `logs\main.log` — 主进程日志（PTY 创建 / 退出 / kill / 错误）
+
+## AI 仪表板（M21，1.7.0）
+
+- 右侧展示模型、推理档位、会话名称、权限、Agent 当前目录及其 Git 分支、上下文和额度剩余；项目名称 / workspace 单独展示。
+- MD3 Expressive 波浪指标；点击会话或指标查看详细信息。收起偏好保存；小窗口按需展开，收起不结束终端。
+- Claude 使用会话级 statusLine + hooks；Codex 使用元数据 hooks 精确绑定会话并增量读取日志。只有通过应用入口启动的助手能被跟踪。
+- 下次启动 Codex 会要求信任新增的两条元数据 hooks；原有状态 hooks 文本与下标保留。不修改全局配置。Codex 初次会话元数据通常在第一轮输入时到达。
+- 未提供数据时显示未就绪；无自定义名称时显示未命名会话；Token/s 已按用户要求取消。
+- 本次没有安装更新或操作正在运行的安装版。构建 / 隔离链路已验证，真实 CLI 长会话仍需安装新版后验证。
 
 ## 字体
 
