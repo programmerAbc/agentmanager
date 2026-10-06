@@ -6,7 +6,7 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 
 ## 1.7.1：恢复原界面
 
-按用户要求撤销1.7.0的AI仪表板，恢复1.6.1的项目列表 / 顶部栏 / 保活终端与状态hooks。Claude / Codex继续使用自身statusline；不再注入Claude statusLine、采集仪表板元数据或读取会话日志。既有全局CLI配置和当前进程保持原样，更新对新启动实例生效。
+按用户要求撤销1.7.0的AI仪表板，恢复1.6.1的项目列表 / 顶部栏 / 保活终端与状态hooks。Claude / Codex继续使用自身statusline；不再注入Claude statusLine、采集仪表板元数据或读取会话日志。既有全局CLI配置和当前进程保持原样，更新对新启动实例生效。恢复版安装包：`D:\agnent_manager_release\agentmanager-1.7.1-setup.exe`。
 
 ## 环境要求
 

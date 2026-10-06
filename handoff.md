@@ -1,4 +1,6 @@
 ## Completed
+- 1.7.1恢复版交付（2026-10-06）：f8cdc58已提交并推送main；src与59bcee9（1.6.1）无差异，仪表板及数据采集 / statusLine覆盖 / 额外handler / 原型 / 专用测试已移除，原有功能保留。安装包D:\agnent_manager_release\agentmanager-1.7.1-setup.exe（123699570字节），SHA256：4AF2D54E7EEDCBF61BBF355CF3405C1974047618D9B27B06D22D28940A887C10，与dist一致；旧安装包保留。
+- 当前进程保护：3384 / 4776 / 15660 / 17356均仍为11:14:23启动；未启动打包GUI或安装。界面恢复和CLI statusline覆盖撤销将在用户安装并新启动后生效。
 - 用户最终决定（2026-10-06）：删除AI仪表板，恢复原来界面并继续使用CLI自身statusline；不再继续启动数据补齐或Token/s工作。相关源码恢复到59bcee9（1.6.1），新增模块 / DTO / IPC / 原型 / 专用测试已删除，版本拟交付1.7.1。
 - 1.7.0交付（2026-10-06）：代码与版本提交ef46ab4已推送origin/main；本来就在main且fetch后0/0，无需额外合并。npm run test:dashboard（6组）、build / build:win通过。安装包D:\agnent_manager_release\agentmanager-1.7.0-setup.exe（123709035字节），SHA256：8A9AA0CA2A10DD7EF4D7BE4B0DDFAFCDBA44B81228ECEFF2E211C10FE29BD1EF，与dist一致。旧1.3.2 / 1.4.0 / 1.5.0 / 1.6.0 / 1.6.1包保留。
 - 交付保护：只构建和静态检查asar，未启动打包版GUI或安装。当前AgentManager进程34384 / 34968 / 39588 / 43748及2026-10-06 09:16:14启动时间与交付前一致。
@@ -52,20 +54,12 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 1.7.1恢复版交付中：验证源码与1.6.1一致、构建、提交推送与打包。当前安装版进程3384 / 4776 / 15660 / 17356（11:14:23启动）不得操作。
+- 无。1.7.1恢复版源码与安装包已交付，等待用户自行安装；不再继续仪表板或启动数据补齐工作。
 
 ## Next Steps
-- 优先完成1.7.1恢复版交付，不要按下面旧1.7.0条目继续开发仪表板。
-- 用户自行选择安装1.7.0的时机。不要自动安装或关闭当前实例。新版第一次启动Codex需要信任新增两条元数据hooks；真实CLI长会话、/resume / /new和配置变化需要后续实测。Codex初次数据通常第一轮输入后到达；JSONL与SQLite格式变化时应显示缺数据并复查解析。
-- 用户安装 1.6.1（安装会结束正在运行的 AgentManager 及其终端，由用户选时机；包含 1.5.0 / 1.6.0 的全部内容）。请用户在真实场景（claude 长时间工作 + 微软拼音）里确认画面不再跳、候选窗是否还会跳；若候选窗仍明显乱跳，可考虑把 `OUTPUT_SETTLE_MS` 调大或组字期间固定位置（见 architecture.md）。
-- 1.6.0–1.6.1 的原有codex hooks已信任；M21新增两条元数据handler仍需要审查；codex 启动时的「Running without the shared background server」提示是 `-c` 注入的固有提示。
-- 首次启动 1.5.0 及以上会把项目数据库升级到 schema 2（日志「schema 升级到 2（星标）」），已有项目保留；之后若退回 1.4.0 也能打开。
-- M17 / M18 未做（spec 中列为非目标，用户需要再加）：收藏分组内拖动排序、星标快捷键、顶部栏星标按钮；折叠动画、折叠时仍显示选中项 / 需要处理的项目、标题上的状态提醒（用户选了「完全隐藏」）。
-- 用户安装 1.4.0（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后点击项目应不再启动终端，顶部栏 / 右键菜单为「结束终端」。
-- 用户安装 1.3.2（安装会结束正在运行的 AgentManager 及其终端，由用户选时机）；安装后留意长时间 claude 会话里文字是否还会错乱。
-- 上游发布 @xterm/addon-webgl 0.20 正式版后：升级（xterm 同步升级）→ 构建会因插件匹配失败而中止 → 确认 #4480 已修后删除插件与 optimizeDeps.exclude。
-- 用户安装 `D:\agnent_manager_release\agentmanager-1.0.0-setup.exe`，重新添加项目（空数据）；旧目录 `%APPDATA%\Agent Desk` 可手动删除。
-- 待人工确认项见下方。
+- 用户在当前工作结束后自行安装1.7.1；不要自动关闭当前AgentManager或终端。更新后新启动Claude使用其原有statusline，Codex仍保留原有状态hooks，不注入两条仪表板元数据handler。
+- 观察原终端输入法 / 长会话显示；后续若升级xterm WebGL，需检查图集补丁兼容性（见architecture.md与lessons.md）。
+- 不再按下面历史M21条目恢复或优化仪表板；1.7.0留作旧发布记录。
 
 ## Risks
 - 构建时修补第三方包（@xterm/addon-webgl 0.19.0）：只按压缩代码精确替换，版本变化即构建失败（有意）；修补覆盖的是上游 beta 的主要修复，未移植 beta 里「凑不齐 4 张同尺寸页时清空图集」的极端分支（需要约十几张 8192 大页，实际不会出现）。
@@ -99,6 +93,9 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 1.7.1：git diff --exit-code 59bcee9 -- src通过；package的scripts / dependencies / devDependencies与基准相同，仅版本提升。npm run build与build:win（含node / web typecheck）通过；git diff --check通过。
+- asar检查版本1.7.1，无dashboard:get、dashboard节点、AI仪表板文字、元数据命令或statusLine覆盖；保留结束终端、Esc序列、图集补丁、terminal-host overflow:clip与解包native PTY。复制后SHA256与dist一致。首个静态检查脚本未容忍CSS空格，改用选择器与正则后通过；不是包内功能缺失。
+- 未启动恢复版GUI（保护用户当前进程，且运行源码已与已验收1.6.1完全一致）；专用仪表板测试随功能删除，不再执行。当前四个安装版PID / 启动时间未变化。
 - 1.7.0：git fetch origin后HEAD...origin/main为0/0；版本提升、6组测试和build通过后提交ef46ab4，git push origin main成功。npm run build:win退出0，产出NSIS x64。
 - 包静态检查：app.asar版本1.7.0，main / preload包含dashboard:get与dashboard:update，main含thread_settings_applied、UTF-8元数据命令和readOnly名称查询；renderer含AI仪表板 / dashboard-wave / dashboardCollapsed / 当前目录，CSS含收起按钮具体选择器，HTML包含dashboard，native node-pty在asar.unpacked。无GenerationSpeed模块。Windows asar必须按listPackage返回的原生路径extractFile；首次脚本用斜杠路径失败，修正后全部校验通过。
 - Copy-Item后Get-FileHash确认dist与发布目录SHA256完全一致，见Completed。未启动或安装打包版（用户当前进程受保护）；真实CLI长会话仍待用户实测。
@@ -240,7 +237,7 @@
   4. 新界面（MD3 Expressive）整体观感、默认字体效果。
 
 ## Resume Context
-- 最新决定为撤销仪表板、交付1.7.1原界面恢复版。下列1.7.0开发 / 发布记录只作历史，不再代表当前目标。当前运行进程不得动；安装由用户自行安排。
+- 最新状态为1.7.1原界面恢复版已交付，源码f8cdc58已推送；安装包与SHA见Completed。下列1.7.0开发 / 发布记录只作历史，不再代表当前目标。当前运行进程不得动；安装由用户自行安排。
 - 最新交付为1.7.0：源功能提交ef46ab4已推送main，安装包与SHA见Completed。当前运行版未替换；后续先收集用户安装后反馈。不要再按旧“待提交 / 待打包”条目执行重复交付。
 - 当前优先看M21条目、docs/spec.md与architecture.md：三栏已实现；Token/s取消；当前安装版不能动。没有待编码任务。1.7.0已交付，等待安装后反馈；不要从旧设计轮次重做。
 - 核心入口：agentDashboardStore.accept精确绑定→JSONL / 字段解析→IPC→Dashboard.render；codexHooks固定元数据命令；dashboardCollapsed设置。测试`npm run test:dashboard`。隔离实例已清理，只有忽略的测试数据留下。
