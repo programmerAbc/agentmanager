@@ -4,6 +4,11 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 
 需求见 [PLAN.md](PLAN.md)，设计见 [docs/architecture.md](docs/architecture.md)。
 
+## 1.8.0：「活跃」分组与 AGY 支持
+
+- 侧栏最上方新增「活跃」分组：助手开始工作（工作中 / 等待确认）的项目自动加入，新的在前，最多 10 个，满了移出静默最久的项目（正在工作的优先保留）；项目同时仍在原分组显示，可折叠，右键可「移出「活跃」」，重启后清空。
+- 新增「启动 AGY」（Antigravity CLI）及其工作状态显示。安装包：`D:gnent_manager_releasegentmanager-1.8.0-setup.exe`。
+
 ## 1.7.1：恢复原界面
 
 按用户要求撤销1.7.0的AI仪表板，恢复1.6.1的项目列表 / 顶部栏 / 保活终端与状态hooks。Claude / Codex继续使用自身statusline；不再注入Claude statusLine、采集仪表板元数据或读取会话日志。既有全局CLI配置和当前进程保持原样，更新对新启动实例生效。恢复版安装包：`D:\agnent_manager_release\agentmanager-1.7.1-setup.exe`。
@@ -43,7 +48,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 - node-pty 整体放在 `app.asar.unpacked`（原生模块、conout Worker 脚本、console list agent 都需要在 asar 外）。
 - `npmRebuild: false`：postinstall 已针对同一 Electron 版本编译过 node-pty，打包时不再重复编译。
 - 原生模块只依赖系统 DLL（静态链接 CRT），目标机器不需要安装 Node 或 VC++ 运行库。
-- 静默安装 / 卸载：`agentmanager-1.7.1-setup.exe /S /D=<目录>`；`"<目录>\Uninstall AgentManager.exe" /S /currentuser`。
+- 静默安装 / 卸载：`agentmanager-1.8.0-setup.exe /S /D=<目录>`；`"<目录>\Uninstall AgentManager.exe" /S /currentuser`。
 - 1.0.0 由 Agent Desk 改名而来：`appId` 未变，安装时会先静默卸载已安装的 Agent Desk；数据目录改为 `%APPDATA%\AgentManager`，不迁移旧数据（旧目录 `%APPDATA%\Agent Desk` 保留，可手动删除）。
 - 目前使用 Electron 默认图标（未提供应用图标）。
 

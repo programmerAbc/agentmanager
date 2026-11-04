@@ -56,8 +56,8 @@ export type SettingsPatch = Partial<Omit<AppSettings, 'window'>>
 
 export const SIDEBAR_WIDTH = { default: 240, min: 180, max: 400 } as const
 /** 侧栏分组：收藏（加了星标的项目）/ 项目（其余项目） */
-export type SidebarGroup = 'starred' | 'projects'
-export const SIDEBAR_GROUPS: readonly SidebarGroup[] = ['starred', 'projects']
+export type SidebarGroup = 'active' | 'starred' | 'projects'
+export const SIDEBAR_GROUPS: readonly SidebarGroup[] = ['active', 'starred', 'projects']
 export const FONT_SIZE = { default: 14, min: 8, max: 32 } as const
 export const LINE_HEIGHT = { default: 1.0, min: 1.0, max: 1.6 } as const
 export const DEFAULT_FONT_FAMILY = 'Maple Mono NF CN'

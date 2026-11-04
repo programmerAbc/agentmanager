@@ -139,6 +139,16 @@ preload (src/preload/index.ts)
 | 有搜索词时忽略折叠（全部展开、标题按钮 disabled），不修改保存的状态 | 搜索命中藏在折叠分组里会被误以为「没有匹配」 |
 | 加 / 取消星标后若项目落进折叠的分组，`highlight` 改为闪该分组标题 | 项目行不渲染，没有东西可闪；标题数量变化 + 闪烁说明它去了哪里 |
 
+## 迭代 8 设计（M22 「活跃」分组）
+
+| 决策 | 原因 |
+|---|---|
+| 成员逻辑独立为纯类 `src/renderer/activeList.ts`（`ActiveList`：`update(id, busy)` / `remove` / `retain`，注入时钟），由 `Sidebar.setAgentState` 驱动；busy = `working` \| `waiting`；成员变化才整列表重建，否则只更新行状态 | 不依赖 DOM，可以用 `node --test` 直接测；状态变化很频繁，非成员变化不重建列表 |
+| 淘汰：非忙碌优先，其次 `lastActive`（进入 / 离开忙碌时更新）最小者；同值取较早加入的 | 对应「静默最旧」；正在工作的项目不应被挤出 |
+| `SidebarGroup` 增加 `'active'`（`SIDEBAR_GROUPS` 首位），复用 `collapsedGroups` 持久化与主进程校验 | 旧 settings.json 无需迁移；折叠逻辑不变 |
+| 同一项目可能渲染两行：`li.project-item` 增加 `data-group`，按 id 查找改为 `itemsById` 返回全部行；`highlight` 只找原分组那一行；列表 ↑↓ 按当前行元素定位；搜索时隐藏「活跃」使 `visibleIds` 不重复 | 避免只更新第一行、↑↓ 卡在重复项上 |
+| 只存内存 | 重启后终端 / 助手状态都不存在，保留旧成员没有意义 |
+
 ## 迭代 7 设计（M19 Codex 全部 hooks）
 
 | 决策 | 原因 |

@@ -1,5 +1,6 @@
 import { SIDEBAR_GROUPS, SIDEBAR_WIDTH, type AgentKind, type Project, type SidebarGroup } from '../shared/types'
 import { ALL_STATUSES, statusIndicator, statusText, type AgentState } from './agentStatus'
+import { ActiveList, ACTIVE_LIST_LIMIT } from './activeList'
 import { showContextMenu } from './contextMenu'
 import { matchProject, searchTokens, type ProjectMatch } from './fuzzy'
 import { icon } from './icons'
@@ -42,17 +43,19 @@ interface VisibleGroup {
   entries: ListEntry[]
 }
 
-const GROUPS: { id: SidebarGroup; label: string; has(p: Project): boolean }[] = [
+/** 「收藏 / 项目」按星标划分，每个项目恰好在其中一组；「活跃」是额外的快捷分组（见 ActiveList） */
+const GROUPS: { id: Exclude<SidebarGroup, 'active'>; label: string; has(p: Project): boolean }[] = [
   { id: 'starred', label: '收藏', has: (p) => p.starred },
   { id: 'projects', label: '项目', has: (p) => !p.starred }
 ]
 
-/** 左侧项目列表：添加、搜索、「收藏 / 项目」分组（可折叠）、星标、选中、行内重命名、右键菜单、宽度拖拽。 */
+/** 左侧项目列表：添加、搜索、「活跃 / 收藏 / 项目」分组（可折叠）、星标、选中、行内重命名、右键菜单、宽度拖拽。 */
 export class Sidebar {
   private projects: Project[] = []
   private selectedId: string | null = null
   private readonly running = new Set<string>()
   private readonly agents = new Map<string, AgentState>()
+  private readonly active = new ActiveList()
   private readonly collapsed = new Set<SidebarGroup>()
   private readonly list: HTMLUListElement
   private readonly search: SearchBar
@@ -117,6 +120,7 @@ export class Sidebar {
 
   setProjects(projects: Project[]): void {
     this.projects = projects
+    this.active.retain((id) => projects.some((p) => p.id === id))
     // 没有项目时不显示搜索框，也不保留看不见的搜索词
     this.search.box.hidden = projects.length === 0
     if (projects.length === 0) this.clearQuery()
@@ -145,15 +149,19 @@ export class Sidebar {
   setRunning(id: string, running: boolean): void {
     if (running) this.running.add(id)
     else this.running.delete(id)
-    this.itemById(id)?.classList.toggle('running', running)
+    for (const li of this.itemsById(id)) li.classList.toggle('running', running)
   }
 
   setAgentState(id: string, state: AgentState | null): void {
     if (state) this.agents.set(id, state)
     else this.agents.delete(id)
-    const li = this.itemById(id)
+    const busy = state?.status === 'working' || state?.status === 'waiting'
+    if (this.active.update(id, busy)) {
+      this.render()
+      return
+    }
     const project = this.projects.find((p) => p.id === id)
-    if (li && project) this.applyAgentState(li, project)
+    if (project) for (const li of this.itemsById(id)) this.applyAgentState(li, project)
   }
 
   /** 状态只用名称前的图形表示，第二行固定显示路径；状态文字放在悬浮提示里 */
@@ -172,7 +180,7 @@ export class Sidebar {
   highlight(id: string): void {
     const project = this.projects.find((p) => p.id === id)
     const group = project && GROUPS.find((g) => g.has(project))
-    const target = this.itemById(id) ?? (group ? this.groupHeader(group.id) : null)
+    const target = (group && this.groupItem(group.id, id)) ?? (group ? this.groupHeader(group.id) : null)
     target?.classList.add('moved')
   }
 
@@ -184,7 +192,7 @@ export class Sidebar {
   /** 行内重命名：Enter 确认，Esc 取消，失焦视为确认 */
   beginRename(id: string): void {
     const project = this.projects.find((p) => p.id === id)
-    const li = this.itemById(id)
+    const li = this.itemsById(id)[0]
     const nameEl = li?.querySelector<HTMLElement>('.project-name')
     if (!project || !li || !nameEl) return
 
@@ -229,7 +237,7 @@ export class Sidebar {
     const fragment = document.createDocumentFragment()
     for (const group of groups) {
       fragment.appendChild(this.renderGroupHeader(group))
-      for (const entry of group.entries) fragment.appendChild(this.renderItem(entry))
+      for (const entry of group.entries) fragment.appendChild(this.renderItem(entry, group.id))
     }
     if (this.visibleIds.length === 0 && this.tokens.length > 0) {
       const empty = document.createElement('li')
@@ -240,10 +248,11 @@ export class Sidebar {
     this.list.replaceChildren(fragment)
   }
 
-  private renderItem({ project, match }: ListEntry): HTMLLIElement {
+  private renderItem({ project, match }: ListEntry, group: SidebarGroup): HTMLLIElement {
     const li = document.createElement('li')
     li.className = 'project-item'
     li.dataset.id = project.id
+    li.dataset.group = group
     li.tabIndex = 0
     li.title = project.path
     li.classList.toggle('selected', project.id === this.selectedId)
@@ -289,6 +298,7 @@ export class Sidebar {
     li.className = 'list-label'
     li.setAttribute('role', 'presentation')
     li.dataset.group = group.id
+    if (group.id === 'active') li.title = `助手开始工作的项目，最多 ${ACTIVE_LIST_LIMIT} 个；满了会移出静默最久的项目`
 
     const button = document.createElement('button')
     button.type = 'button'
@@ -325,17 +335,26 @@ export class Sidebar {
   }
 
   private groupHeader(id: SidebarGroup): HTMLButtonElement | null {
-    return this.list.querySelector<HTMLButtonElement>(`li[data-group="${id}"] .group-header`)
+    return this.list.querySelector<HTMLButtonElement>(`li.list-label[data-group="${id}"] .group-header`)
   }
 
   /**
-   * 「收藏」（加了星标的）在前、「项目」在后，两组都按添加顺序；空的分组不显示。
-   * 折叠的分组只有标题；有搜索词时忽略折叠，各组分别过滤、排序，没有命中的分组不显示。
+   * 「活跃」（助手工作过的，新加入的在前）在最前，其次「收藏」（加了星标的）、「项目」，后两组按添加顺序；
+   * 活跃里的项目同时仍在原分组中显示。空的分组不显示。
+   * 折叠的分组只有标题；有搜索词时忽略折叠、不显示「活跃」，各组分别过滤、排序，没有命中的分组不显示。
    */
   private visibleGroups(): VisibleGroup[] {
     const searching = this.tokens.length > 0
-    return GROUPS.map(({ id, label, has }) => {
-      const members = this.projects.filter(has)
+    const activeMembers = this.active
+      .ids()
+      .map((id) => this.projects.find((p) => p.id === id))
+      .filter((p): p is Project => p !== undefined)
+    const all = [
+      { id: 'active' as const, label: '活跃', members: activeMembers },
+      ...GROUPS.map(({ id, label, has }) => ({ id, label, members: this.projects.filter(has) }))
+    ]
+    // 搜索时不显示「活跃」：结果在原分组里都有，避免同一项目出现两次
+    return all.filter((g) => !searching || g.id !== 'active').map(({ id, label, members }) => {
       const collapsed = !searching && this.collapsed.has(id)
       return { id, label, count: members.length, collapsed, entries: collapsed ? [] : this.filtered(members) }
     }).filter((g) => (searching ? g.entries.length > 0 : g.count > 0))
@@ -430,11 +449,12 @@ export class Sidebar {
     const id = this.visibleIds[Math.max(0, Math.min(this.visibleIds.length - 1, next))]
     this.activeId = id
     for (const li of this.items()) li.classList.toggle('search-active', li.dataset.id === id)
-    this.itemById(id)?.scrollIntoView({ block: 'nearest' })
+    this.itemsById(id)[0]?.scrollIntoView({ block: 'nearest' })
   }
 
   private openItemMenu(id: string, x: number, y: number): void {
     const starred = this.projects.find((p) => p.id === id)?.starred === true
+    const inActive = this.active.has(id)
     showContextMenu(x, y, [
       {
         label: '启动 Claude',
@@ -460,6 +480,17 @@ export class Sidebar {
         icon: starred ? 'starFill' : 'star',
         action: () => this.cb.onSetStarred(id, !starred)
       },
+      ...(inActive
+        ? [
+            {
+              label: '移出「活跃」',
+              icon: 'close' as const,
+              action: () => {
+                if (this.active.remove(id)) this.render()
+              }
+            }
+          ]
+        : []),
       { label: '重命名', icon: 'edit', action: () => this.beginRename(id) },
       { label: '在资源管理器中打开', icon: 'folderOpen', action: () => this.cb.onOpenInExplorer(id) },
       {
@@ -486,7 +517,8 @@ export class Sidebar {
       e.preventDefault()
       // 在项目之间移动，跳过分组标题
       const items = this.items()
-      const index = items.findIndex((li) => li.dataset.id === id)
+      const current = (e.target as HTMLElement).closest<HTMLLIElement>('li.project-item')
+      const index = items.findIndex((li) => li === current)
       items[index + (e.key === 'ArrowDown' ? 1 : -1)]?.focus()
     }
   }
@@ -528,8 +560,13 @@ export class Sidebar {
     return [...this.list.querySelectorAll<HTMLLIElement>('li.project-item')]
   }
 
-  private itemById(id: string): HTMLLIElement | undefined {
-    return this.items().find((li) => li.dataset.id === id)
+  /** 同一项目可能同时出现在「活跃」和原分组里 */
+  private itemsById(id: string): HTMLLIElement[] {
+    return this.items().filter((li) => li.dataset.id === id)
+  }
+
+  private groupItem(group: SidebarGroup, id: string): HTMLLIElement | undefined {
+    return this.itemsById(id).find((li) => li.dataset.group === group)
   }
 
   private itemIdFromEvent(e: Event): string | null {

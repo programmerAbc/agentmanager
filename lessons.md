@@ -1,5 +1,15 @@
 # Lessons
 
+## Lesson: Node原生跑TS测试不支持参数属性
+### Problem
+`node --test tests/activeList.test.ts` 报 SyntaxError，指向构造函数 `private readonly limit = ...`。
+### Root Cause
+Node 24 默认的类型剥离只删除类型注解，不转换 TS 专有语法（参数属性、enum、namespace）。
+### Solution
+改为显式字段 + 构造函数赋值。
+### Prevention
+需要被 `node --test` 直接加载的模块（及其 import 链）只用可剥离语法，或改用 esbuild 先编译。
+
 ## Lesson: 生命周期hooks不等于启动时的数据接口
 ### Problem
 仪表板在Codex启动后、未实际对话时没有数据，体验落后于CLI自己的statusline；用户最终决定撤销仪表板。

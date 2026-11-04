@@ -1,4 +1,6 @@
 ## Completed
+- 1.8.0交付（2026-11-04）：AGY支持（5ce1feb）与M22「活跃」分组 + 版本号分两次提交，合并到main并推送origin。安装包D:gnent_manager_releasegentmanager-1.8.0-setup.exe（123702296字节），SHA256：8EDE7D7B75A4D3070F0C8D8152610ABDD8891CD7F45F33938C8FCD2C95C64E40，与dist一致；旧包保留。未启动打包版、未安装、未动当前运行的AgentManager。
+- M22「活跃」分组（2026-11-04，代码完成）：侧栏最上方「活跃」分组，助手进入工作 / 等待确认的项目加入（新的在前），上限10，满了移出静默最久的（忙碌的优先保留）；项目仍在原分组显示；可折叠，搜索时隐藏，右键可「移出「活跃」」，仅内存。需求 / 设计见spec「迭代8」、architecture「迭代8设计」。
 - 1.7.1恢复版交付（2026-10-06）：f8cdc58已提交并推送main；src与59bcee9（1.6.1）无差异，仪表板及数据采集 / statusLine覆盖 / 额外handler / 原型 / 专用测试已移除，原有功能保留。安装包D:\agnent_manager_release\agentmanager-1.7.1-setup.exe（123699570字节），SHA256：4AF2D54E7EEDCBF61BBF355CF3405C1974047618D9B27B06D22D28940A887C10，与dist一致；旧安装包保留。
 - 当前进程保护：3384 / 4776 / 15660 / 17356均仍为11:14:23启动；未启动打包GUI或安装。界面恢复和CLI statusline覆盖撤销将在用户安装并新启动后生效。
 - 用户最终决定（2026-10-06）：删除AI仪表板，恢复原来界面并继续使用CLI自身statusline；不再继续启动数据补齐或Token/s工作。相关源码恢复到59bcee9（1.6.1），新增模块 / DTO / IPC / 原型 / 专用测试已删除，版本拟交付1.7.1。
@@ -54,9 +56,10 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 无。1.7.1恢复版源码与安装包已交付，等待用户自行安装；不再继续仪表板或启动数据补齐工作。
+- 无编码任务。M22与AGY均**未做界面实测**（只有单元测试 / typecheck / build）；AGY的需求 / 设计尚未写入spec / architecture（来自本会话之前的未记录工作）。
 
 ## Next Steps
+- 用户自行安装1.8.0后观察「活跃」分组与AGY状态；如需可用隔离dev实例实测。补写AGY的spec / architecture条目。当前安装版AgentManager进程不得动。
 - 用户在当前工作结束后自行安装1.7.1；不要自动关闭当前AgentManager或终端。更新后新启动Claude使用其原有statusline，Codex仍保留原有状态hooks，不注入两条仪表板元数据handler。
 - 观察原终端输入法 / 长会话显示；后续若升级xterm WebGL，需检查图集补丁兼容性（见architecture.md与lessons.md）。
 - 不再按下面历史M21条目恢复或优化仪表板；1.7.0留作旧发布记录。
@@ -70,6 +73,7 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- M22：src/renderer/activeList.ts（新）、src/renderer/sidebar.ts、src/shared/types.ts（`SidebarGroup`加`active`）、tests/activeList.test.ts（新）、package.json（`test:active`）；docs/spec.md、docs/architecture.md、plans.md、handoff.md、lessons.md。
 - 恢复版：src中1.7.0修改文件逐一恢复59bcee9；删除agentDashboardStore / codexHooks / dashboardData / jsonlTail / renderer/dashboard、专用tests与runner、HTML原型与design-qa。package / lock使用1.6.1依赖配置，版本1.7.1；README与五份知识文档反映撤销决定。
 - M21生产：src/main/{agentDashboardStore,codexHooks,dashboardData,jsonlTail}.ts（新）、hookServer.ts、index.ts、ipc.ts、settingsStore.ts；src/shared/types.ts、src/preload/index.ts；src/renderer/dashboard.ts（新）、main.ts、index.html、icons.ts、styles.css。
 - M21验证与文档：tests/dashboard.test.ts、scripts/test-dashboard.mjs（新）；package.json / package-lock.json（测试script与显式esbuild开发依赖）；README.md、五份知识文档、design-qa.md / docs/design/ai-dashboard.html。
@@ -93,6 +97,8 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 1.8.0打包：`npm run build:win`（含typecheck + build）exit 0；`npm run test:active` 4/4；out渲染包含「活跃」。
+- M22（2026-11-04）：`npm run test:active` 4/4通过；`npm run typecheck` 通过；`npm run build` 通过（只写out/，未动安装版）。跳过：dev界面实测（避免在用户桌面弹出窗口，留待下一步）、打包。
 - 1.7.1：git diff --exit-code 59bcee9 -- src通过；package的scripts / dependencies / devDependencies与基准相同，仅版本提升。npm run build与build:win（含node / web typecheck）通过；git diff --check通过。
 - asar检查版本1.7.1，无dashboard:get、dashboard节点、AI仪表板文字、元数据命令或statusLine覆盖；保留结束终端、Esc序列、图集补丁、terminal-host overflow:clip与解包native PTY。复制后SHA256与dist一致。首个静态检查脚本未容忍CSS空格，改用选择器与正则后通过；不是包内功能缺失。
 - 未启动恢复版GUI（保护用户当前进程，且运行源码已与已验收1.6.1完全一致）；专用仪表板测试随功能删除，不再执行。当前四个安装版PID / 启动时间未变化。
@@ -237,6 +243,7 @@
   4. 新界面（MD3 Expressive）整体观感、默认字体效果。
 
 ## Resume Context
+- 最新工作：M22「活跃」分组代码已完成待界面实测（见In Progress / Next Steps）；核心在`ActiveList.update`与`Sidebar.setAgentState / visibleGroups`。
 - 最新状态为1.7.1原界面恢复版已交付，源码f8cdc58已推送；安装包与SHA见Completed。下列1.7.0开发 / 发布记录只作历史，不再代表当前目标。当前运行进程不得动；安装由用户自行安排。
 - 最新交付为1.7.0：源功能提交ef46ab4已推送main，安装包与SHA见Completed。当前运行版未替换；后续先收集用户安装后反馈。不要再按旧“待提交 / 待打包”条目执行重复交付。
 - 当前优先看M21条目、docs/spec.md与architecture.md：三栏已实现；Token/s取消；当前安装版不能动。没有待编码任务。1.7.0已交付，等待安装后反馈；不要从旧设计轮次重做。
