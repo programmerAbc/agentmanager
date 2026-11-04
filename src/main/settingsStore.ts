@@ -1,5 +1,6 @@
 import {
   CURSOR_STYLES,
+  DEFAULT_AGY_COMMAND,
   DEFAULT_CLAUDE_COMMAND,
   DEFAULT_CODEX_COMMAND,
   DEFAULT_CURSOR_STYLE,
@@ -34,6 +35,7 @@ const DEFAULTS: AppSettings = {
   themeSeed: DEFAULT_THEME_SEED,
   claudeCommand: DEFAULT_CLAUDE_COMMAND,
   codexCommand: DEFAULT_CODEX_COMMAND,
+  agyCommand: DEFAULT_AGY_COMMAND,
   collapsedGroups: [],
   lastProjectId: null,
   window: null
@@ -90,6 +92,7 @@ export class SettingsStore {
     }
     if (patch.claudeCommand !== undefined) next.claudeCommand = checkCommand(patch.claudeCommand)
     if (patch.codexCommand !== undefined) next.codexCommand = checkCommand(patch.codexCommand)
+    if (patch.agyCommand !== undefined) next.agyCommand = checkCommand(patch.agyCommand)
     if (patch.collapsedGroups !== undefined) next.collapsedGroups = parseGroups(patch.collapsedGroups)
     if (patch.lastProjectId !== undefined) next.lastProjectId = patch.lastProjectId
     this.settings = next
@@ -156,6 +159,7 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
         : DEFAULTS.themeSeed,
     claudeCommand: parseCommand(r.claudeCommand, DEFAULTS.claudeCommand),
     codexCommand: parseCommand(r.codexCommand, DEFAULTS.codexCommand),
+    agyCommand: parseCommand(r.agyCommand, DEFAULTS.agyCommand),
     collapsedGroups: parseGroups(r.collapsedGroups),
     lastProjectId: typeof r.lastProjectId === 'string' ? r.lastProjectId : null,
     window: parseWindowState(r.window)

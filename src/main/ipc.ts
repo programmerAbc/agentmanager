@@ -188,7 +188,7 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
 
   /**
    * 拼出写进终端的启动命令，写法取决于该终端实际使用的 shell（PowerShell / cmd / bash）。
-   * 只有命令确实以 claude / codex 开头、且 hooks 服务可用时才注入 hooks，否则原样执行（没有状态）。
+   * 只有命令确实以 claude / codex / agy 开头、且 hooks 服务可用时才注入 hooks，否则原样执行（没有状态）。
    */
   async function launchLine(kind: AgentKind, sessionId: string): Promise<string> {
     const s = settings.get()
@@ -199,9 +199,15 @@ export function registerIpc({ projects, settings, ptys, hooks }: IpcDeps): void 
       const file = await hooks.writeClaudeSettings(sessionId)
       return `${command} --settings ${quotePath(file, family)}`
     }
-    const command = s.codexCommand
-    if (!hooks.ready || !/^codex(\.exe|\.cmd|\.ps1)?(\s|$)/i.test(command)) return command
-    return hooks.codexLaunchLine(command, family)
+    if (kind === 'codex') {
+      const command = s.codexCommand
+      if (!hooks.ready || !/^codex(\.exe|\.cmd|\.ps1)?(\s|$)/i.test(command)) return command
+      return hooks.codexLaunchLine(command, family)
+    }
+    const command = s.agyCommand
+    if (!hooks.ready || !/^agy(\.exe|\.cmd|\.ps1)?(\s|$)/i.test(command)) return command
+    await hooks.ensureAgyPlugin()
+    return hooks.agyLaunchLine(command, family)
   }
 
   // ---------- app ----------
@@ -262,7 +268,7 @@ function asBoolean(v: unknown): boolean {
 }
 
 function asAgentKind(v: unknown): AgentKind {
-  if (v !== 'claude' && v !== 'codex') throw new Error('参数类型错误')
+  if (v !== 'claude' && v !== 'codex' && v !== 'agy') throw new Error('参数类型错误')
   return v
 }
 
@@ -291,6 +297,7 @@ function asSettingsPatch(v: unknown): SettingsPatch {
   if (typeof r.themeSeed === 'string') patch.themeSeed = r.themeSeed
   if (typeof r.claudeCommand === 'string') patch.claudeCommand = r.claudeCommand
   if (typeof r.codexCommand === 'string') patch.codexCommand = r.codexCommand
+  if (typeof r.agyCommand === 'string') patch.agyCommand = r.agyCommand
   if (Array.isArray(r.collapsedGroups)) patch.collapsedGroups = r.collapsedGroups as SidebarGroup[]
   if (typeof r.lastProjectId === 'string' || r.lastProjectId === null) patch.lastProjectId = r.lastProjectId
   return patch

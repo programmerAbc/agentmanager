@@ -73,10 +73,10 @@ export class AgentStatusTracker {
 
   /**
    * 刚发出启动命令。claude 启动时会触发 SessionStart，先显示「启动中」；
-   * codex 的 SessionStart 要到第一轮对话才触发，直接显示「就绪」。
+   * codex / agy 的 SessionStart 要到第一轮对话才触发，直接显示「就绪」。
    */
   markLaunched(sessionId: string, agent: AgentKind): void {
-    if (agent === 'codex') {
+    if (agent === 'codex' || agent === 'agy') {
       this.set(sessionId, { agent, status: 'idle' })
       return
     }
@@ -102,6 +102,7 @@ export class AgentStatusTracker {
         if (status === 'none' || status === 'starting') to('idle')
         break
       case 'UserPromptSubmit':
+      case 'PreInvocation':
       case 'PreToolUse':
       case 'PostToolUse':
       case 'PreCompact':

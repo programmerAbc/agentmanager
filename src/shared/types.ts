@@ -39,6 +39,8 @@ export interface AppSettings {
   claudeCommand: string
   /** 「启动 Codex」按钮执行的命令 */
   codexCommand: string
+  /** 「启动 AGY」按钮执行的命令 */
+  agyCommand: string
   /** 折叠起来的侧栏分组 */
   collapsedGroups: SidebarGroup[]
   lastProjectId: string | null
@@ -99,6 +101,7 @@ export function themeModeOf(seed: string): ThemeMode {
 export const WINDOW_BACKGROUND: Record<ThemeMode, string> = { light: '#FFFFFF', black: '#000000', dark: '#181818' }
 export const DEFAULT_CLAUDE_COMMAND = 'claude --permission-mode bypassPermissions'
 export const DEFAULT_CODEX_COMMAND = 'codex --dangerously-bypass-approvals-and-sandbox'
+export const DEFAULT_AGY_COMMAND = 'agy --dangerously-skip-permissions'
 /** 字体族名只允许常见字符，避免拼进 CSS font-family 时出问题 */
 export const FONT_FAMILY_PATTERN = /^[^"'\\;{}<>\r\n]{1,100}$/
 export const THEME_SEED_PATTERN = /^#[0-9a-fA-F]{6}$/
@@ -146,14 +149,17 @@ export const IPC = {
 } as const
 
 /** 可以从按钮启动、并跟踪工作状态的 AI 助手 */
-export type AgentKind = 'claude' | 'codex'
+export type AgentKind = 'claude' | 'codex' | 'agy'
 
-export const AGENT_LABEL: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+export const AGENT_KINDS: readonly AgentKind[] = ['claude', 'codex', 'agy']
+
+export const AGENT_LABEL: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', agy: 'AGY' }
 
 /** 各助手的 hooks 会上报的事件 */
 export type AgentHookEvent =
   | 'SessionStart'
   | 'UserPromptSubmit'
+  | 'PreInvocation'
   | 'PreToolUse'
   | 'PostToolUse'
   | 'PermissionRequest'
@@ -191,6 +197,15 @@ export const CODEX_HOOK_EVENTS: readonly AgentHookEvent[] = [
   'SubagentStart',
   'SubagentStop',
   'Interrupt',
+  'SessionEnd'
+]
+
+/** agy（Antigravity CLI）插件 hooks 上报的事件（SessionEnd 由启动包装脚本在进程退出时上报） */
+export const AGY_HOOK_EVENTS: readonly AgentHookEvent[] = [
+  'SessionStart',
+  'PreInvocation',
+  'PostToolUse',
+  'Stop',
   'SessionEnd'
 ]
 

@@ -1,5 +1,6 @@
 // Material Symbols Rounded（@material-symbols/svg-400，Apache-2.0），按需打包
 import add from '@material-symbols/svg-400/rounded/add.svg?raw'
+import bolt from '@material-symbols/svg-400/rounded/bolt.svg?raw'
 import checkCircleFill from '@material-symbols/svg-400/rounded/check_circle-fill.svg?raw'
 import codeBlocks from '@material-symbols/svg-400/rounded/code_blocks.svg?raw'
 import close from '@material-symbols/svg-400/rounded/close.svg?raw'
@@ -27,6 +28,7 @@ import expandMore from '@material-symbols/svg-400/rounded/arrow_drop_down.svg?ra
 
 const ICONS = {
   add,
+  bolt,
   check,
   checkCircleFill,
   close,

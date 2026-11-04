@@ -448,6 +448,12 @@ export class Sidebar {
         disabled: this.agents.has(id),
         action: () => this.cb.onLaunchAgent(id, 'codex')
       },
+      {
+        label: '启动 AGY',
+        icon: 'bolt',
+        disabled: this.agents.has(id),
+        action: () => this.cb.onLaunchAgent(id, 'agy')
+      },
       { separator: true },
       {
         label: starred ? '取消星标' : '加星标',

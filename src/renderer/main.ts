@@ -1,7 +1,9 @@
 import '@xterm/xterm/css/xterm.css'
 import './styles.css'
 import {
+  AGENT_KINDS,
   AGENT_LABEL,
+  DEFAULT_AGY_COMMAND,
   DEFAULT_CLAUDE_COMMAND,
   DEFAULT_CODEX_COMMAND,
   FONT_SIZE,
@@ -23,7 +25,7 @@ import { toast } from './toast'
 
 const api = window.api
 const SETTINGS_SAVE_DELAY_MS = 400
-const AGENT_ICON: Record<AgentKind, IconName> = { claude: 'rocketLaunch', codex: 'codeBlocks' }
+const AGENT_ICON: Record<AgentKind, IconName> = { claude: 'rocketLaunch', codex: 'codeBlocks', agy: 'bolt' }
 
 /** 渲染进程的总控：持有项目列表、当前选中项和设置，协调侧栏、顶部栏与终端区域。 */
 class App {
@@ -217,17 +219,24 @@ class App {
         DEFAULT_CODEX_COMMAND,
         '命令以 codex 开头时会自动追加 -c 注入 hooks 以显示工作状态（不修改 ~/.codex/config.toml）。' +
           '首次启动时 codex 会提示「Hooks need review」，选择「Trust all and continue」后不再提示。'
+      ),
+      ...this.commandField(
+        'agyCommand',
+        'AGY 启动命令',
+        '「启动 AGY」按钮执行的命令',
+        DEFAULT_AGY_COMMAND,
+        '命令以 agy 开头时会自动配置 ~/.gemini/config/plugins/agentmanager 插件并注入环境变量以显示工作状态。'
       )
     )
     const note = document.createElement('div')
     note.className = 'field-help'
-    note.textContent = '只有通过按钮启动的助手才会显示状态；在终端里手动输入的 claude / codex 没有状态。'
+    note.textContent = '只有通过按钮启动的助手才会显示状态；在终端里手动输入的 claude / codex / agy 没有状态。'
     section.appendChild(note)
     return section
   }
 
   private commandField(
-    key: 'claudeCommand' | 'codexCommand',
+    key: 'claudeCommand' | 'codexCommand' | 'agyCommand',
     name: string,
     desc: string,
     defaultValue: string,
@@ -415,7 +424,11 @@ class App {
       })
       return btn
     }
-    const launch = { claude: launchButton('claude', 'filled'), codex: launchButton('codex', 'tonal') }
+    const launch = {
+      claude: launchButton('claude', 'filled'),
+      codex: launchButton('codex', 'tonal'),
+      agy: launchButton('agy', 'tonal')
+    }
 
     const end = iconButton('stopCircle', '结束终端', () => {
       if (this.selectedId) this.endTerminal(this.selectedId)
@@ -427,6 +440,7 @@ class App {
       status,
       launch.claude,
       launch.codex,
+      launch.agy,
       end,
       iconButton('folderOpen', '在资源管理器中打开', () => {
         if (this.selectedId) void this.openInExplorer(this.selectedId)
@@ -450,8 +464,8 @@ class App {
     }
     chip.dataset.state = key
 
-    // 同一终端同时只跟踪一个助手：有助手在运行时隐藏两个启动按钮，只留状态标签（用户反馈：禁用的按钮多余）
-    for (const agent of ['claude', 'codex'] as const) this.topbar.launch[agent].hidden = state !== null
+    // 同一终端同时只跟踪一个助手：有助手在运行时隐藏启动按钮，只留状态标签（用户反馈：禁用的按钮多余）
+    for (const agent of AGENT_KINDS) this.topbar.launch[agent].hidden = state !== null
   }
 
   private render(): void {
@@ -479,7 +493,7 @@ class App {
         hint: '终端尚未启动，点击此处或按 Enter 启动。',
         buttons: [
           { label: '启动终端', variant: 'tonal', icon: 'playArrowFill' },
-          ...(['claude', 'codex'] as const).map((agent) => ({
+          ...AGENT_KINDS.map((agent) => ({
             label: `启动 ${AGENT_LABEL[agent]}`,
             variant: 'filled' as const,
             icon: AGENT_ICON[agent],
