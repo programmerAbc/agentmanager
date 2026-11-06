@@ -4,6 +4,10 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 
 需求见 [PLAN.md](PLAN.md)，设计见 [docs/architecture.md](docs/architecture.md)。
 
+## 1.8.2：右键「复制路径」
+
+- 侧栏项目右键菜单新增「复制路径」，把项目目录的绝对路径复制到剪贴板。安装包：`D:\agnent_manager_release\agentmanager-1.8.2-setup.exe`。
+
 ## 1.8.1：AGY 状态上报重做
 
 - 按 Antigravity 官方文档与 agy 自带文档重做 AGY 工作状态：插件改用 `report.cmd` 脚本，只挂必需事件（不再每个工具调用都触发 hook，减少对 agy 的阻塞）；agy 向你提问 / 申请权限时显示「等待确认」。安装包：`D:\agnent_manager_release\agentmanager-1.8.1-setup.exe`。
