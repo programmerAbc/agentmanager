@@ -19,6 +19,8 @@ export interface SidebarCallbacks {
   onCollapsedChange(groups: SidebarGroup[]): void
   onRemove(id: string): void
   onOpenInExplorer(id: string): void
+  /** 把项目目录的绝对路径复制到剪贴板 */
+  onCopyPath(id: string): void
   onEndTerminal(id: string): void
   /** 项目是否有终端（运行中或已退出），没有时右键菜单的「结束终端」禁用 */
   hasTerminal(id: string): boolean
@@ -493,6 +495,7 @@ export class Sidebar {
         : []),
       { label: '重命名', icon: 'edit', action: () => this.beginRename(id) },
       { label: '在资源管理器中打开', icon: 'folderOpen', action: () => this.cb.onOpenInExplorer(id) },
+      { label: '复制路径', icon: 'contentCopy', action: () => this.cb.onCopyPath(id) },
       {
         label: '结束终端',
         icon: 'stopCircle',

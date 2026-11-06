@@ -6,12 +6,12 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 
 ## 1.8.1：AGY 状态上报重做
 
-- 按 Antigravity 官方文档与 agy 自带文档重做 AGY 工作状态：插件改用 `report.cmd` 脚本，只挂必需事件（不再每个工具调用都触发 hook，减少对 agy 的阻塞）；agy 向你提问 / 申请权限时显示「等待确认」。安装包：`D:gnent_manager_releasegentmanager-1.8.1-setup.exe`。
+- 按 Antigravity 官方文档与 agy 自带文档重做 AGY 工作状态：插件改用 `report.cmd` 脚本，只挂必需事件（不再每个工具调用都触发 hook，减少对 agy 的阻塞）；agy 向你提问 / 申请权限时显示「等待确认」。安装包：`D:\agnent_manager_release\agentmanager-1.8.1-setup.exe`。
 
 ## 1.8.0：「活跃」分组与 AGY 支持
 
 - 侧栏最上方新增「活跃」分组：助手开始工作（工作中 / 等待确认）的项目自动加入，新的在前，最多 10 个，满了移出静默最久的项目（正在工作的优先保留）；项目同时仍在原分组显示，可折叠，右键可「移出「活跃」」，重启后清空。
-- 新增「启动 AGY」（Antigravity CLI）及其工作状态显示。安装包：`D:gnent_manager_releasegentmanager-1.8.0-setup.exe`。
+- 新增「启动 AGY」（Antigravity CLI）及其工作状态显示。安装包：`D:\agnent_manager_release\agentmanager-1.8.0-setup.exe`。
 
 ## 1.7.1：恢复原界面
 
@@ -102,7 +102,7 @@ npm run build:win    # 打包 NSIS 安装包到 dist/
 | 打开链接 / 图片附件 / 文件路径 | `Ctrl` + 单击（可执行文件只在资源管理器中定位） |
 | 重启已退出的终端 | 进程退出后按 `Enter` |
 
-终端内右键菜单提供「复制」「粘贴」；侧栏项目右键菜单提供「启动 Claude / 启动 Codex / 启动 AGY / 重命名 / 在资源管理器中打开 / 结束终端 / 移除项目」，选中项目时 `F2` 重命名。
+终端内右键菜单提供「复制」「粘贴」；侧栏项目右键菜单提供「启动 Claude / 启动 Codex / 启动 AGY / 加星标 / 重命名 / 在资源管理器中打开 / 复制路径 / 结束终端 / 移除项目」，选中项目时 `F2` 重命名。
 
 ## 中文输入法测试记录
 

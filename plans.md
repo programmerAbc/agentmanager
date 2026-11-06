@@ -62,6 +62,7 @@
 |---|---|---|
 | M22 「活跃」分组（用户要求，2026-11-04） | ✅ 完成（1.8.0），界面未实测 | `ActiveList`（上限 10、淘汰静默最久）+ 单元测试；`SidebarGroup` 加 `active`；侧栏分组、重复行处理、右键「移出「活跃」」；typecheck / build 通过。1.8.0 已打包；未做 dev 实例界面实测 |
 | M23 AGY 启动与状态（1.8.0 首版，2026-11-06 重做） | ✅ 完成（1.8.1 已打包） | 按 agy 官方 / 自带文档重做插件：`agyPlugin.ts`、`report.cmd` 脚本、只挂必需事件、`ask_question` / `ask_permission` → 等待确认；`npm test`（含真实 cmd /c 上报脚本测试）、typecheck / build、真实 `agy -p` 端到端通过。按钮启动的界面实测未做 |
+| M24 右键菜单「复制路径」（用户要求，2026-11-06） | ✅ 代码完成，未提交 / 未发版 | `Sidebar` 回调 `onCopyPath` → `App.copyPath`（复用 clipboard IPC + toast）；typecheck / build 通过，隔离 dev 实例实测通过 |
 
 ## AI Dashboard（M21，已撤销）
 - 1.7.0曾实现并交付仪表板；用户反馈启动后不对话时没有数据，随后决定删除，继续使用CLI原生statusline。

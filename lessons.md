@@ -397,3 +397,13 @@ AGY 首版按推测实现：挂了 `PostToolUse: *`（每个工具调用都多�
 agy 安装后自带 `~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/*.md`（与安装版本一致）：`cmd /c` 执行、cwd 为 hooks.json 所在目录、hooks 同步阻塞、Stop 的全部 terminationReason。据此改为插件内脚本 + 最少事件 + matcher，用真实 `agy -p` 端到端验证。
 ### Prevention
 接入 CLI 的 hooks / 插件前，先找安装目录里随版本发布的文档或 skill，再对照官网；hooks 若阻塞主循环，只挂必需事件并用 matcher 收窄。用 `agy -p` 在临时目录 + 本地监听器即可真实验证，不需要动正在运行的应用。
+
+## Lesson: 用脚本改文档时 Windows 路径反斜杠被吃掉
+### Problem
+handoff / README 中 `D:\agnent_manager_release\agentmanager-…` 变成 `D:<响铃>gnent…`，1.8.0 的 README 条目就已损坏。
+### Root Cause
+用 Python 普通字符串（非 raw）写含 Windows 路径的文本，`\a` 被解释为响铃字符 0x07；再用 shell 内联 node / perl 修复又叠加一层转义（Git Bash 下 `perl -i` 也不生效）。
+### Solution
+用独立脚本文件 + `String.fromCharCode(92)` 拼反斜杠修复；检查 `grep -c $'\a'` 为 0。
+### Prevention
+含 Windows 路径的文档改动优先用 Edit 工具；必须用脚本时用 raw 字符串或从文件读取替换内容，改完 `grep -c $'\a'` 检查控制字符。

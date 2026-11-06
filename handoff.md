@@ -1,8 +1,9 @@
 ## Completed
-- 1.8.1交付（2026-11-06）：AGY 重做（99296ea）+ 版本号 1.8.1。安装包 `D:gnent_manager_releasegentmanager-1.8.1-setup.exe`（123703087 字节），SHA256：CE4C2F32897CA5AAFE5A6C785703E84379D785614871713029382363DE1682FD，与 dist 一致；1.7.1 / 1.8.0 旧包保留。解包 app.asar 静态检查：版本 1.8.1，含 report.cmd、ask_question / ask_permission、USER_CANCELED、`{"decision":"allow"}`。未启动打包版 GUI、未安装；AgentManager 进程 6616 / 32984 / 57676 / 58360 未动。
+- M24 右键「复制路径」（2026-11-06，未提交 / 未发版）：src/renderer/sidebar.ts 菜单项 + `onCopyPath` 回调，src/renderer/main.ts `copyPath`（`api.clipboard.writeText` + toast）。
+- 1.8.1交付（2026-11-06）：AGY 重做（99296ea）+ 版本号 1.8.1。安装包 `D:\agnent_manager_release\agentmanager-1.8.1-setup.exe`（123703087 字节），SHA256：CE4C2F32897CA5AAFE5A6C785703E84379D785614871713029382363DE1682FD，与 dist 一致；1.7.1 / 1.8.0 旧包保留。解包 app.asar 静态检查：版本 1.8.1，含 report.cmd、ask_question / ask_permission、USER_CANCELED、`{"decision":"allow"}`。未启动打包版 GUI、未安装；AgentManager 进程 6616 / 32984 / 57676 / 58360 未动。
 - AGY 重做（2026-11-06，99296ea 已提交并推送 origin/main，未发版）：按 antigravity.google/docs/hooks 与 agy 1.4.2 自带文档（`~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/hooks.md`）重写状态上报。新 `src/main/agyPlugin.ts`：插件 = plugin.json + hooks.json + `report.cmd`（ASCII/CRLF，cwd 为插件目录，`.
 eport.cmd <事件>`）；只挂 SessionStart / PreInvocation / Stop + matcher `ask_question|ask_permission` 的 PreToolUse / PostToolUse（hooks 阻塞 agent 循环，去掉 `PostToolUse: *`）；PreToolUse(ask_*) → 等待确认（新能力），Stop USER_CANCELED → 就绪。启动命令 / 环境变量门控 / SessionEnd 不变。需求见 spec M23，设计见 architecture「AGY 状态上报设计」。
-- 1.8.0交付（2026-11-04）：AGY支持（5ce1feb）与M22「活跃」分组 + 版本号分两次提交，合并到main并推送origin。安装包D:gnent_manager_releasegentmanager-1.8.0-setup.exe（123702296字节），SHA256：8EDE7D7B75A4D3070F0C8D8152610ABDD8891CD7F45F33938C8FCD2C95C64E40，与dist一致；旧包保留。未启动打包版、未安装、未动当前运行的AgentManager。
+- 1.8.0交付（2026-11-04）：AGY支持（5ce1feb）与M22「活跃」分组 + 版本号分两次提交，合并到main并推送origin。安装包D:\agnent_manager_release\agentmanager-1.8.0-setup.exe（123702296字节），SHA256：8EDE7D7B75A4D3070F0C8D8152610ABDD8891CD7F45F33938C8FCD2C95C64E40，与dist一致；旧包保留。未启动打包版、未安装、未动当前运行的AgentManager。
 - M22「活跃」分组（2026-11-04，代码完成）：侧栏最上方「活跃」分组，助手进入工作 / 等待确认的项目加入（新的在前），上限10，满了移出静默最久的（忙碌的优先保留）；项目仍在原分组显示；可折叠，搜索时隐藏，右键可「移出「活跃」」，仅内存。需求 / 设计见spec「迭代8」、architecture「迭代8设计」。
 - 1.7.1恢复版交付（2026-10-06）：f8cdc58已提交并推送main；src与59bcee9（1.6.1）无差异，仪表板及数据采集 / statusLine覆盖 / 额外handler / 原型 / 专用测试已移除，原有功能保留。安装包D:\agnent_manager_release\agentmanager-1.7.1-setup.exe（123699570字节），SHA256：4AF2D54E7EEDCBF61BBF355CF3405C1974047618D9B27B06D22D28940A887C10，与dist一致；旧安装包保留。
 - 当前进程保护：3384 / 4776 / 15660 / 17356均仍为11:14:23启动；未启动打包GUI或安装。界面恢复和CLI statusline覆盖撤销将在用户安装并新启动后生效。
@@ -59,7 +60,7 @@ eport.cmd <事件>`）；只挂 SessionStart / PreInvocation / Stop + matcher `a
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- 无编码任务。1.8.1 已打包，等用户自行安装；按钮启动 AGY 的界面未在 dev 实例实测。M22 与按钮启动 AGY 的界面均未在 dev 实例实测。
+- M24 已实现并实测，**未提交**、未改版本号；1.8.1 已打包等用户安装；按钮启动 AGY 的界面未在 dev 实例实测。M22 与按钮启动 AGY 的界面均未在 dev 实例实测。
 
 ## Next Steps
 - 用户自行安装 1.8.1 后观察 AGY 状态（含按 Esc 取消、ask_question 等待确认）；可用隔离 dev 实例实测。当前安装版AgentManager进程不得动。
@@ -77,6 +78,7 @@ eport.cmd <事件>`）；只挂 SessionStart / PreInvocation / Stop + matcher `a
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- M24：src/renderer/sidebar.ts、src/renderer/main.ts；README.md、docs/spec.md、plans.md、handoff.md。
 - AGY 重做：src/main/agyPlugin.ts（新）、src/main/hookServer.ts、src/shared/types.ts（删 `AGY_HOOK_EVENTS`）、tests/agyPlugin.test.ts（新）、package.json（`test:agy`、`test`）；README.md、docs/spec.md、docs/architecture.md、plans.md、lessons.md、handoff.md。本机 `~/.gemini/config/plugins/agentmanager/` 已被测试写成新版（另有首版遗留的两个 `*.metadata.json`，无害，未删）。
 - M22：src/renderer/activeList.ts（新）、src/renderer/sidebar.ts、src/shared/types.ts（`SidebarGroup`加`active`）、tests/activeList.test.ts（新）、package.json（`test:active`）；docs/spec.md、docs/architecture.md、plans.md、handoff.md、lessons.md。
 - 恢复版：src中1.7.0修改文件逐一恢复59bcee9；删除agentDashboardStore / codexHooks / dashboardData / jsonlTail / renderer/dashboard、专用tests与runner、HTML原型与design-qa。package / lock使用1.6.1依赖配置，版本1.7.1；README与五份知识文档反映撤销决定。
@@ -102,6 +104,7 @@ eport.cmd <事件>`）；只挂 SessionStart / PreInvocation / Stop + matcher `a
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- M24（2026-11-06）：typecheck / build 通过；隔离 dev 实例（`.devtest/ud`，`AGENTMANAGER_TEST_INACTIVE=1`，CDP 9223）右键 demo → 菜单顺序正确，点「复制路径」后剪贴板为 `D:\develop\workspace_lab3\agentmanager\.devtest\proj\demo`、提示正确、菜单关闭；测试前备份用户剪贴板文本、测试后已恢复；dev 实例用 close-dev.ps1 关闭（剩余 0、9223 关闭）；安装版进程 6616 / 32984 / 57676 / 58360 未动。
 - 1.8.1打包（2026-11-06）：`npm test` 7/7、`npm run build:win` 通过；dist 与 release 安装包大小 / SHA256 一致；asar 静态检查通过。
 - AGY 重做（2026-11-06）：`npm test` 7/7 通过（含在带空格 + 中文的临时目录用真实 `cmd /c` 跑 report.cmd、本地 HTTP 接收）；`npm run typecheck`、`npm run build` 通过。真实 agy 1.4.2 端到端（scratchpad 临时目录，`agy -p`，本地监听）：普通提问收到 SessionStart → PreInvocation → Stop(NO_TOOL_CALL, fullyIdle)；要求调用 ask_question 时收到 PreToolUse(→PermissionRequest) → PostToolUse → PreInvocation → Stop，且 `{"decision":"allow"}` 未阻止工具。USER_CANCELED 未实测（依据自带文档）。未启动 dev / 打包 GUI；AgentManager 进程 6616 / 32984 / 57676 / 58360（11:22:22 启动）前后一致。
 - 1.8.0打包：`npm run build:win`（含typecheck + build）exit 0；`npm run test:active` 4/4；out渲染包含「活跃」。

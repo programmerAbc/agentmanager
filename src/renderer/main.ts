@@ -114,6 +114,7 @@ class App {
       onCollapsedChange: (groups) => this.changeSettings({ collapsedGroups: groups }),
       onRemove: (id) => void this.removeProject(id),
       onOpenInExplorer: (id) => void this.openInExplorer(id),
+      onCopyPath: (id) => void this.copyPath(id),
       onEndTerminal: (id) => this.endTerminal(id),
       hasTerminal: (id) => this.terminals.has(id),
       onSearchDone: () => {
@@ -398,6 +399,17 @@ class App {
   private async openInExplorer(id: string): Promise<void> {
     const result = await api.projects.openInExplorer(id)
     if (!result.ok) toast(result.error)
+  }
+
+  private async copyPath(id: string): Promise<void> {
+    const project = this.projects.find((p) => p.id === id)
+    if (!project) return
+    try {
+      await api.clipboard.writeText(project.path)
+      toast(`已复制路径：${project.path}`, 'info')
+    } catch {
+      toast('复制路径失败')
+    }
   }
 
   // ---------------- 渲染 ----------------
