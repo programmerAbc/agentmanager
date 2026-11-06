@@ -1,5 +1,5 @@
 ## Completed
-- AGY 重做（2026-11-06，未提交 / 未发版）：按 antigravity.google/docs/hooks 与 agy 1.4.2 自带文档（`~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/hooks.md`）重写状态上报。新 `src/main/agyPlugin.ts`：插件 = plugin.json + hooks.json + `report.cmd`（ASCII/CRLF，cwd 为插件目录，`.eport.cmd <事件>`）；只挂 SessionStart / PreInvocation / Stop + matcher `ask_question|ask_permission` 的 PreToolUse / PostToolUse（hooks 阻塞 agent 循环，去掉 `PostToolUse: *`）；PreToolUse(ask_*) → 等待确认（新能力），Stop USER_CANCELED → 就绪。启动命令 / 环境变量门控 / SessionEnd 不变。需求见 spec M23，设计见 architecture「AGY 状态上报设计」。
+- AGY 重做（2026-11-06，99296ea 已提交并推送 origin/main，未发版）：按 antigravity.google/docs/hooks 与 agy 1.4.2 自带文档（`~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/hooks.md`）重写状态上报。新 `src/main/agyPlugin.ts`：插件 = plugin.json + hooks.json + `report.cmd`（ASCII/CRLF，cwd 为插件目录，`.eport.cmd <事件>`）；只挂 SessionStart / PreInvocation / Stop + matcher `ask_question|ask_permission` 的 PreToolUse / PostToolUse（hooks 阻塞 agent 循环，去掉 `PostToolUse: *`）；PreToolUse(ask_*) → 等待确认（新能力），Stop USER_CANCELED → 就绪。启动命令 / 环境变量门控 / SessionEnd 不变。需求见 spec M23，设计见 architecture「AGY 状态上报设计」。
 - 1.8.0交付（2026-11-04）：AGY支持（5ce1feb）与M22「活跃」分组 + 版本号分两次提交，合并到main并推送origin。安装包D:gnent_manager_releasegentmanager-1.8.0-setup.exe（123702296字节），SHA256：8EDE7D7B75A4D3070F0C8D8152610ABDD8891CD7F45F33938C8FCD2C95C64E40，与dist一致；旧包保留。未启动打包版、未安装、未动当前运行的AgentManager。
 - M22「活跃」分组（2026-11-04，代码完成）：侧栏最上方「活跃」分组，助手进入工作 / 等待确认的项目加入（新的在前），上限10，满了移出静默最久的（忙碌的优先保留）；项目仍在原分组显示；可折叠，搜索时隐藏，右键可「移出「活跃」」，仅内存。需求 / 设计见spec「迭代8」、architecture「迭代8设计」。
 - 1.7.1恢复版交付（2026-10-06）：f8cdc58已提交并推送main；src与59bcee9（1.6.1）无差异，仪表板及数据采集 / statusLine覆盖 / 额外handler / 原型 / 专用测试已移除，原有功能保留。安装包D:\agnent_manager_release\agentmanager-1.7.1-setup.exe（123699570字节），SHA256：4AF2D54E7EEDCBF61BBF355CF3405C1974047618D9B27B06D22D28940A887C10，与dist一致；旧安装包保留。
@@ -57,10 +57,10 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
-- AGY 重做代码完成、已验证，**未提交**，等用户决定提交 / 版本号 / 打包。M22 与按钮启动 AGY 的界面均未在 dev 实例实测。
+- AGY 重做已提交推送（99296ea），未改版本号、未打包。M22 与按钮启动 AGY 的界面均未在 dev 实例实测。
 
 ## Next Steps
-- 用户确认后提交 AGY 重做（建议 1.8.1）并打包；可用隔离 dev 实例实测按钮启动 AGY 的状态变化。当前安装版AgentManager进程不得动。
+- 用户确认后定版本号（建议 1.8.1）并打包；可用隔离 dev 实例实测按钮启动 AGY 的状态变化。当前安装版AgentManager进程不得动。
 - 注意：已安装的 1.8.0 点「启动 AGY」时会把插件 hooks.json 改回首版内联命令（与新 report.cmd 共存无害）；装新版后再次启动即恢复新版。
 - 用户在当前工作结束后自行安装1.7.1；不要自动关闭当前AgentManager或终端。更新后新启动Claude使用其原有statusline，Codex仍保留原有状态hooks，不注入两条仪表板元数据handler。
 - 观察原终端输入法 / 长会话显示；后续若升级xterm WebGL，需检查图集补丁兼容性（见architecture.md与lessons.md）。
