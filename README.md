@@ -4,6 +4,10 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 
 需求见 [PLAN.md](PLAN.md)，设计见 [docs/architecture.md](docs/architecture.md)。
 
+## 1.8.1：AGY 状态上报重做
+
+- 按 Antigravity 官方文档与 agy 自带文档重做 AGY 工作状态：插件改用 `report.cmd` 脚本，只挂必需事件（不再每个工具调用都触发 hook，减少对 agy 的阻塞）；agy 向你提问 / 申请权限时显示「等待确认」。安装包：`D:gnent_manager_releasegentmanager-1.8.1-setup.exe`。
+
 ## 1.8.0：「活跃」分组与 AGY 支持
 
 - 侧栏最上方新增「活跃」分组：助手开始工作（工作中 / 等待确认）的项目自动加入，新的在前，最多 10 个，满了移出静默最久的项目（正在工作的优先保留）；项目同时仍在原分组显示，可折叠，右键可「移出「活跃」」，重启后清空。
