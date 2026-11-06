@@ -188,6 +188,13 @@
 
 应用版本号 1.8.0（M22 + AGY 支持）。
 
+### M23 AGY（Antigravity CLI）启动与工作状态（1.8.0 首版；2026-11-06 按官方文档重做）
+- 「启动 AGY」按钮（顶部栏 / 未启动面板 / 项目右键菜单），默认命令 `agy --dangerously-skip-permissions`，设置中可改。
+- 只有命令以 `agy` 开头、且通过按钮启动时显示状态；终端里手动输入的 agy 不上报（即使插件已安装）。
+- 状态：启动后即「就绪」（agy 的 SessionStart 要到第一轮对话才触发）；每次调用模型 →「工作中」；agy 调用 `ask_question` / `ask_permission`（向用户提问 / 申请权限）→「等待确认」，工具结束 →「工作中」；一轮结束 →「已完成」；按 Esc 取消（`USER_CANCELED`）→「就绪」；agy 退出 → 无状态。
+- 不修改用户已有的 agy 配置文件；只维护 `~/.gemini/config/plugins/agentmanager/` 这一个插件目录。
+- 已知限制：agy 没有「权限确认框」事件，非 `--dangerously-skip-permissions` 模式下工具的权限确认框不会显示为「等待确认」（在终端按键后状态照常推进）；用户用 `agy plugin disable agentmanager` 禁用插件后没有状态。
+
 ### M19 Codex 全部生命周期 hooks（2026-09-30 用户要求）
 - 用户要求「把事件都加上」，并接受 codex 再提示一次「Hooks need review」、重新信任。
 - codex 0.159.2 支持 12 个 hook 事件（从 codex 二进制与官方文档 learn.chatgpt.com/docs/hooks 确认），全部注入，状态对应：

@@ -387,3 +387,13 @@ xterm 组字时每次渲染都把组字框和隐藏输入框（宽度 = 组字�
 在会话 scratchpad 建 venv 装 `imageio-ffmpeg` 拿到 ffmpeg（不改系统环境），抽全部帧后按帧差分找出变化大的帧，再并排看前后几帧；页面里的时序数据用注入的 `requestAnimationFrame` 循环每帧记录一次（`.devtest/frame-cursor.mjs`），一次性取回。
 ### Prevention
 测量渲染相关的时序不要高频轮询 CDP；按渲染节奏在页面内采集。复现不了用户的现象时，先保证能在模拟环境复现机制，再说明真实场景未能重现、需要用户确认。
+
+## Lesson: 先查 CLI 自带文档再实现 hooks
+### Problem
+AGY 首版按推测实现：挂了 `PostToolUse: *`（每个工具调用都多起 cmd + curl），没有「等待确认」，hook 命令内联在 JSON 里靠去掉双引号规避 cmd 解析问题。
+### Root Cause
+官网文档不全（未写 Windows shell、工作目录、阻塞执行、terminationReason 全集），首版没有找到更权威的来源。
+### Solution
+agy 安装后自带 `~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/*.md`（与安装版本一致）：`cmd /c` 执行、cwd 为 hooks.json 所在目录、hooks 同步阻塞、Stop 的全部 terminationReason。据此改为插件内脚本 + 最少事件 + matcher，用真实 `agy -p` 端到端验证。
+### Prevention
+接入 CLI 的 hooks / 插件前，先找安装目录里随版本发布的文档或 skill，再对照官网；hooks 若阻塞主循环，只挂必需事件并用 matcher 收窄。用 `agy -p` 在临时目录 + 本地监听器即可真实验证，不需要动正在运行的应用。

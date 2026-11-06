@@ -200,15 +200,6 @@ export const CODEX_HOOK_EVENTS: readonly AgentHookEvent[] = [
   'SessionEnd'
 ]
 
-/** agy（Antigravity CLI）插件 hooks 上报的事件（SessionEnd 由启动包装脚本在进程退出时上报） */
-export const AGY_HOOK_EVENTS: readonly AgentHookEvent[] = [
-  'SessionStart',
-  'PreInvocation',
-  'PostToolUse',
-  'Stop',
-  'SessionEnd'
-]
-
 export interface AgentEvent {
   agent: AgentKind
   name: AgentHookEvent

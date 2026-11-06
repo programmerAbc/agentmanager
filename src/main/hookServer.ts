@@ -5,12 +5,12 @@ import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  AGY_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEX_HOOK_EVENTS,
   type AgentEvent,
   type AgentHookEvent
 } from '../shared/types'
+import { AGY_PLUGIN_NAME, agyEvent, writeAgyPlugin } from './agyPlugin'
 import log from './log'
 import type { ShellFamily } from './shells'
 
@@ -51,39 +51,14 @@ const codexHookGroups = (event: AgentHookEvent): string =>
 const CODEX_HOOKS_TOML = `hooks={${CODEX_HOOK_EVENTS.map((event) => `${event}=[${codexHookGroups(event)}]`).join(',')}}`
 
 /**
- * agy 在 Windows 上用 `cmd /c` 执行 hook，且要求 stdout 输出 JSON 对象（`{}`）。
- * 命令不含双引号（避免 Go EscapeArg 转义引号干扰 cmd /c 解析）；
- * 仅在设置了 AGENT_DESK_AGY_URL（由「启动 AGY」按钮注入）时才上报，手动输入 agy 时直接输出 `{}`。
- */
-const agyHookHandler = (event: AgentHookEvent, withStdin = false): Record<string, unknown> => ({
-  type: 'command',
-  command: `(if defined AGENT_DESK_AGY_URL curl.exe -s -m 2 -X POST${withStdin ? ' --data-binary @-' : ''} %AGENT_DESK_AGY_URL%/${event} >nul 2>&1) & echo {}`,
-  timeout: HOOK_TIMEOUT_SECONDS
-})
-
-const AGY_PLUGIN_MANIFEST = JSON.stringify({ name: 'agentmanager' }, null, 2)
-const AGY_HOOKS_JSON = JSON.stringify(
-  {
-    agentmanager: {
-      SessionStart: [agyHookHandler('SessionStart')],
-      PreInvocation: [agyHookHandler('PreInvocation')],
-      PostToolUse: [{ matcher: '*', hooks: [agyHookHandler('PostToolUse')] }],
-      Stop: [agyHookHandler('Stop', true)]
-    }
-  },
-  null,
-  2
-)
-
-/**
  * 接收 claude / codex / agy hooks 上报的本地 HTTP 服务（只监听 127.0.0.1，随机端口 + 随机 token）。
  *
  * - claude：「启动 Claude」时生成会话 hooks 文件并追加 `--settings <文件>`，hook 为 curl.exe 命令，
  *   把 stdin（事件 JSON）POST 到 /hook/<token>/<sessionId>/<Event>。
  * - codex：终端启动时注入环境变量 AGENT_DESK_HOOK_URL / AGENT_DESK_CODEX_HOOKS，
  *   「启动 Codex」时追加 `-c $env:AGENT_DESK_CODEX_HOOKS`，并用 try/finally 在 codex 退出时上报 SessionEnd。
- * - agy：在 `~/.gemini/config/plugins/agentmanager` 放置插件 hooks，终端启动时注入 AGENT_DESK_AGY_HOOK_URL，
- *   「启动 AGY」时把 AGENT_DESK_AGY_URL 设为该地址，退出时清除并上报 SessionEnd。
+ * - agy：没有按会话加载 hooks 的参数，在 `~/.gemini/config/plugins/agentmanager` 放置插件（见 agyPlugin.ts）；
+ *   终端启动时注入 AGENT_DESK_AGY_HOOK_URL，「启动 AGY」时把 AGENT_DESK_AGY_URL 设为该地址，退出时清除并上报 SessionEnd。
  * 响应一律为 204 无正文：hook 的标准输出会进入助手的上下文（claude），或被当作 hook 结果解析（codex / agy）。
  */
 export class AgentHookServer {
@@ -152,15 +127,10 @@ export class AgentHookServer {
     return file
   }
 
-  /** agy：确保 `~/.gemini/config/plugins/agentmanager` 插件存在（内容固定，按需写入避免触发文件监听重载） */
+  /** agy：确保插件存在（agy 启动时加载插件，所以要在发出启动命令之前写好） */
   async ensureAgyPlugin(): Promise<void> {
     if (!this.server) throw new Error('状态服务未启动')
-    const pluginDir = path.join(os.homedir(), '.gemini', 'config', 'plugins', 'agentmanager')
-    await fs.mkdir(pluginDir, { recursive: true })
-    await Promise.all([
-      writeFileIfChanged(path.join(pluginDir, 'plugin.json'), AGY_PLUGIN_MANIFEST),
-      writeFileIfChanged(path.join(pluginDir, 'hooks.json'), AGY_HOOKS_JSON)
-    ])
+    await writeAgyPlugin(path.join(os.homedir(), '.gemini', 'config', 'plugins', AGY_PLUGIN_NAME))
   }
 
   /**
@@ -244,11 +214,6 @@ export class AgentHookServer {
   }
 }
 
-async function writeFileIfChanged(file: string, content: string): Promise<void> {
-  const existing = await fs.readFile(file, 'utf8').catch(() => null)
-  if (existing !== content) await fs.writeFile(file, content, 'utf8')
-}
-
 function claudeEvent(name: string, body: string): AgentEvent | null {
   if (!(CLAUDE_HOOK_EVENTS as readonly string[]).includes(name)) return null
   const event: AgentEvent = { agent: 'claude', name: name as AgentHookEvent }
@@ -265,34 +230,12 @@ function codexEvent(body: string): AgentEvent | null {
   return event
 }
 
-function agyEvent(name: string, body: string): AgentEvent | null {
-  if (!(AGY_HOOK_EVENTS as readonly string[]).includes(name)) return null
-  // 用户按 Esc 取消当前轮次时，agy 的 Stop hook 会上报 terminationReason: "USER_CANCELED"，按中断回落到就绪
-  if (name === 'Stop' && terminationReasonOf(body) === 'USER_CANCELED') {
-    return { agent: 'agy', name: 'Interrupt' }
-  }
-  return { agent: 'agy', name: name as AgentHookEvent }
-}
-
 function notificationTypeOf(body: string): string | undefined {
   try {
     const parsed: unknown = JSON.parse(body)
     if (typeof parsed === 'object' && parsed !== null) {
       const type = (parsed as Record<string, unknown>).notification_type
       if (typeof type === 'string') return type
-    }
-  } catch {
-    // 忽略无法解析的请求体
-  }
-  return undefined
-}
-
-function terminationReasonOf(body: string): string | undefined {
-  try {
-    const parsed: unknown = JSON.parse(body)
-    if (typeof parsed === 'object' && parsed !== null) {
-      const reason = (parsed as Record<string, unknown>).terminationReason
-      if (typeof reason === 'string') return reason
     }
   } catch {
     // 忽略无法解析的请求体

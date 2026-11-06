@@ -16,7 +16,9 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "build:win": "npm run build && electron-builder --win",
-    "test:active": "node --test tests/activeList.test.ts"
+    "test:active": "node --test tests/activeList.test.ts",
+    "test:agy": "node --test tests/agyPlugin.test.ts",
+    "test": "node --test tests/activeList.test.ts tests/agyPlugin.test.ts"
   },
   "dependencies": {
     "electron-log": "^5.4.4",

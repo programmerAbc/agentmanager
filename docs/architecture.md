@@ -149,6 +149,20 @@ preload (src/preload/index.ts)
 | 同一项目可能渲染两行：`li.project-item` 增加 `data-group`，按 id 查找改为 `itemsById` 返回全部行；`highlight` 只找原分组那一行；列表 ↑↓ 按当前行元素定位；搜索时隐藏「活跃」使 `visibleIds` 不重复 | 避免只更新第一行、↑↓ 卡在重复项上 |
 | 只存内存 | 重启后终端 / 助手状态都不存在，保留旧成员没有意义 |
 
+## AGY 状态上报设计（M23，2026-11-06 重做）
+
+依据 agy 1.4.2 自带文档（`~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/hooks.md`、`plugins.md`，比官网 antigravity.google/docs/hooks 更详细）与真实 `agy -p` 端到端验证。代码：`src/main/agyPlugin.ts`（插件内容 + 事件换算，纯 Node，可 `node --test`），`hookServer.ts` 只负责写入与路由。
+
+| 决策 | 原因 |
+|---|---|
+| 全局插件 `~/.gemini/config/plugins/agentmanager/`（`plugin.json` / `hooks.json` / `report.cmd`），每次「启动 AGY」前按内容比对写入 | agy 没有按会话加载 hooks 的参数 / 环境变量（无 claude `--settings`、codex `-c` 的等价物）；插件目录是官方全局安装位置，自成一体、不改用户的 `~/.gemini/config/hooks.json`；agy 启动时加载插件，所以要先写 |
+| 上报门控：hook 只在 `AGENT_DESK_AGY_URL` 存在时 POST；该变量只由按钮启动命令在 agy 运行期间设置（PowerShell try/finally、cmd `set … &`、bash 前缀赋值），退出后上报 SessionEnd | 插件对所有 agy 会话生效，手动运行的 agy 不能上报；agy 没有原生会话结束事件 |
+| hook 命令是 `.eport.cmd <事件>`，逻辑放在脚本里 | 文档：Windows 上 `cmd /c` 执行、工作目录为 hooks.json 所在目录；command 经 Go 转义后再交给 cmd，含双引号不可靠，而 PreToolUse 必须输出 `{"decision":"allow"}`；相对路径不受用户目录空格影响；脚本只用 ASCII + CRLF |
+| 只挂 SessionStart、PreInvocation、Stop，以及 matcher 为 `ask_question\|ask_permission` 的 PreToolUse / PostToolUse；去掉首版的 `PostToolUse: *` | 文档：hooks **同步执行、阻塞 agent 循环**，每个工具调用都起 cmd + curl 会拖慢 agy；PreInvocation 每次调用模型都会触发，已足够表示「工作中」 |
+| PreToolUse(ask_*) 换算为 `PermissionRequest`（→ 等待确认），PostToolUse(ask_*) →工作中；服务端再按请求体 `toolCall.name` 核对 | agy 没有 Notification / 权限确认事件，这两个工具是唯一可观测的「等用户」点；核对防止 matcher 语义变化误报 |
+| PreToolUse 输出 `{"decision":"allow"}`（文档：交给后续 hook / 默认策略），其余输出 `{}` | `decision` 为必填；`allow` 不改变 agy 原有权限行为；Stop 的 `{}` 即允许停止 |
+| Stop：`terminationReason == USER_CANCELED` → Interrupt（就绪），其余（NO_TOOL_CALL / ERROR / MAX_*…）→ 已完成；不使用 `fullyIdle` | 与 claude / codex 一致只跟踪主循环；后台任务结束后 agy 是否再次触发 Stop 未经验证，按 fullyIdle 保持「工作中」可能卡住 |
+
 ## 迭代 7 设计（M19 Codex 全部 hooks）
 
 | 决策 | 原因 |
