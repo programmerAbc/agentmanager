@@ -34,6 +34,7 @@ export class GitRepositoryMonitor {
   private readonly abort = new AbortController()
   private readonly entries = new Map<string, Entry>()
   private readonly watchers = new Map<string, FSWatcher>()
+  private discoveryDirectories: string[] = []
   private readonly timers = new Set<ReturnType<typeof setInterval>>()
   private eventTimer?: ReturnType<typeof setTimeout>
   private scanTimer?: ReturnType<typeof setTimeout>
@@ -219,49 +220,51 @@ export class GitRepositoryMonitor {
     catch (err) { if (codeOf(err) === 'ENOENT') this.git = ''; throw err }
     const seen = new Set<string>()
     const failed: string[] = []
-    let frontier = [this.root]
-    while (frontier.length && !this.disposed) {
-      const next: string[] = []
-      for (let offset = 0; offset < frontier.length && !this.disposed; offset += 4) {
-        await Promise.all(frontier.slice(offset, offset + 4).map(async directory => {
-          if (this.disposed) return
-          const relative = path.relative(this.root, directory).split(path.sep).join('/') || '.'
-          try {
-            const files = await readdir(directory, { withFileTypes: true })
-            this.snapshot.scannedDirectories++
-            const marker = files.find(f => canonical(f.name) === '.git' && (f.isDirectory() || f.isFile()))
-            if (marker) {
-              seen.add(relative)
-              try {
-                const markerPath = path.join(directory, marker.name)
-                const stat = await lstat(markerPath)
-                if (stat.isFile() && stat.size > 4096) throw new Error('.git 指针文件过大')
-                const identity = stat.isFile() ? `file:${await readFile(markerPath, 'utf8')}` : `directory:${stat.dev}:${stat.ino}:${stat.birthtimeMs}`
-                const entry = await this.discover(directory, identity, this.entries.get(relative))
-                if (!this.disposed) this.entries.set(relative, entry)
-              } catch (err) {
-                const old = this.entries.get(relative)
-                this.entries.set(relative, { directory, headPath: '', head: '', marker: '', row: {
-                  ...(old?.row ?? { id: relative, relativePath: relative, branch: null, shortOid: null, lastSuccessAt: null }),
-                  state: 'error', error: message(err)
-                } })
-              }
-            }
-            // Dirent 不跟随符号链接/junction；根目录由用户选择，允许根本身是链接。
-            for (const file of files) if (canonical(file.name) !== '.git' && file.isDirectory() && !file.isSymbolicLink()) next.push(path.join(directory, file.name))
-          } catch (err) {
-            if (directory === this.root) this.snapshot.error = `项目目录无法读取：${message(err)}`
-            // 不存在是确切删除；无法访问则保留该子树旧事实并标记过期。
-            if (codeOf(err) !== 'ENOENT') {
-              failed.push(relative)
-              if (directory === this.root) this.snapshot.error = message(err)
+    this.discoveryDirectories = []
+    try {
+      const files = await readdir(this.root, { withFileTypes: true })
+      this.discoveryDirectories = files
+        .filter(file => canonical(file.name) !== '.git' && file.isDirectory() && !file.isSymbolicLink())
+        .map(file => path.join(this.root, file.name))
+    } catch (err) {
+      this.snapshot.error = `项目目录无法读取：${message(err)}`
+      if (codeOf(err) !== 'ENOENT') failed.push('.')
+    }
+    // 只枚举根目录；对子目录仅探测 .git，不读取其内部目录列表。
+    const directories = this.snapshot.error ? [] : [this.root, ...this.discoveryDirectories]
+    for (let offset = 0; offset < directories.length && !this.disposed; offset += 4) {
+      await Promise.all(directories.slice(offset, offset + 4).map(async directory => {
+        if (this.disposed) return
+        const relative = path.relative(this.root, directory).split(path.sep).join('/') || '.'
+        try {
+          this.snapshot.scannedDirectories++
+          const markerPath = path.join(directory, '.git')
+          const stat = await lstat(markerPath)
+          if (stat.isDirectory() || stat.isFile()) {
+            seen.add(relative)
+            try {
+              if (stat.isFile() && stat.size > 4096) throw new Error('.git 指针文件过大')
+              const identity = stat.isFile() ? `file:${await readFile(markerPath, 'utf8')}` : `directory:${stat.dev}:${stat.ino}:${stat.birthtimeMs}`
+              const entry = await this.discover(directory, identity, this.entries.get(relative))
+              if (!this.disposed) this.entries.set(relative, entry)
+            } catch (err) {
+              const old = this.entries.get(relative)
+              this.entries.set(relative, { directory, headPath: '', head: '', marker: '', row: {
+                ...(old?.row ?? { id: relative, relativePath: relative, branch: null, shortOid: null, lastSuccessAt: null }),
+                state: 'error', error: message(err)
+              } })
             }
           }
-        }))
-        if (Date.now() - this.lastEmit >= 200) this.emit()
-        await delay(0, undefined, { signal: this.abort.signal })
-      }
-      frontier = next
+        } catch (err) {
+          // 不存在是确切删除；无法访问则保留该子树旧事实并标记过期。
+          if (codeOf(err) !== 'ENOENT') {
+            failed.push(relative)
+            if (directory === this.root) this.snapshot.error = message(err)
+          }
+        }
+      }))
+      if (Date.now() - this.lastEmit >= 200) this.emit()
+      await delay(0, undefined, { signal: this.abort.signal })
     }
     if (this.disposed) return
     for (const [id, entry] of this.entries) {
@@ -309,21 +312,12 @@ export class GitRepositoryMonitor {
         this.watchers.set(canonical(directory), watcher)
       } catch { degraded = true }
     }
-    // .git 创建/移动提示发现；普通文件内容变更不重扫整个目录树。
-    add(this.root, true, (event, file) => {
-      if (!file) { this.queueEvent(true); return }
-      const segments = file.split(/[\\/]/)
-      const gitIndex = segments.findIndex(segment => canonical(segment) === '.git')
-      if (gitIndex >= 0) {
-        if (gitIndex === segments.length - 1) this.queueEvent(true)
-        else if (segments.at(-1)?.toUpperCase() === 'HEAD') this.queueEvent(false)
-        // 忽略 objects/index/refs 等内部写入，避免普通提交引起整树扫描。
-      } else if (event === 'rename') {
-        // 新增/移入目录立即发现；删除路径无法确认类型，交给周期重扫兜底。
-        void lstat(path.join(this.root, file)).then(stat => {
-          if (stat.isDirectory() && !stat.isSymbolicLink()) this.queueEvent(true)
-        }).catch(() => undefined)
-      }
+    // 根监听第一层目录增删；第一层目录只监听自身 .git 标记，均不递归。
+    add(this.root, false, (event, file) => {
+      if (!file || canonical(file) === '.git' || event === 'rename') this.queueEvent(true)
+    })
+    for (const directory of this.discoveryDirectories) add(directory, false, (_event, file) => {
+      if (!file || canonical(file) === '.git') this.queueEvent(true)
     })
     for (const entry of this.entries.values()) {
       if (entry.headPath) add(path.dirname(entry.headPath), false, (_event, file) => {

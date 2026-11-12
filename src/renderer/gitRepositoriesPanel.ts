@@ -54,7 +54,7 @@ export class GitRepositoriesPanel {
       iconButton('close', '收起仓库面板', () => this.setExpanded(false, true)))
     const scope = document.createElement('div')
     scope.className = 'git-scope'
-    scope.textContent = '当前项目目录 · 包含各层子目录'
+    scope.textContent = '当前项目目录 · 仅第一层子目录'
     this.status.className = 'git-status'
     this.status.setAttribute('role', 'status')
     const search = document.createElement('label')

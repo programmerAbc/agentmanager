@@ -60,17 +60,20 @@ function observe(t: { after(fn: () => void): void }, root: string, options: Moni
     ready: () => waitFor(() => latest?.scanState === 'ready') }
 }
 
-test('递归发现独立仓库、根仓库、同名目录，普通目录不重复计入；未提交与 detached', async t => {
+test('仅第一层与根仓库；忽略深层及仓库内部嵌套仓库，保留未提交与 detached', async t => {
   const root = await fixture(t)
   await init(root)
-  await init(path.join(root, 'a', 'same'))
-  await init(path.join(root, 'b', 'same'), 'feature/未提交', false)
+  await init(path.join(root, 'a'))
+  await init(path.join(root, 'b'), 'feature/未提交', false)
+  await init(path.join(root, 'a', 'nested'))
+  await init(path.join(root, 'ordinary', 'deep'))
   await mkdir(path.join(root, 'ordinary', 'deep'), { recursive: true })
-  await git(path.join(root, 'a', 'same'), 'checkout', '--detach')
+  await git(path.join(root, 'a'), 'checkout', '--detach')
   const o = observe(t, root, { watch: false })
   await o.ready()
   const rows = o.snapshot().repositories
-  assert.deepEqual(rows.map(r => r.relativePath), ['.', 'a/same', 'b/same'])
+  assert.deepEqual(rows.map(r => r.relativePath), ['.', 'a', 'b'])
+  assert.equal(o.snapshot().scannedDirectories, 4)
   assert.equal(rows[0].branch, 'main')
   assert.equal(rows[1].state, 'detached')
   assert.match(rows[1].shortOid!, /^[0-9a-f]{7,}$/)
@@ -109,8 +112,8 @@ test('禁用 watcher 的轮询发现分支、commit 后不再 unborn、仓库增
   await waitFor(() => o.snapshot().repositories[0]?.state === 'branch')
   await git(root, 'switch', '-c', 'external-poll')
   await waitFor(() => o.snapshot().repositories[0]?.branch === 'external-poll')
-  await init(path.join(root, 'deep', 'new repo'), 'new-branch')
-  await waitFor(() => o.snapshot().repositories.some(r => r.relativePath === 'deep/new repo'))
+  await init(path.join(root, 'new repo'), 'new-branch')
+  await waitFor(() => o.snapshot().repositories.some(r => r.relativePath === 'new repo'))
   const moved = path.join(outer, 'moved')
   await move(root, moved)
   await waitFor(() => o.snapshot().scanState === 'error' && o.snapshot().repositories.length === 0)
@@ -127,10 +130,12 @@ test('worktree 与 submodule 的 .git 指针正确读取，common dir 相同不�
   await git(source, 'worktree', 'add', '-b', 'worktree-a', path.join(root, 'a'))
   await git(source, 'worktree', 'add', '-b', 'worktree-b', path.join(root, 'b'))
   await git(path.join(root, 'a'), '-c', 'protocol.file.allow=always', 'submodule', 'add', source, 'modules/shared')
+  await init(root)
+  await git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', source, 'module')
   const o = observe(t, root, { pollMs: 200, scanMs: 60000 })
   await o.ready()
   assert.deepEqual(o.snapshot().repositories.map(r => [r.relativePath, r.branch]), [
-    ['a', 'worktree-a'], ['a/modules/shared', 'main'], ['b', 'worktree-b']
+    ['.', 'main'], ['a', 'worktree-a'], ['b', 'worktree-b'], ['module', 'main']
   ])
   await git(path.join(root, 'b'), 'switch', '-c', 'worktree-external')
   await waitFor(() => o.snapshot().repositories.find(r => r.id === 'b')?.branch === 'worktree-external')
@@ -164,11 +169,12 @@ test('不跟随越界 junction，也不把 .gitignore 中的真实子仓库漏�
   await init(root)
   await init(outside, 'outside-branch')
   await writeFile(path.join(root, '.gitignore'), 'node_modules/\n')
-  await init(path.join(root, 'node_modules', 'independent'), 'ignored-repo')
+  await init(path.join(root, 'node_modules'), 'ignored-repo')
+  await init(path.join(root, 'node_modules', 'independent'), 'nested-ignored')
   await symlink(outside, path.join(root, 'external-link'), process.platform === 'win32' ? 'junction' : 'dir')
   const o = observe(t, root, { watch: false })
   await o.ready()
-  assert.deepEqual(o.snapshot().repositories.map(r => r.id), ['.', 'node_modules/independent'])
+  assert.deepEqual(o.snapshot().repositories.map(r => r.id), ['.', 'node_modules'])
 })
 
 test('.git 指针变化会使定位缓存失效；父进程 GIT_* 环境不污染读取', async t => {
@@ -200,4 +206,24 @@ test('Windows 大写 .GIT 也识别，且不遍历元数据目录', { skip: proc
   await o.ready()
   assert.equal(o.snapshot().repositories[0].branch, 'main')
   assert.equal(o.snapshot().scannedDirectories, 1)
+})
+
+test('非递归监听发现第一层已有目录内 git init，忽略深层新增并响应第一层删除', async t => {
+  const outer = await fixture(t)
+  const root = path.join(outer, 'workspace')
+  const child = path.join(root, 'child')
+  await mkdir(path.join(child, 'deep'), { recursive: true })
+  const o = observe(t, root, { pollMs: 60000, scanMs: 60000 })
+  await o.ready()
+  assert.equal(o.snapshot().repositories.length, 0)
+  const before = o.emissions()
+  await init(path.join(child, 'deep', 'nested'))
+  await delay(1300)
+  assert.equal(o.emissions(), before, '深层仓库变化不触发发现或校验')
+  await init(child, 'first-level')
+  await waitFor(() => o.snapshot().repositories[0]?.branch === 'first-level', 5000)
+  await git(child, 'switch', '-c', 'external-child')
+  await waitFor(() => o.snapshot().repositories[0]?.branch === 'external-child', 5000)
+  await move(path.join(child, '.git'), path.join(outer, 'removed-git'))
+  await waitFor(() => o.snapshot().scanState === 'ready' && o.snapshot().repositories.length === 0, 5000)
 })

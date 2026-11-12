@@ -1,4 +1,5 @@
 ## Completed
+- 2026-11-12 第一层扫描调整完成（1.9.0交付后的新修改，未提交 / 未打包）：按用户要求只检查工作目录的直属子目录，继续展示根仓库。扫描只枚举根目录，对第一层只探测 `.git`；根 / 第一层发现监听均非递归，深层变化不再触发扫描。UI、设计原型和基准文档已同步。`npm test`17/17与`npm run build`通过。
 - 1.9.0交付（2026-11-12）：全部功能与设计文档提交 `dafd971`，版本提交 `87760d3`，均已推送 origin/main。起始已在 main，fetch 后双方0/0，无需额外合并。`npm test`16/16、`npm run build:win`通过。安装包 `D:\agnent_manager_release\agentmanager-1.9.0-setup.exe`（123712688字节），SHA256：89742894899D7B3A81F6AAFDAE496F580B9712D3D6309F09F893C0AD23785023，与dist产物一致。原1.8.2安装包保留。未启动打包版GUI、未安装、未动当前AgentManager。
 - 2026-11-12 Git 子仓库分支正式功能完成（用户确认设计后要求实施）：主进程递归发现 / 定位缓存 / HEAD 监听与轮询、IPC 所有者及订阅隔离、正式右栏 / 搜索 / 复制 / 窄屏浮层 / 208仓库窗口化 / 设置兼容。`npm test` 16 项全通过，正式构建通过；隔离 Electron 真实链路验证通过。源码版本保持 1.8.2，未提交、打包或安装。
 - 2026-11-12 Git 子仓库分支设计交付：新增离线可交互设计稿 `docs/design/git-branches.html` 与监控方案 `docs/design/git-branches-plan.md`。采用可收起 320px 右侧仓库面板，窄窗口浮层；演示外部分支切换、仓库增删、搜索、主题、空 / 错误 / 扫描 / Git 不可用状态。仅设计与文档，生产源码未改。
@@ -63,10 +64,12 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
+- 当前没有未完成的第一层范围编码任务；本轮修改仍在工作区，尚未重新提交 / 推送 / 打包。此前release目录内的1.9.0仍为递归扫描版。
 - 2026-11-12 当前无未完成的Git功能编码或打包任务；1.9.0已交付，等用户自行安装。网络盘 / 巨型目录长期性能、真实系统休眠与 ACL 不可读场景未做现场集成验证。
 - 无编码任务。1.8.2 已打包等用户自行安装；M22 与按钮启动 AGY 的界面未在 dev 实例实测。
 
 ## Next Steps
+- 优先跟进本轮第一层扫描调整的交付指示；若用户要求发布，应提交当前改动并使用新版本重新打包，不要把原1.9.0安装包当作已包含该调整。若继续调试，先读spec的最新范围和本轮测试。
 - 用户自行安装1.9.0后，观察实际项目仓库展示与外部分支更新。调试入口为 `gitRepositoryMonitor.ts` → `gitIpc.ts` → preload → `gitRepositoriesPanel.ts`。记录目录规模与更新时间，不在用户仓库里执行测试切分支。不要重复提交 / 提升版本 / 打包本次已交付功能。
 - 用户自行安装 1.8.2 后观察 AGY 状态（含按 Esc 取消、ask_question 等待确认）；可用隔离 dev 实例实测。当前安装版AgentManager进程不得动。
 - 注意：装 1.8.2 之前，已安装的 1.8.0 点「启动 AGY」时会把插件 hooks.json 改回首版内联命令（无害）；装 1.8.2 后再次启动即恢复新版。
@@ -84,6 +87,7 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- 第一层调整：`src/main/gitRepositoryMonitor.ts`、`src/renderer/gitRepositoriesPanel.ts`、`tests/gitRepositoryMonitor.test.ts`、README、spec、architecture、plans、lessons、handoff、设计方案与HTML原型；没有版本或依赖变更。
 - 1.9.0发布：`package.json` / `package-lock.json`版本1.9.0；README、spec、plans、handoff、Git方案文档更新交付状态。产物在dist及release目录，不入Git。
 - 2026-11-12：新增 `src/main/gitRepositoryMonitor.ts`、`src/main/gitIpc.ts`、`src/renderer/gitRepositoriesPanel.ts`、`tests/gitRepositoryMonitor.test.ts`；修改 `src/shared/types.ts`、`src/preload/index.ts`、`src/main/ipc.ts`、`src/main/settingsStore.ts`、`src/renderer/main.ts`、`src/renderer/index.html`、`src/renderer/styles.css`、`src/renderer/icons.ts`、`package.json`（新增 test:git 并接入 test）；README 与全部项目知识文档及设计文档。未改用户全局配置，未提交、打包或安装。
 - M24：src/renderer/sidebar.ts、src/renderer/main.ts；README.md、docs/spec.md、plans.md、handoff.md。
@@ -112,6 +116,7 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 第一层调整：`npm test`17/17（10项Git测试，含第一层 / 根仓库、深层与嵌套排除、scannedDirectories计数、非递归监听下已有第一层目录git init / 外部分支切换 / .git删除，以及深层新增不触发通知）；`npm run build`含node / web typecheck通过。`git diff --check`通过。未启动Electron GUI重新截图（界面只改范围说明文字），未重新打安装包或安装应用。
 - 1.9.0发布：`git fetch origin`后初始HEAD...origin/main为0/0；`git push origin main`成功，`git ls-remote --heads origin main`确认版本提交87760d3。`npm test`16/16、`npm run build:win`退出0（含node / web typecheck与NSIS x64）。`node .devtest/verify-release-190.cjs`静态解包通过：package版本1.9.0、主进程Git监控/IPC与显式gitdir、preload Git通道、渲染面板与偏好字段、解包pty.node均存在。
 - release安装包与dist的Get-FileHash SHA256一致（值见Completed）；原1.8.2仍在，123703271字节。交付前后安装版PID7180 / 30792 / 44576 / 44692、各自启动时间（2026-11-12 14:09:10）与路径完全一致。未启动生产GUI或执行安装，安装后现场验证由用户安排。交付文档随后提交推送，结束时再次核对远端与工作区。
 - 2026-11-12：Chrome DevTools 打开本地 HTML，1440×900 / 960×800 / 600×800 布局检查；橙 / 白 / 黑主题均无横向溢出。浏览器脚本检查模拟分支切换高亮、仓库增删、搜索、项目切换隔离、收起 / 恢复、四种场景、异常重试、长分支省略与完整 title、窄屏 modal / inert、Escape 关闭与焦点返回通过。所有 id 唯一，console error / warn 为空。桌面截图 `.devtest/git-branches-design.png` 已查看。复制交互未改动用户剪贴板验证。
@@ -268,6 +273,7 @@
   4. 新界面（MD3 Expressive）整体观感、默认字体效果。
 
 ## Resume Context
+- **最新入口：第一层范围调整（2026-11-12）**：用户明确只要第一层，已修改扫描、监听、文案和测试；保留根目录仓库。17项测试与构建通过，当前改动未提交 / 未发布。下条1.9.0交付记录是调整前递归版本，不能据此认定浅层改动已交付。
 - **当前入口（2026-11-12）**：Git子仓库功能已随1.9.0提交、推送main并打包交付；安装包路径与SHA见Completed。下一步是用户安装后的实际工作区反馈，不要按历史「未发布」文字重复交付。需求在spec，正式实现 / 取舍见architecture与 `docs/design/git-branches-plan.md`。当前安装版进程不得自动关闭。以下不同版本的「最新」描述仅为历史记录，以本条和实际代码为准。
 - 最新工作：M22「活跃」分组代码已完成待界面实测（见In Progress / Next Steps）；核心在`ActiveList.update`与`Sidebar.setAgentState / visibleGroups`。
 - 最新状态为1.7.1原界面恢复版已交付，源码f8cdc58已推送；安装包与SHA见Completed。下列1.7.0开发 / 发布记录只作历史，不再代表当前目标。当前运行进程不得动；安装由用户自行安排。

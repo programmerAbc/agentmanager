@@ -2,6 +2,8 @@
 
 ## Git 分支面板（2026-11-12，已实现）
 
+- 最新扫描边界：根目录只枚举一次直属子目录；根和各直属目录仅读取自身 `.git` 标记，不枚举子目录内部。发现监听只在根 / 第一层目录建立非递归 watcher，实际 gitdir 仍单独监听 HEAD；目录事件和30秒重扫均使用同一深度边界。
+
 - 新增主进程 `gitRepositoryMonitor.ts`：发现仓库、解析 Git 元数据位置、读取 HEAD、合并目录事件、定时校验、失败重试与释放。独立于 PTY / AgentStatusTracker，不修改助手 hooks。
 - 新增 renderer `gitRepositoriesPanel.ts`；main.ts 管理当前项目订阅与右栏；preload 只暴露白名单 IPC，shared/types.ts 定义快照和状态。
 - 主进程根据项目 id 从 ProjectStore 获取根路径；不接受 renderer 提交任意磁盘路径。快照按项目、订阅代次和递增 revision 隔离；旧任务结果不得覆盖新项目。
