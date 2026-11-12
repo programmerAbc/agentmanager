@@ -9,7 +9,7 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 - 选中项目后，顶部「仓库」按钮可展开右栏，自动列出项目目录及各层子目录内的 Git 仓库与当前分支。支持搜索、复制分支、worktree / 子模块、分离 HEAD 与尚无提交的仓库。
 - 外部终端 / IDE 切换分支后自动更新；文件监听配合 5 秒 HEAD 校验、30 秒仓库发现重扫，读取失败可重试。面板收起或应用隐藏后暂停监控，恢复时重新读取。
 - 窄窗口使用浮层；不跟随符号链接 / junction，不修改仓库或全局 Git 配置。需要系统 PATH 中可用的 Git。
-- 设计与监控细节：[方案](docs/design/git-branches-plan.md)。安装包：`D:\agnent_manager_release\agentmanager-1.9.0-setup.exe`（本次发布目标，构建结果见 handoff）。
+- 设计与监控细节：[方案](docs/design/git-branches-plan.md)。安装包：`D:\agnent_manager_release\agentmanager-1.9.0-setup.exe`（已构建并校验，安装由用户自行安排）。
 
 ## 1.8.2：右键「复制路径」
 

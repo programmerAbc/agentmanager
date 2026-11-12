@@ -73,7 +73,7 @@
 
 ## 实施结果与取舍
 
-- 正式源码为 `gitRepositoryMonitor.ts`、`gitIpc.ts`、`gitRepositoriesPanel.ts`，类型 / preload / App / 样式与设置已接入。版本保持 1.8.2，没有发布安装包。
+- 正式源码为 `gitRepositoryMonitor.ts`、`gitIpc.ts`、`gitRepositoriesPanel.ts`，类型 / preload / App / 样式与设置已接入。已随 1.9.0 提交并推送 main，安装包交付到 `D:\agnent_manager_release\agentmanager-1.9.0-setup.exe`，未自动安装。
 - 每个 renderer 同时只有一个当前项目订阅，以 subscriptionId / revision / renderer generation 隔离异步结果；无需跨窗口仓库引用计数。推送完整快照，UI 忽略纯校验时间变化的列表重建；208 行压力检查已通过，将来规模进一步增长再评估差异推送。
 - 目录与 Git 任务并发使用 4（小于方案上限）。已知 `.git` 目录身份或指针内容未变时复用定位结果；新发现 / 重建 / 指针变化才重新启动定位命令。稳态 HEAD 未变且不是 unborn / error 时只读文件；unborn 需继续验证是否已有首次提交。
 - 即时监听包括项目根递归 watcher 与去重后的实际 HEAD 所在目录 watcher，总上限 256；超限或不可用即明确显示定期校验。根目录 watcher 覆盖 `.git` 指针变化；无原生目录事件时靠重扫恢复。删除路径无法确认类型时不为每个普通文件删除重扫，仓库删除最迟由 30 秒周期开始处理（也可手动刷新）。
