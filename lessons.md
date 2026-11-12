@@ -476,3 +476,17 @@ Git 监控的损坏恢复测试中，子仓库 HEAD 已写成无效内容，界�
 
 ### Prevention
 同时验证深层仓库不出现在结果、不触发发现通知，第一层已有空目录内 git init 和外部切分支仍能更新。
+
+## Lesson: Electron 解压重命名 EPERM 可用同版本已解压分发目录绕过
+
+### Problem
+1.9.1打包时，默认dist与全新隔离输出目录都在 `win-unpacked.tmp` 重命名为 `win-unpacked` 时失败（EPERM）。
+
+### Root Cause
+失败位于electron-builder的Electron压缩包解压后目录重命名；底层占用或系统拦截原因未确定，不能直接归咎于正在运行的应用。
+
+### Solution
+确认本机 `node_modules/electron` 为同版本44.4.5，使用 `--config.electronDist=node_modules/electron/dist` 和独立输出目录打包，避免该解压重命名步骤。NSIS生成后校验asar版本 / 功能及安装包SHA256。
+
+### Prevention
+此类错误先定位具体失败步骤；可复用同版本的已解压Electron，不要为打包强行关闭用户应用、删除旧产物或修改依赖源码。记录实际成功命令和产物位置。

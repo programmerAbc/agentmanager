@@ -7,7 +7,7 @@ Windows 桌面应用：左侧是项目列表，右侧每个项目对应一个保
 ## 1.9.1：仅扫描第一层 Git 子仓库
 
 - 扫描范围收窄到项目根目录和第一层直属子目录，发现监听同步取消递归；深层仓库不再扫描或展示。
-- 安装包发布目标：`D:\agnent_manager_release\agentmanager-1.9.1-setup.exe`，构建与校验结果见 handoff。
+- 安装包：`D:\agnent_manager_release\agentmanager-1.9.1-setup.exe`（已构建并核对SHA256，安装由用户自行安排）。
 
 ## 1.9.0：Git 子仓库分支展示
 

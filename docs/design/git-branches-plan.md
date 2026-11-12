@@ -76,7 +76,7 @@
 - 正式源码为 `gitRepositoryMonitor.ts`、`gitIpc.ts`、`gitRepositoriesPanel.ts`，类型 / preload / App / 样式与设置已接入。已随 1.9.0 提交并推送 main，安装包交付到 `D:\agnent_manager_release\agentmanager-1.9.0-setup.exe`，未自动安装。
 - 每个 renderer 同时只有一个当前项目订阅，以 subscriptionId / revision / renderer generation 隔离异步结果；无需跨窗口仓库引用计数。推送完整快照，UI 忽略纯校验时间变化的列表重建；208 行压力检查已通过，将来规模进一步增长再评估差异推送。
 - 目录与 Git 任务并发使用 4（小于方案上限）。已知 `.git` 目录身份或指针内容未变时复用定位结果；新发现 / 重建 / 指针变化才重新启动定位命令。稳态 HEAD 未变且不是 unborn / error 时只读文件；unborn 需继续验证是否已有首次提交。
-- 最新调整的即时监听包括项目根 / 第一层目录的非递归 watcher 与去重后的实际 HEAD 所在目录 watcher，总上限 256；超限或不可用即明确显示定期校验。第一层目录 watcher 覆盖 `.git` 指针变化；无原生目录事件时靠30秒同范围重扫恢复。该浅层调整尚未打包，1.9.0为此前递归版本。
+- 最新调整的即时监听包括项目根 / 第一层目录的非递归 watcher 与去重后的实际 HEAD 所在目录 watcher，总上限 256；超限或不可用即明确显示定期校验。第一层目录 watcher 覆盖 `.git` 指针变化；无原生目录事件时靠30秒同范围重扫恢复。该浅层调整已随1.9.1提交并交付安装包，1.9.0为此前递归版本。
 - 方案中的「同值不重复推送」调整为仍推送校验时间，便于明确更新状态；列表内容未变不重建 DOM。浮层 / 面板焦点内 Escape 可关闭；终端 Escape 始终保留给 CLI。
 - 首读与变更通过 Git 解析，后续 Git 命令显式指定实际 gitdir / work-tree，防止无效 HEAD 触发 Git 向上发现。只读配置，未设置 safe.directory、hooks 或全局环境。
 - 隔离 Electron 实测外部切换 → UI 单次约 290ms；文件监听失效兜底、HEAD 原子替换、worktree / submodule、packed refs、损坏恢复、junction、指针缓存失效与 GIT_* 隔离由自动测试覆盖。208 仓库窗口化、搜索与三主题 / 720–1280px、旧 token / 快速切项目、shell 布局及 Escape 已实测。
