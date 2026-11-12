@@ -1,5 +1,7 @@
 // Material Symbols Rounded（@material-symbols/svg-400，Apache-2.0），按需打包
 import add from '@material-symbols/svg-400/rounded/add.svg?raw'
+import accountTree from '@material-symbols/svg-400/rounded/account_tree.svg?raw'
+import refresh from '@material-symbols/svg-400/rounded/refresh.svg?raw'
 import bolt from '@material-symbols/svg-400/rounded/bolt.svg?raw'
 import checkCircleFill from '@material-symbols/svg-400/rounded/check_circle-fill.svg?raw'
 import codeBlocks from '@material-symbols/svg-400/rounded/code_blocks.svg?raw'
@@ -27,6 +29,8 @@ import contentPaste from '@material-symbols/svg-400/rounded/content_paste.svg?ra
 import expandMore from '@material-symbols/svg-400/rounded/arrow_drop_down.svg?raw'
 
 const ICONS = {
+  accountTree,
+  refresh,
   add,
   bolt,
   check,

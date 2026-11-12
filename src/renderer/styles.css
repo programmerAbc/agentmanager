@@ -880,6 +880,66 @@ select {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent);
 }
 
+/* Git 仓库面板；保留终端自身的 overflow: clip，避免输入法组字触发滚动。 */
+#workspace { position: relative; display: flex; flex: 1; min-height: 0; min-width: 0; }
+.git-toggle { flex: none; }
+.git-toggle[hidden], .git-panel[hidden], .git-scrim[hidden] { display: none; }
+.git-panel { display: flex; flex: 0 0 320px; flex-direction: column; min-height: 0; min-width: 0;
+  margin: 0 12px 12px 0; border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-xl); background: var(--md-sys-color-surface-container-low); overflow: hidden; }
+.git-panel-head { padding: 16px 14px 12px; flex: none; }
+.git-panel-heading { display: flex; align-items: center; gap: 6px; }
+.git-panel-heading h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; }
+.git-panel-heading .icon-btn { width: 32px; height: 32px; }
+.git-count { font-size: 11px; background: var(--md-sys-color-surface-container-highest); border-radius: 8px; padding: 0 6px; }
+.git-scope { font-size: 11px; color: var(--md-sys-color-on-surface-variant); margin: 4px 0 12px; }
+.git-status { font-size: 12px; color: var(--md-sys-color-tertiary); margin-bottom: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.git-status::before { content: '●'; font-size: 9px; margin-right: 6px; }
+.git-warning { color: var(--md-sys-color-error); }
+.git-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-full); padding: 8px 12px; }
+.git-search .icon { width: 18px; height: 18px; color: var(--md-sys-color-on-surface-variant); }
+.git-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 12px; }
+.git-search:focus-within { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
+.git-list { overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; padding: 0 10px; overflow-anchor: none; }
+.git-list:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: -2px; }
+.git-repo { height: 128px; padding: 12px 8px; border-bottom: 1px solid var(--md-sys-color-outline-variant); border-radius: 10px; }
+.git-updated { background: var(--md-sys-color-secondary-container); }
+.git-repo-title { display: flex; align-items: center; gap: 7px; }
+.git-repo-title .icon { width: 18px; height: 18px; }
+.git-repo-title strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.git-update-label { font-size: 10px; color: var(--md-sys-color-primary); flex: none; }
+.git-repo-path { font-size: 11px; color: var(--md-sys-color-on-surface-variant); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; margin: 2px 0 8px; }
+.git-branch { display: flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 9px; background: var(--md-sys-color-surface); color: var(--md-sys-color-primary);
+  padding: 4px 8px; cursor: pointer; font: 12px/18px Consolas, 'Sarasa Term SC', monospace; }
+.git-branch span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.git-branch .icon { width: 16px; height: 16px; }
+.git-branch:hover { background: var(--md-sys-color-surface-container-high); }
+.git-branch:disabled { opacity: .6; cursor: default; }
+.git-repo-note { margin-top: 6px; font-size: 11px; min-height: 16px; color: var(--md-sys-color-on-surface-variant);
+  display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.git-repo-note.git-warning { color: var(--md-sys-color-error); }
+.git-repo-note button { background: transparent; border: 1px solid var(--md-sys-color-outline-variant); border-radius: 8px;
+  padding: 0 7px; font-size: 11px; cursor: pointer; }
+.git-footer { display: flex; justify-content: space-between; gap: 8px; padding: 11px 16px;
+  border-top: 1px solid var(--md-sys-color-outline-variant); font-size: 11px; color: var(--md-sys-color-on-surface-variant); }
+.git-empty { text-align: center; padding: 52px 12px; font-size: 12px; color: var(--md-sys-color-on-surface-variant); }
+.git-empty > .icon { display: flex; margin: 0 auto 14px; width: 32px; height: 32px; }
+.git-empty strong { display: block; color: var(--md-sys-color-on-surface); font-size: 14px; }
+.git-scrim { display: none; }
+@media (max-width: 1100px) {
+  .git-panel { position: absolute; right: 0; top: 0; bottom: 0; width: min(320px, calc(100% - 24px)); z-index: 21;
+    box-shadow: var(--md-elevation-3); }
+  .git-scrim { display: block; position: absolute; inset: 0; background: rgb(0 0 0 / .45); z-index: 20; }
+  #topbar { gap: 8px; }
+  .topbar-actions { gap: 2px; }
+  .topbar-actions .launch-agent { padding-inline: 10px; }
+  .topbar-actions .launch-agent > span:not(.icon) { display: none; }
+}
+
 /* padding 放在外层容器上；xterm 挂在内层 mount 上，保证 fit 计算的父元素没有 padding */
 .term-pane {
   position: absolute;

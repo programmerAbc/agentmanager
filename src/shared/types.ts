@@ -24,6 +24,8 @@ export interface WindowState {
 }
 
 export interface AppSettings {
+  /** null：按窗口宽度决定默认展开状态 */
+  gitPanelExpanded: boolean | null
   sidebarWidth: number
   fontSize: number
   /** 终端首选字体族；渲染进程会在后面接上回退字体 */
@@ -120,6 +122,10 @@ export interface AppInfo {
 
 /** IPC 通道名，全部集中在这里。 */
 export const IPC = {
+  gitSubscribe: 'git:subscribe',
+  gitUnsubscribe: 'git:unsubscribe',
+  gitRefresh: 'git:refresh',
+  gitChanged: 'git:changed',
   projectsList: 'projects:list',
   projectsAdd: 'projects:add',
   projectsRename: 'projects:rename',
@@ -216,6 +222,12 @@ export interface AgentEvent {
  * 以后一个项目支持多个会话时，只需要改 ipc 层的 sessionId → 项目 映射。
  */
 export interface Api {
+  git: {
+    subscribe(projectId: string): Promise<DataResult<GitSnapshot>>
+    unsubscribe(subscriptionId: string): Promise<OpResult>
+    refresh(subscriptionId: string): Promise<OpResult>
+    onChanged(cb: (snapshot: GitSnapshot) => void): () => void
+  }
   system: {
     /** Windows 内部版本号（例如 26200），用于 xterm 的 windowsPty 配置 */
     windowsBuild: number
@@ -269,4 +281,28 @@ export interface Api {
     launch(sessionId: string, agent: AgentKind): Promise<OpResult>
     onEvent(cb: (sessionId: string, event: AgentEvent) => void): () => void
   }
+}
+
+export interface RepositoryBranch {
+  /** 相对目录，根仓库为 . */
+  id: string
+  relativePath: string
+  branch: string | null
+  shortOid: string | null
+  state: 'branch' | 'unborn' | 'detached' | 'error'
+  error?: string
+  lastSuccessAt: number | null
+}
+
+export interface GitSnapshot {
+  projectId: string
+  subscriptionId: string
+  revision: number
+  scanState: 'scanning' | 'ready' | 'partial' | 'error' | 'missing-git'
+  monitorState: 'watching' | 'polling'
+  scannedDirectories: number
+  skippedPaths: string[]
+  error?: string
+  repositories: RepositoryBranch[]
+  checkedAt: number | null
 }

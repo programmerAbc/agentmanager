@@ -26,6 +26,7 @@ import { JsonFileWriter, readJsonFile } from './jsonFile'
 import log from './log'
 
 const DEFAULTS: AppSettings = {
+  gitPanelExpanded: null,
   sidebarWidth: SIDEBAR_WIDTH.default,
   fontSize: FONT_SIZE.default,
   fontFamily: DEFAULT_FONT_FAMILY,
@@ -66,6 +67,7 @@ export class SettingsStore {
   /** 非法值抛错（由 IPC 层转成错误返回值）；数值自动限幅 */
   async update(patch: SettingsPatch): Promise<void> {
     const next = { ...this.settings }
+    if (patch.gitPanelExpanded !== undefined) next.gitPanelExpanded = patch.gitPanelExpanded
     if (patch.sidebarWidth !== undefined) {
       next.sidebarWidth = clampInt(patch.sidebarWidth, SIDEBAR_WIDTH.min, SIDEBAR_WIDTH.max)
     }
@@ -140,6 +142,7 @@ function parseSettingsFile(raw: unknown): AppSettings | null {
   if (r.version !== 1) return null
   // 单个字段不合法时回退到默认值，设置文件不值得整体备份
   return {
+    gitPanelExpanded: typeof r.gitPanelExpanded === 'boolean' ? r.gitPanelExpanded : null,
     sidebarWidth:
       typeof r.sidebarWidth === 'number'
         ? clampInt(r.sidebarWidth, SIDEBAR_WIDTH.min, SIDEBAR_WIDTH.max)

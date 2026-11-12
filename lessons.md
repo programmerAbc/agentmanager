@@ -407,3 +407,58 @@ handoff / README 中 `D:\agnent_manager_release\agentmanager-…` 变成 `D:<响
 用独立脚本文件 + `String.fromCharCode(92)` 拼反斜杠修复；检查 `grep -c $'\a'` 为 0。
 ### Prevention
 含 Windows 路径的文档改动优先用 Edit 工具；必须用脚本时用 raw 字符串或从文件读取替换内容，改完 `grep -c $'\a'` 检查控制字符。
+## Lesson: 内嵌 SVG symbol 与控件不能共享 id
+
+### Problem
+2026-11-12 Git 分支设计稿中刷新 / 关闭操作失效，交互校验发现 `getElementById(...).click is not a function`。
+
+### Root Cause
+SVG symbol 和按钮都用了 refresh / close；DOM 查询命中了先出现的 SVG，而非按钮。
+
+### Solution
+SVG symbol 全部加 `icon-` 前缀，并同步修改 use 引用。
+
+### Prevention
+独立 HTML 原型也要检查所有 id 唯一，实际执行主要交互；只看截图无法发现事件绑定到了错误节点。
+
+## Lesson: 子仓库 HEAD 损坏时 Git 会向上误读父仓库
+
+### Problem
+Git 监控的损坏恢复测试中，子仓库 HEAD 已写成无效内容，界面却继续显示正常分支。
+
+### Root Cause
+只设置 Git 子进程 cwd 不能锁定仓库；Git 可能认为损坏的子目录不是仓库并向上查找，读到本项目的 Git 信息。
+
+### Solution
+先验证候选 top-level；定位 HEAD 后的读取显式传 `--git-dir` / `--work-tree`，验证 HEAD 格式，剥离继承 GIT_*。失败保留旧值并标错，恢复后重新读取。
+
+### Prevention
+仓库监控必须用临时嵌套仓库测试损坏 / 删除场景；cwd 不应作为精确仓库绑定方式。
+
+## Lesson: 周期发现不能重复启动每个已知仓库的完整 Git 探测
+
+### Problem
+208 仓库压力检查中，反复重扫花费大量时间启动 Git，影响就绪状态与测试等待。
+
+### Root Cause
+首次发现与周期扫描共用完整定位路径，已知且未变的仓库也重复运行定位 / 分支命令。
+
+### Solution
+缓存 `.git` 目录身份 / 指针内容与实际 HEAD 路径。周期扫描仍遍历所有普通目录发现新增仓库，已知仓库复用定位，分支稳态只读 HEAD。
+
+### Prevention
+为缓存设计明确失效条件，并测试 `.git` 指针替换；用上百仓库验证发现与展示成本，不能只测两三个仓库。
+
+## Lesson: 新面板的 Escape 不能截走终端按键
+
+### Problem
+全局 Escape 关闭右栏会与终端 CLI 的取消操作冲突，并把焦点移到工具栏。
+
+### Root Cause
+面板在 document 上处理 Escape，没有区分当前焦点属于终端还是浮层。
+
+### Solution
+仅浮层打开或焦点位于面板内时处理 Escape；宽屏终端输入按原路径传给 PTY。
+
+### Prevention
+新增应用级快捷键时，回归真实 xterm 焦点和 CLI 基本按键，而不只验证面板关闭。

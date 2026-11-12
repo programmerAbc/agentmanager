@@ -18,7 +18,8 @@
     "build:win": "npm run build && electron-builder --win",
     "test:active": "node --test tests/activeList.test.ts",
     "test:agy": "node --test tests/agyPlugin.test.ts",
-    "test": "node --test tests/activeList.test.ts tests/agyPlugin.test.ts"
+    "test:git": "node --test tests/gitRepositoryMonitor.test.ts",
+    "test": "node --test tests/activeList.test.ts tests/agyPlugin.test.ts tests/gitRepositoryMonitor.test.ts"
   },
   "dependencies": {
     "electron-log": "^5.4.4",

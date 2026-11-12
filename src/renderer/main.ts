@@ -16,6 +16,7 @@ import { ALL_STATUSES, AgentStatusTracker, statusIndicator, statusText } from '.
 import { confirmDialog, iconButton, button } from './dialog'
 import { ensureFontLoaded, fontStack } from './fonts'
 import { icon, type IconName } from './icons'
+import { GitRepositoriesPanel } from './gitRepositoriesPanel'
 import { openAboutDialog, openSettingsDialog, row, sectionEl } from './settingsDialog'
 import { shapeSvg, type ShapeName } from './shapes'
 import { Sidebar } from './sidebar'
@@ -34,6 +35,7 @@ class App {
   private settings: AppSettings
   private readonly sidebar: Sidebar
   private readonly terminals: TerminalManager
+  private readonly gitPanel: GitRepositoriesPanel
   private readonly emptyState: HTMLElement
   /** 选中了项目但终端还没启动时显示（启动时恢复上次选中的项目，不自动启动 PTY） */
   private readonly idlePanel: HTMLElement
@@ -44,6 +46,7 @@ class App {
     launch: Record<AgentKind, HTMLButtonElement>
     end: HTMLButtonElement
     actions: HTMLElement
+    git: HTMLButtonElement
   }
   private readonly agents: AgentStatusTracker
   private pendingPatch: SettingsPatch = {}
@@ -149,6 +152,8 @@ class App {
     )
 
     const last = settings.lastProjectId
+    this.gitPanel = new GitRepositoriesPanel(mustGet('workspace'), this.topbar.git,
+      settings.gitPanelExpanded, expanded => this.changeSettings({ gitPanelExpanded: expanded }))
     this.select(last && this.projects.some((p) => p.id === last) ? last : null, false)
 
     if (import.meta.env.DEV) {
@@ -164,6 +169,7 @@ class App {
   select(id: string | null, start: boolean): void {
     if (id !== null && !this.projects.some((p) => p.id === id)) id = null
     const changed = this.selectedId !== id
+    this.gitPanel.setProject(id)
     this.selectedId = id
     this.sidebar.setSelected(id)
 
@@ -429,6 +435,7 @@ class App {
     const launchButton = (agent: AgentKind, variant: 'filled' | 'tonal'): HTMLButtonElement => {
       const name = AGENT_LABEL[agent]
       const btn = button(`启动 ${name}`, variant, AGENT_ICON[agent])
+      btn.setAttribute('aria-label', `启动 ${name}`)
       btn.classList.add('launch-agent')
       btn.title = `在当前项目的终端里运行设置中的 ${name} 启动命令`
       btn.addEventListener('click', () => {
@@ -447,19 +454,23 @@ class App {
     })
 
     const actions = document.createElement('div')
+    const git = button('仓库', 'tonal', 'accountTree')
+    git.classList.add('git-toggle')
+    git.hidden = true
     actions.className = 'topbar-actions'
     actions.append(
       status,
       launch.claude,
       launch.codex,
       launch.agy,
+      git,
       end,
       iconButton('folderOpen', '在资源管理器中打开', () => {
         if (this.selectedId) void this.openInExplorer(this.selectedId)
       })
     )
     root.append(titles, actions)
-    return { title, subtitle, status, launch, end, actions }
+    return { title, subtitle, status, launch, end, actions, git }
   }
 
   private renderAgentStatus(project: Project | null): void {

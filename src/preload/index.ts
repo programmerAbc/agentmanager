@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type AgentEvent, type Api } from '../shared/types'
+import { IPC, type AgentEvent, type Api, type GitSnapshot } from '../shared/types'
 
 // 沙箱 preload：只能用 electron 的少数模块，其余能力全部经 IPC 由主进程提供
 
@@ -18,6 +18,12 @@ function windowsBuild(): number {
 }
 
 const api: Api = {
+  git: {
+    subscribe: (id) => ipcRenderer.invoke(IPC.gitSubscribe, id),
+    unsubscribe: (id) => ipcRenderer.invoke(IPC.gitUnsubscribe, id),
+    refresh: (id) => ipcRenderer.invoke(IPC.gitRefresh, id),
+    onChanged: (cb) => subscribe<[GitSnapshot]>(IPC.gitChanged, cb)
+  },
   system: {
     windowsBuild: windowsBuild()
   },

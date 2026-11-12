@@ -1,5 +1,19 @@
 # Architecture — AgentManager
 
+## Git 分支面板（2026-11-12，已实现）
+
+- 新增主进程 `gitRepositoryMonitor.ts`：发现仓库、解析 Git 元数据位置、读取 HEAD、合并目录事件、定时校验、失败重试与释放。独立于 PTY / AgentStatusTracker，不修改助手 hooks。
+- 新增 renderer `gitRepositoriesPanel.ts`；main.ts 管理当前项目订阅与右栏；preload 只暴露白名单 IPC，shared/types.ts 定义快照和状态。
+- 主进程根据项目 id 从 ProjectStore 获取根路径；不接受 renderer 提交任意磁盘路径。快照按项目、订阅代次和递增 revision 隔离；旧任务结果不得覆盖新项目。
+- `fs.watch` 只做变化提示；实际 HEAD 所在 gitdir 的目录事件触发重读，另设 5 秒 HEAD 校验和 30 秒发现重扫。首次 / HEAD 变化时通过 Git 读取分支；稳态仅读小型 HEAD，不扫描工作文件或执行 git status。
+- `.git` 可为文件，worktree / submodule 通过 Git 命令确定实际 gitdir 与 HEAD 路径；Windows 原子替换、删除重建、watch 错误均重建监听并启用轮询。
+- 当前项目优先监听；切换项目停止旧订阅，缓存仅作带时间的旧快照；返回项目立即校验。设置只持久化展开偏好，分支事实不存 SQLite。
+- 详细取舍、IPC 与验收见 `docs/design/git-branches-plan.md`；已获用户确认，实施与验证结果以 handoff 为准。
+- `gitIpc.ts` 管理每个 webContents 的当前项目订阅、所有者 / token 校验和 1 秒刷新限流；导航 / renderer 崩溃 / 销毁 / 项目移除 / 退出释放。当前仅一个选中项目，无跨窗口仓库引用计数需求。
+- 发现按 4 个目录 / Git 任务并发；缓存 `.git` 目录身份（dev / ino / birthtime）或指针文件内容。未变化时复用已解析 HEAD 路径，防止每 30 秒对每个已知仓库重启多条 Git 命令；指针变化 / 目录重建重新验证。
+- Git 绝对可执行路径只从 PATH 解析；删除继承 GIT_* 变量，HEAD 读取显式 `--git-dir` / `--work-tree` 绑定目标，防止损坏仓库向上误读父项目。
+- 右栏与终端共处 `#workspace`，沿用已有 ResizeObserver 触发终端 fit。窄屏通过 inert / 焦点约束实现浮层；宽屏只处理面板内部 Escape。列表 >200 项按固定 128px 行高窗口化渲染。
+
 ## 进程与模块
 
 ```
