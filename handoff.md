@@ -64,6 +64,7 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
+- 当前发布任务：用户要求全部提交、合并main、推送并打包。第一层调整已独立提交，正在发布1.9.1；起始已在main，fetch后0/0。保留旧安装包，不动当前运行实例。
 - 当前没有未完成的第一层范围编码任务；本轮修改仍在工作区，尚未重新提交 / 推送 / 打包。此前release目录内的1.9.0仍为递归扫描版。
 - 2026-11-12 当前无未完成的Git功能编码或打包任务；1.9.0已交付，等用户自行安装。网络盘 / 巨型目录长期性能、真实系统休眠与 ACL 不可读场景未做现场集成验证。
 - 无编码任务。1.8.2 已打包等用户自行安装；M22 与按钮启动 AGY 的界面未在 dev 实例实测。
