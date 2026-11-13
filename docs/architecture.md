@@ -7,7 +7,7 @@
 - 新增主进程 `gitRepositoryMonitor.ts`：发现仓库、解析 Git 元数据位置、读取 HEAD、合并目录事件、定时校验、失败重试与释放。独立于 PTY / AgentStatusTracker，不修改助手 hooks。
 - 新增 renderer `gitRepositoriesPanel.ts`；main.ts 管理当前项目订阅与右栏；preload 只暴露白名单 IPC，shared/types.ts 定义快照和状态。
 - 主进程根据项目 id 从 ProjectStore 获取根路径；不接受 renderer 提交任意磁盘路径。快照按项目、订阅代次和递增 revision 隔离；旧任务结果不得覆盖新项目。
-- `fs.watch` 只做变化提示；实际 HEAD 所在 gitdir 的目录事件触发重读，另设 5 秒 HEAD 校验和 30 秒发现重扫。首次 / HEAD 变化时通过 Git 读取分支；稳态仅读小型 HEAD，不扫描工作文件或执行 git status。
+- `fs.watch` 只做变化提示；实际 HEAD 所在 gitdir 的目录事件（含 `HEAD` 与 `INDEX`）触发重读，另设 5 秒校验和 30 秒发现重扫。首次 / HEAD 变化时通过 Git 读取分支；稳态仅读小型 HEAD 并执行 `git --no-optional-locks status --porcelain=v1 -z --no-renames -unormal` 统计未提交条目（禁止对 `-z` 输出做 `trim()`，避免吞掉首行前导空格 ` M`；使用 `--no-optional-locks` 防止触发 `index.lock` 循环和锁竞争）。不递归监听工作树目录，状态读取失败或超时降级为 `dirtyCount = null`（界面显示 `—`）。
 - `.git` 可为文件，worktree / submodule 通过 Git 命令确定实际 gitdir 与 HEAD 路径；Windows 原子替换、删除重建、watch 错误均重建监听并启用轮询。
 - 当前项目优先监听；切换项目停止旧订阅，缓存仅作带时间的旧快照；返回项目立即校验。设置只持久化展开偏好，分支事实不存 SQLite。
 - 详细取舍、IPC 与验收见 `docs/design/git-branches-plan.md`；已获用户确认，实施与验证结果以 handoff 为准。

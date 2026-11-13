@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgentManager · Git 分支未提交指示器设计稿</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #000000;
+  --low: #090909;
+  --card: #141414;
+  --high: #242424;
+  --highest: #2e2e2e;
+  --text: #eeeeee;
+  --muted: #9e9e9e;
+  --line: #373737;
+  --accent: #ffffff;
+  --tint: #2a2a2a;
+  --good: #8fd19e;
+  --good-bg: rgb(143 209 158 / .12);
+  --good-line: rgb(143 209 158 / .28);
+  --dirty: #f5b461;
+  --dirty-bg: rgb(245 180 97 / .16);
+  --dirty-line: rgb(245 180 97 / .38);
+  --warn: #f28b82;
+  --terminal: #000000;
+  --shadow: #0008;
+}
+body.orange {
+  color-scheme: dark;
+  --bg: #1a110f;
+  --low: #231917;
+  --card: #2b201d;
+  --high: #3d322f;
+  --highest: #493c38;
+  --text: #f1dfda;
+  --muted: #cbb7af;
+  --line: #53433f;
+  --accent: #ffb59d;
+  --tint: #5d4037;
+  --good: #b8d7a6;
+  --good-bg: rgb(184 215 166 / .12);
+  --good-line: rgb(184 215 166 / .28);
+  --dirty: #ffb59d;
+  --dirty-bg: rgb(255 181 157 / .16);
+  --dirty-line: rgb(255 181 157 / .38);
+  --warn: #ffb4ab;
+  --terminal: #171413;
+  --shadow: #0006;
+}
+body.light {
+  color-scheme: light;
+  --bg: #ffffff;
+  --low: #f7f6f5;
+  --card: #ffffff;
+  --high: #eceae8;
+  --highest: #e2dfdc;
+  --text: #1f1f1f;
+  --muted: #666666;
+  --line: #dcd9d6;
+  --accent: #1f1f1f;
+  --tint: #eae7e4;
+  --good: #256d3b;
+  --good-bg: rgb(37 109 59 / .09);
+  --good-line: rgb(37 109 59 / .24);
+  --dirty: #b45309;
+  --dirty-bg: rgb(217 119 6 / .11);
+  --dirty-line: rgb(217 119 6 / .32);
+  --warn: #b3261e;
+  --terminal: #ffffff;
+  --shadow: #0002;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; border-radius: 24px; padding: 7px 12px; }
+button:hover { background: var(--high); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; vertical-align: middle; flex: none; }
+button.icon { padding: 7px; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; }
+
+/* 顶部设计稿控制栏 */
+.demo {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--low);
+}
+.demo strong { font-size: 13px; }
+.demo .muted { color: var(--muted); font-weight: 400; }
+.demo label { font-size: 12px; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.demo select {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 5px 9px;
+  border-radius: 9px;
+  color: var(--text);
+}
+.demo .right { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.demo .btn-outline { border: 1px solid var(--line); border-radius: 10px; font-size: 12px; padding: 6px 11px; }
+.demo .btn-primary { background: var(--tint); color: var(--accent); border-radius: 10px; font-size: 12px; padding: 6px 11px; border: 1px solid var(--line); }
+
+/* 主布局复刻 AgentManager */
+.app {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  height: calc(100vh - 57px);
+  min-height: 560px;
+}
+.sidebar {
+  padding: 20px 12px 14px;
+  background: var(--low);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.brand { display: flex; gap: 10px; align-items: center; padding: 0 8px; font-size: 16px; font-weight: 650; }
+.brand i {
+  display: grid; place-items: center; width: 28px; height: 28px;
+  background: var(--tint); border-radius: 10px; color: var(--accent); font-style: normal; font-size: 14px;
+}
+.add {
+  padding: 11px 14px; background: var(--tint); border-radius: 16px;
+  color: var(--accent); text-align: left; font-size: 13px; font-weight: 500;
+}
+.group { font-size: 11px; color: var(--muted); margin: 8px 10px 4px; }
+.project {
+  text-align: left; display: flex; gap: 10px; width: 100%;
+  padding: 10px 12px; border-radius: 16px; align-items: flex-start;
+}
+.project.selected { background: var(--tint); }
+.project .info { min-width: 0; }
+.project strong { font-weight: 550; display: block; font-size: 13px; }
+.project small { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { color: var(--good); font-size: 11px; padding-top: 2px; }
+
+main { min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.topbar {
+  height: 70px; flex: none; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; padding: 12px 20px;
+}
+.titles { min-width: 0; }
+.titles h1 { font-size: 18px; margin: 0; font-weight: 550; }
+.titles div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.top-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px;
+  border-radius: 20px; background: var(--tint); color: var(--accent); font-size: 12px; font-weight: 500;
+}
+.workspace { position: relative; display: flex; min-height: 0; flex: 1; gap: 12px; padding: 0 12px 12px 12px; }
+.terminal {
+  border-radius: 22px; background: var(--terminal); flex: 1; min-width: 0;
+  border: 1px solid var(--line); padding: 22px 24px; position: relative;
+  font: 13px/1.8 Consolas, 'Microsoft YaHei', monospace; color: var(--muted);
+  display: flex; flex-direction: column;
+}
+.terminal h3 { margin: 0 0 10px; font-size: 14px; color: var(--text); font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+.design-notes {
+  margin-top: 8px;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted);
+  max-width: 680px;
+}
+.design-notes .card {
+  background: var(--low);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.design-notes .card strong { color: var(--text); display: block; margin-bottom: 6px; font-size: 13px; }
+.design-notes ul { margin: 0; padding-left: 18px; }
+.design-notes li { margin: 4px 0; }
+.design-notes code {
+  font-family: Consolas, monospace; font-size: 12px;
+  background: var(--high); color: var(--text); padding: 1px 5px; border-radius: 5px;
+}
+
+/* Git 面板：与真实样式对齐 */
+.git-panel {
+  display: flex; flex: 0 0 320px; flex-direction: column; min-height: 0; min-width: 0;
+  border: 1px solid var(--line); border-radius: 22px; background: var(--low); overflow: hidden;
+}
+.git-panel-head { padding: 16px 14px 12px; flex: none; }
+.git-panel-heading { display: flex; align-items: center; gap: 6px; }
+.git-panel-heading h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; }
+.git-count { font-size: 11px; background: var(--highest); border-radius: 8px; padding: 0 6px; line-height: 18px; }
+.git-scope { font-size: 11px; color: var(--muted); margin: 4px 0 10px; }
+.git-status {
+  font-size: 12px; color: var(--good); margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.git-status-left { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.git-status-left::before { content: '●'; font-size: 9px; flex: none; }
+.git-dirty-summary { font-size: 11px; color: var(--dirty); flex: none; }
+.git-search {
+  display: flex; align-items: center; gap: 8px; border: 1px solid var(--line);
+  border-radius: 999px; padding: 7px 12px; background: var(--card);
+}
+.git-search svg { width: 16px; height: 16px; color: var(--muted); }
+.git-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 12px; }
+
+.git-list { overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; padding: 0 10px; }
+.git-repo {
+  min-height: 124px; padding: 12px 8px; border-bottom: 1px solid var(--line);
+  border-radius: 10px; transition: background .35s;
+}
+.git-repo.git-updated { background: var(--tint); }
+.git-repo-title { display: flex; align-items: center; gap: 7px; }
+.git-repo-title svg { width: 17px; height: 17px; color: var(--muted); }
+.git-repo-title strong {
+  flex: 1; min-width: 0; font-size: 13px; font-weight: 550;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.git-update-label { font-size: 10px; color: var(--accent); flex: none; }
+.git-repo-path {
+  font-size: 11px; color: var(--muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; margin: 2px 0 8px;
+}
+
+/* 核心新增：分支 + 提交状态指示器同一行 */
+.git-branch-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.git-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--accent);
+  padding: 4px 8px;
+  font: 12px/18px Consolas, 'Sarasa Term SC', monospace;
+  text-align: left;
+}
+.git-branch:hover { background: var(--high); }
+.git-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.git-branch svg { width: 15px; height: 15px; }
+
+/* 状态指示器样式 */
+.git-worktree-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font: 11px/1 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.git-worktree-badge.is-dirty {
+  color: var(--dirty);
+  background: var(--dirty-bg);
+  border: 1px solid var(--dirty-line);
+  font-weight: 600;
+}
+.git-worktree-badge.is-dirty .badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.git-worktree-badge.is-clean {
+  color: var(--good);
+  background: var(--good-bg);
+  border: 1px solid var(--good-line);
+  font-weight: 500;
+}
+.git-worktree-badge.is-clean.is-compact {
+  padding: 0 7px;
+}
+.git-worktree-badge.is-unknown {
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+
+/* 方案 B（纯语义中文胶囊）微调 */
+.git-worktree-badge.style-label {
+  font-weight: 550;
+  padding: 0 8px;
+}
+
+.git-repo-note {
+  margin-top: 6px; font-size: 11px; min-height: 16px; color: var(--muted);
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.git-repo-note.git-warning { color: var(--warn); }
+.git-repo-note button {
+  background: transparent; border: 1px solid var(--line); border-radius: 8px;
+  padding: 1px 7px; font-size: 11px; color: var(--text);
+}
+.git-footer {
+  display: flex; justify-content: space-between; gap: 8px; padding: 11px 16px;
+  border-top: 1px solid var(--line); font-size: 11px; color: var(--muted);
+}
+.snack {
+  position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+  padding: 9px 18px; border-radius: 12px; color: var(--bg); background: var(--text);
+  box-shadow: 0 8px 30px var(--shadow); font-size: 13px; z-index: 10;
+}
+.snack[hidden] { display: none; }
+
+@media (max-width: 960px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { display: none; }
+}
+@media (max-width: 720px) {
+  .terminal { display: none; }
+  .git-panel { flex: 1; }
+}
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true"><defs>
+  <symbol id="icon-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M6 8v8m12-8v1a5 5 0 0 1-5 5H6"/></symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></symbol>
+  <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-1 7M20 4v6h-6"/></symbol>
+  <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 7V5h7l2 3h9v12H3V7Z"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><path d="M5 12.5 9.5 17 19 7.5"/></symbol>
+</defs></svg>
+
+<div class="demo">
+  <strong>Git 分支未提交指示器 · 设计稿</strong>
+  <span class="muted">（可切换对比方案、主题与模拟变动）</span>
+  <label>指示器样式
+    <select id="variant">
+      <option value="compact">方案 A（推荐）：紧凑数字 + 干净勾（● 3 / ✓）</option>
+      <option value="label">方案 B：直白中文标签（3 未提交 / 已提交）</option>
+      <option value="dirtyOnly">方案 C：仅脏态显示数字（● 3 / 干净无徽标）</option>
+    </select>
+  </label>
+  <label>主题
+    <select id="theme">
+      <option value="black">黑色（同截图）</option>
+      <option value="orange">Claude 橙</option>
+      <option value="light">白色</option>
+    </select>
+  </label>
+  <div class="right">
+    <button id="simDirty" class="btn-primary">模拟新增改动（+1）</button>
+    <button id="simCommit" class="btn-outline">模拟全部提交（清零）</button>
+    <button id="simReset" class="btn-outline">重置示例</button>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><i>◈</i> AgentManager</div>
+    <button class="add">＋　添加项目</button>
+    <div>
+      <div class="group">⌄　收藏　1</div>
+      <button class="project selected">
+        <span class="dot">●</span>
+        <span class="info"><strong>agentmanager</strong><small>D:\develop\workspace_lab3\agentmanager</small></span>
+      </button>
+      <div class="group">⌄　项目　1</div>
+      <button class="project">
+        <span class="dot" style="color:var(--muted)">○</span>
+        <span class="info"><strong>设备端工作区</strong><small>D:\develop\xnznrepo</small></span>
+      </button>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="titles">
+        <h1>agentmanager</h1>
+        <div>D:\develop\workspace_lab3\agentmanager</div>
+      </div>
+      <div class="actions">
+        <span class="top-pill">仓库 <span id="topCount">7</span></span>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <section class="terminal">
+        <h3>设计说明（预览右侧面板的多种真实场景）</h3>
+        <div class="design-notes">
+          <div class="card">
+            <strong>1. 布局结构：分支按钮 + 右侧独立状态徽标</strong>
+            <ul>
+              <li>将原先单个 <code>.git-branch</code> 按钮包入横向 flex 容器 <code>.git-branch-row</code>。</li>
+              <li>左侧 <code>.git-branch</code> 保持「点击复制分支名」，设 <code>flex: 0 1 auto; min-width: 0</code> —— 分支名过长时只省略分支名，<strong>不会把右侧指示器挤出或折行</strong>。</li>
+              <li>右侧徽标设 <code>flex: none</code>，不参与复制分支，鼠标悬停（<code>title</code>）展示详细构成（如：<code>3 个未提交文件：2 修改 · 1 未跟踪</code>）。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <strong>2. 三种候选样式对比（可在顶部下拉框切换体验）</strong>
+            <ul>
+              <li><strong>方案 A（推荐）</strong>：未提交显示 <code>● 3</code>（暖色圆点+数字），已提交显示柔和 <code>✓</code>。仅占 ~34px，极长分支下最稳，纯黑/纯白主题下也能一眼区分。</li>
+              <li><strong>方案 B</strong>：未提交显示 <code>● 3 未提交</code>，已提交显示 <code>✓ 已提交</code>。语义零门槛，但占用 ~70px，分支稍长就会被省略。</li>
+              <li><strong>方案 C</strong>：仅在有未提交时显示 <code>● 3</code>，干净时不显示。最极简，但无法区分「干净」与「未检查」。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <strong>3. 边界处理与性能约束</strong>
+            <ul>
+              <li><strong>未知/读取失败</strong>：显示虚线 <code>—</code>（或隐藏），绝不误报为 <code>✓</code> 干净。</li>
+              <li><strong>新 init 尚无提交</strong>：若目录已有文件，照常统计未跟踪文件数（如 <code>● 4</code>），下方仍保留「尚无提交」。</li>
+              <li><strong>采集方式</strong>：主进程按需执行 <code>git status --porcelain=v1 -z -unormal</code> 统计条目（不读取文件内容、不递归监听工作树，仅在面板展开/聚焦/定期校验时刷新）。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <aside class="git-panel" aria-label="Git 仓库">
+        <div class="git-panel-head">
+          <div class="git-panel-heading">
+            <svg><use href="#icon-branch"/></svg>
+            <h2>Git 仓库</h2>
+            <span class="git-count" id="count">7</span>
+            <button class="icon" id="refresh" title="重新扫描仓库"><svg><use href="#icon-refresh"/></svg></button>
+            <button class="icon" title="收起仓库面板"><svg><use href="#icon-close"/></svg></button>
+          </div>
+          <div class="git-scope">当前项目目录 · 仅第一层子目录</div>
+          <div class="git-status">
+            <span class="git-status-left">自动更新中</span>
+            <span class="git-dirty-summary" id="dirtySummary"></span>
+          </div>
+          <label class="git-search">
+            <svg><use href="#icon-search"/></svg>
+            <input id="filter" placeholder="搜索仓库或分支" autocomplete="off">
+          </label>
+        </div>
+
+        <div class="git-list" id="list"></div>
+
+        <footer class="git-footer">
+          <span id="summary">7 个仓库</span>
+          <span id="checked">12:41:04 校验</span>
+        </footer>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<div class="snack" id="snack" hidden></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const INITIAL_REPOS = [
+  { id: '.', name: '项目根目录', path: '.', branch: 'main', state: 'branch', dirty: 3, staged: 1, modified: 1, untracked: 1 },
+  { id: 'app_presskey_6501', name: 'app_presskey_6501', path: 'app_presskey_6501', branch: 'main', state: 'branch', dirty: 0, staged: 0, modified: 0, untracked: 0 },
+  { id: 'dualscreenpos_660x', name: 'dualscreenpos_660x', path: 'dualscreenpos_660x', branch: 'feature/ccb-aidl-release-2026-11-very-long-name', state: 'branch', dirty: 12, staged: 4, modified: 6, untracked: 2 },
+  { id: 'tenglong', name: 'tenglong', path: 'tenglong', branch: 'develop', state: 'branch', dirty: 128, staged: 10, modified: 90, untracked: 28 },
+  { id: 'device-sdk', name: 'device-sdk', path: 'device-sdk', branch: 'a82f1c9', state: 'detached', dirty: 2, staged: 0, modified: 2, untracked: 0, note: '分离 HEAD' },
+  { id: 'printer-service', name: 'printer-service', path: 'printer-service', branch: 'main', state: 'unborn', dirty: 4, staged: 0, modified: 0, untracked: 4, note: '尚无提交' },
+  { id: 'broken-repo', name: 'broken-repo', path: 'broken-repo', branch: 'main', state: 'error', dirty: null, note: '读取失败 · 上次读取的分支' }
+];
+
+let repos = structuredClone(INITIAL_REPOS);
+let variant = 'compact';
+let updatedId = '';
+let toastTimer;
+
+function toast(text) {
+  const el = $('snack');
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
+}
+
+function formatTooltip(r) {
+  if (r.dirty === null) return '工作区状态未知，未能读取未提交文件数';
+  if (r.dirty === 0) return '工作区干净，已全部提交';
+  const parts = [];
+  if (r.staged) parts.push(`${r.staged} 已暂存`);
+  if (r.modified) parts.push(`${r.modified} 已修改`);
+  if (r.untracked) parts.push(`${r.untracked} 未跟踪`);
+  const detail = parts.length ? `（${parts.join(' · ')}）` : '';
+  return `${r.dirty} 个未提交文件${detail}`;
+}
+
+function buildBadge(r) {
+  if (r.dirty === null) {
+    if (variant === 'dirtyOnly') return null;
+    const badge = document.createElement('span');
+    badge.className = 'git-worktree-badge is-unknown';
+    badge.title = formatTooltip(r);
+    badge.textContent = variant === 'label' ? '状态未知' : '—';
+    return badge;
+  }
+
+  if (r.dirty > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'git-worktree-badge is-dirty' + (variant === 'label' ? ' style-label' : '');
+    badge.title = formatTooltip(r);
+    const dot = document.createElement('span');
+    dot.className = 'badge-dot';
+    dot.setAttribute('aria-hidden', 'true');
+    const countText = r.dirty > 999 ? '999+' : String(r.dirty);
+    const label = document.createElement('span');
+    label.textContent = variant === 'label' ? `${countText} 未提交` : countText;
+    badge.append(dot, label);
+    return badge;
+  }
+
+  if (variant === 'dirtyOnly') return null;
+
+  const badge = document.createElement('span');
+  badge.className = 'git-worktree-badge is-clean' + (variant === 'label' ? ' style-label' : ' is-compact');
+  badge.title = formatTooltip(r);
+  const check = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  check.style.width = '13px';
+  check.style.height = '13px';
+  const use = document.createElementNS(check.namespaceURI, 'use');
+  use.setAttribute('href', '#icon-check');
+  check.append(use);
+  badge.append(check);
+  if (variant === 'label') {
+    const label = document.createElement('span');
+    label.textContent = '已提交';
+    badge.append(label);
+  }
+  return badge;
+}
+
+function render() {
+  const q = $('filter').value.trim().toLowerCase();
+  const filtered = repos.filter(r => `${r.name} ${r.path} ${r.branch}`.toLowerCase().includes(q));
+  const dirtyRepoCount = repos.filter(r => (r.dirty ?? 0) > 0).length;
+
+  $('count').textContent = String(repos.length);
+  $('topCount').textContent = String(repos.length);
+  $('summary').textContent = q ? `${filtered.length} / ${repos.length} 个仓库` : `${repos.length} 个仓库`;
+  $('dirtySummary').textContent = dirtyRepoCount > 0 ? `${dirtyRepoCount} 个未提交` : '全部已提交';
+  $('dirtySummary').style.color = dirtyRepoCount > 0 ? 'var(--dirty)' : 'var(--good)';
+
+  const list = $('list');
+  list.replaceChildren();
+
+  for (const r of filtered) {
+    const row = document.createElement('div');
+    row.className = 'git-repo' + (r.id === updatedId ? ' git-updated' : '');
+
+    const title = document.createElement('div');
+    title.className = 'git-repo-title';
+    const folder = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const folderUse = document.createElementNS(folder.namespaceURI, 'use');
+    folderUse.setAttribute('href', '#icon-folder');
+    folder.append(folderUse);
+    const strong = document.createElement('strong');
+    strong.textContent = r.name;
+    strong.title = r.name;
+    title.append(folder, strong);
+    if (r.id === updatedId) {
+      const upd = document.createElement('span');
+      upd.className = 'git-update-label';
+      upd.textContent = '已更新';
+      title.append(upd);
+    }
+
+    const path = document.createElement('div');
+    path.className = 'git-repo-path';
+    path.textContent = r.path;
+    path.title = r.path;
+
+    const branchRow = document.createElement('div');
+    branchRow.className = 'git-branch-row';
+
+    const branchBtn = document.createElement('button');
+    branchBtn.className = 'git-branch';
+    branchBtn.title = `复制分支或提交：${r.branch}`;
+    const bIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const bUse = document.createElementNS(bIcon.namespaceURI, 'use');
+    bUse.setAttribute('href', '#icon-branch');
+    bIcon.append(bUse);
+    const bText = document.createElement('span');
+    bText.textContent = r.branch;
+    branchBtn.append(bIcon, bText);
+    branchBtn.onclick = () => toast(`已复制分支：${r.branch}`);
+
+    branchRow.append(branchBtn);
+    const badge = buildBadge(r);
+    if (badge) branchRow.append(badge);
+
+    const note = document.createElement('div');
+    note.className = 'git-repo-note' + (r.state === 'error' ? ' git-warning' : '');
+    if (r.note) {
+      const span = document.createElement('span');
+      span.textContent = r.note;
+      note.append(span);
+      if (r.state === 'error') {
+        const retry = document.createElement('button');
+        retry.textContent = '重试';
+        retry.onclick = () => {
+          r.state = 'branch';
+          r.dirty = 0;
+          r.staged = 0; r.modified = 0; r.untracked = 0;
+          r.note = '';
+          updatedId = r.id;
+          $('checked').textContent = new Date().toLocaleTimeString() + ' 校验';
+          render();
+        };
+        note.append(retry);
+      }
+    }
+
+    row.append(title, path, branchRow, note);
+    list.append(row);
+  }
+}
+
+$('variant').onchange = e => { variant = e.target.value; render(); };
+$('theme').onchange = e => {
+  const v = e.target.value;
+  document.body.className = v === 'black' ? '' : v;
+};
+$('filter').oninput = render;
+$('simDirty').onclick = () => {
+  const target = repos[1]; // app_presskey_6501
+  target.dirty = (target.dirty ?? 0) + 1;
+  target.modified = (target.modified ?? 0) + 1;
+  updatedId = target.id;
+  $('checked').textContent = new Date().toLocaleTimeString() + ' 校验';
+  render();
+};
+$('simCommit').onclick = () => {
+  const target = repos[0]; // 项目根目录
+  target.dirty = 0; target.staged = 0; target.modified = 0; target.untracked = 0;
+  updatedId = target.id;
+  $('checked').textContent = new Date().toLocaleTimeString() + ' 校验';
+  render();
+};
+$('simReset').onclick = () => {
+  repos = structuredClone(INITIAL_REPOS);
+  updatedId = '';
+  $('checked').textContent = '12:41:04 校验';
+  render();
+};
+$('refresh').onclick = () => {
+  $('checked').textContent = new Date().toLocaleTimeString() + ' 校验';
+  toast('已模拟重新扫描');
+};
+
+render();
+</script>
+</body>
+</html>

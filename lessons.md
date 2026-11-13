@@ -1,5 +1,15 @@
 # Lessons
 
+## Lesson: 解析 git status --porcelain 禁止 trim 且应带 --no-optional-locks
+### Problem
+`git status --porcelain=v1 -z` 首行如果是仅工作区修改的条目，格式以空格开头（如 `' M file.ts\0'`）；通用 `gitCommand` 默认 `.trim()` 会削掉首字符空格并错位状态列。此外在 `gitdir` 监听 `INDEX` 时，普通 `git status` 会刷新并锁 `.git/index`，容易触发自我唤醒循环或锁冲突。
+### Root Cause
+Git porcelain v1 用第 0 列表示暂存区、第 1 列表示工作区，空格本身是有效占位符；`git status` 默认可选更新 index。
+### Solution
+对 `git status` 关闭 `stdout.trim()` 并加上 `--no-optional-locks`，使只读状态查询不写 index；Windows 测试目录重命名同时重试 `EPERM` 与 `EBUSY`。
+### Prevention
+任何按固定列解析命令输出的封装必须保留前导空白，只读 Git 监控命令统一带 `--no-optional-locks`。
+
 ## Lesson: Node原生跑TS测试不支持参数属性
 ### Problem
 `node --test tests/activeList.test.ts` 报 SyntaxError，指向构造函数 `private readonly limit = ...`。

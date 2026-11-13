@@ -290,6 +290,11 @@ export interface RepositoryBranch {
   branch: string | null
   shortOid: string | null
   state: 'branch' | 'unborn' | 'detached' | 'error'
+  /** 未提交文件数（已暂存 + 未暂存 + 未跟踪）；未知或读取失败时为 null */
+  dirtyCount: number | null
+  stagedCount: number
+  modifiedCount: number
+  untrackedCount: number
   error?: string
   lastSuccessAt: number | null
 }

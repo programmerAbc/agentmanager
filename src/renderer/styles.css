@@ -893,10 +893,14 @@ select {
 .git-panel-heading .icon-btn { width: 32px; height: 32px; }
 .git-count { font-size: 11px; background: var(--md-sys-color-surface-container-highest); border-radius: 8px; padding: 0 6px; }
 .git-scope { font-size: 11px; color: var(--md-sys-color-on-surface-variant); margin: 4px 0 12px; }
-.git-status { font-size: 12px; color: var(--md-sys-color-tertiary); margin-bottom: 12px;
+.git-status-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.git-status { font-size: 12px; color: var(--md-sys-color-tertiary); min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .git-status::before { content: '●'; font-size: 9px; margin-right: 6px; }
 .git-warning { color: var(--md-sys-color-error); }
+.git-dirty-summary { font-size: 11px; flex: none; white-space: nowrap; }
+.git-dirty-summary.is-dirty { color: light-dark(#b45309, #f5b461); }
+.git-dirty-summary.is-clean { color: light-dark(#256d3b, #8fd19e); }
 .git-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-shape-full); padding: 8px 12px; }
 .git-search .icon { width: 18px; height: 18px; color: var(--md-sys-color-on-surface-variant); }
@@ -912,13 +916,57 @@ select {
 .git-update-label { font-size: 10px; color: var(--md-sys-color-primary); flex: none; }
 .git-repo-path { font-size: 11px; color: var(--md-sys-color-on-surface-variant); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; margin: 2px 0 8px; }
-.git-branch { display: flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid var(--md-sys-color-outline-variant);
+.git-branch-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.git-branch { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 9px; background: var(--md-sys-color-surface); color: var(--md-sys-color-primary);
   padding: 4px 8px; cursor: pointer; font: 12px/18px Consolas, 'Sarasa Term SC', monospace; }
 .git-branch span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .git-branch .icon { width: 16px; height: 16px; }
 .git-branch:hover { background: var(--md-sys-color-surface-container-high); }
 .git-branch:disabled { opacity: .6; cursor: default; }
+.git-worktree-badge {
+  --git-dirty-color: light-dark(#b45309, #f5b461);
+  --git-clean-color: light-dark(#256d3b, #8fd19e);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+.git-worktree-badge.is-dirty {
+  color: var(--git-dirty-color);
+  background: color-mix(in srgb, var(--git-dirty-color) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--git-dirty-color) 38%, transparent);
+  font-weight: 600;
+}
+.git-worktree-badge.is-dirty .badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.git-worktree-badge.is-clean {
+  color: var(--git-clean-color);
+  background: color-mix(in srgb, var(--git-clean-color) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--git-clean-color) 28%, transparent);
+  padding: 0 7px;
+}
+.git-worktree-badge.is-clean .icon { width: 14px; height: 14px; }
+.git-worktree-badge.is-unknown {
+  color: var(--md-sys-color-on-surface-variant);
+  border: 1px dashed var(--md-sys-color-outline-variant);
+}
 .git-repo-note { margin-top: 6px; font-size: 11px; min-height: 16px; color: var(--md-sys-color-on-surface-variant);
   display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .git-repo-note.git-warning { color: var(--md-sys-color-error); }

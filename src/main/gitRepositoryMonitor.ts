@@ -22,6 +22,45 @@ export interface MonitorOptions {
   gitExecutable?: string
 }
 
+export interface WorktreeStatus {
+  dirtyCount: number | null
+  stagedCount: number
+  modifiedCount: number
+  untrackedCount: number
+}
+
+const UNKNOWN_STATUS: WorktreeStatus = {
+  dirtyCount: null, stagedCount: 0, modifiedCount: 0, untrackedCount: 0
+}
+
+/** 解析 `git status --porcelain=v1 -z` 输出，保留首行前导空格语义。 */
+export function parsePorcelainStatus(stdout: string): WorktreeStatus {
+  if (!stdout) return { dirtyCount: 0, stagedCount: 0, modifiedCount: 0, untrackedCount: 0 }
+  const tokens = stdout.split('\0')
+  let dirtyCount = 0
+  let stagedCount = 0
+  let modifiedCount = 0
+  let untrackedCount = 0
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]
+    if (!token || token.length < 4) continue
+    const x = token[0]
+    const y = token[1]
+    if (x === '!' && y === '!') continue
+    if (x === '?' && y === '?') {
+      dirtyCount++
+      untrackedCount++
+      continue
+    }
+    dirtyCount++
+    if (x !== ' ') stagedCount++
+    if (y !== ' ') modifiedCount++
+    // porcelain -z 下 R/C 会额外紧跟一条原始路径，需跳过以免重复计数。
+    if (x === 'R' || x === 'C') i++
+  }
+  return { dirtyCount, stagedCount, modifiedCount, untrackedCount }
+}
+
 const canonical = (p: string): string => process.platform === 'win32' ? p.toLowerCase() : p
 const message = (err: unknown): string => err instanceof Error ? err.message : String(err)
 const codeOf = (err: unknown): unknown => (err as NodeJS.ErrnoException | null)?.code
@@ -118,17 +157,17 @@ export class GitRepositoryMonitor {
     } finally { this.running = false }
   }
 
-  private async gitCommand(directory: string, args: string[]): Promise<string> {
+  private async gitCommand(directory: string, args: string[], trim = true, maxBuffer = 256 * 1024): Promise<string> {
     const env = { ...process.env }
     // 不继承父 Git 命令的仓库、index、临时配置覆盖。
     for (const key of Object.keys(env)) if (/^GIT_/i.test(key)) delete env[key]
     return new Promise((resolve, reject) => {
       execFile(this.git, args, { cwd: directory, env, windowsHide: true, timeout: 3000,
-        maxBuffer: 256 * 1024, encoding: 'utf8', signal: this.abort.signal }, (err, stdout, stderr) => {
+        maxBuffer, encoding: 'utf8', signal: this.abort.signal }, (err, stdout, stderr) => {
         if (err) {
           // 保留退出码，区分非符号 HEAD 与真正的权限/损坏错误。
           reject(Object.assign(new Error(stderr.trim() || err.message), { code: err.code }))
-        } else resolve(stdout.trim())
+        } else resolve(trim ? stdout.trim() : stdout)
       })
     })
   }
@@ -155,10 +194,33 @@ export class GitRepositoryMonitor {
     const headPath = await this.gitCommand(directory, ['rev-parse', '--path-format=absolute', '--git-path', 'HEAD'])
     const relativePath = path.relative(this.root, directory).split(path.sep).join('/') || '.'
     const entry: Entry = { directory, headPath, head: '', marker, row: previous?.row ?? {
-      id: relativePath, relativePath, branch: null, shortOid: null, state: 'error', lastSuccessAt: null
+      id: relativePath, relativePath, branch: null, shortOid: null, state: 'error', ...UNKNOWN_STATUS, lastSuccessAt: null
     } }
     await this.readEntry(entry)
     return entry
+  }
+
+  private async readWorktreeStatus(entry: Entry): Promise<WorktreeStatus> {
+    try {
+      const stdout = await this.gitCommand(
+        entry.directory,
+        [
+          '--no-optional-locks',
+          `--git-dir=${path.dirname(entry.headPath)}`,
+          `--work-tree=${entry.directory}`,
+          'status',
+          '--porcelain=v1',
+          '-z',
+          '--no-renames',
+          '-unormal'
+        ],
+        false,
+        2 * 1024 * 1024
+      )
+      return parsePorcelainStatus(stdout)
+    } catch {
+      return UNKNOWN_STATUS
+    }
   }
 
   private async readEntry(entry: Entry): Promise<void> {
@@ -172,7 +234,9 @@ export class GitRepositoryMonitor {
         const head = (await readFile(entry.headPath, 'utf8')).trim()
         if (!/^(?:ref: refs\/[^\s\x00-\x1f]+|[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/.test(head)) throw new Error('HEAD 内容无效')
         if (head === entry.head && entry.row.state !== 'error' && entry.row.state !== 'unborn') {
-          entry.row.lastSuccessAt = Date.now()
+          const status = await this.readWorktreeStatus(entry)
+          if (this.disposed) return
+          entry.row = { ...entry.row, ...status, lastSuccessAt: Date.now() }
           return
         }
         let branch: string | null = null
@@ -194,12 +258,14 @@ export class GitRepositoryMonitor {
           shortOid = await this.entryCommand(entry, ['rev-parse', '--verify', '--short', 'HEAD'])
           state = 'detached'
         }
+        const status = await this.readWorktreeStatus(entry)
+        if (this.disposed) return
         entry.head = head
-        entry.row = { ...entry.row, branch, shortOid, state, error: undefined, lastSuccessAt: Date.now() }
+        entry.row = { ...entry.row, branch, shortOid, state, ...status, error: undefined, lastSuccessAt: Date.now() }
         return
       } catch (err) {
         if (this.disposed) return
-        if (wait === 1000) entry.row = { ...entry.row, state: 'error', error: message(err) }
+        if (wait === 1000) entry.row = { ...entry.row, ...UNKNOWN_STATUS, state: 'error', error: message(err) }
       }
     }
   }
@@ -251,6 +317,7 @@ export class GitRepositoryMonitor {
               const old = this.entries.get(relative)
               this.entries.set(relative, { directory, headPath: '', head: '', marker: '', row: {
                 ...(old?.row ?? { id: relative, relativePath: relative, branch: null, shortOid: null, lastSuccessAt: null }),
+                ...UNKNOWN_STATUS,
                 state: 'error', error: message(err)
               } })
             }
@@ -270,7 +337,7 @@ export class GitRepositoryMonitor {
     for (const [id, entry] of this.entries) {
       if (seen.has(id)) continue
       if (failed.some(p => p === '.' || id === p || id.startsWith(p + '/'))) {
-        entry.row = { ...entry.row, state: 'error', error: '所在目录无法访问，显示上次读取结果' }
+        entry.row = { ...entry.row, ...UNKNOWN_STATUS, state: 'error', error: '所在目录无法访问，显示上次读取结果' }
       } else this.entries.delete(id)
     }
     this.snapshot.skippedPaths = failed
@@ -321,7 +388,8 @@ export class GitRepositoryMonitor {
     })
     for (const entry of this.entries.values()) {
       if (entry.headPath) add(path.dirname(entry.headPath), false, (_event, file) => {
-        if (!file || file.toUpperCase() === 'HEAD') this.queueEvent(false)
+        const name = file?.toUpperCase()
+        if (!name || name === 'HEAD' || name === 'INDEX') this.queueEvent(false)
       })
     }
     this.snapshot.monitorState = degraded ? 'polling' : 'watching'

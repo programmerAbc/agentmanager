@@ -12,6 +12,7 @@ export class GitRepositoriesPanel {
   private readonly scrim = document.createElement('div')
   private readonly count = document.createElement('span')
   private readonly status = document.createElement('div')
+  private readonly dirtySummary = document.createElement('span')
   private readonly summary = document.createElement('span')
   private readonly checked = document.createElement('span')
   private readonly filter = document.createElement('input')
@@ -55,15 +56,19 @@ export class GitRepositoriesPanel {
     const scope = document.createElement('div')
     scope.className = 'git-scope'
     scope.textContent = '当前项目目录 · 仅第一层子目录'
+    const statusRow = document.createElement('div')
+    statusRow.className = 'git-status-row'
     this.status.className = 'git-status'
     this.status.setAttribute('role', 'status')
+    this.dirtySummary.className = 'git-dirty-summary'
+    statusRow.append(this.status, this.dirtySummary)
     const search = document.createElement('label')
     search.className = 'git-search'
     this.filter.placeholder = '搜索仓库或分支'
     this.filter.setAttribute('aria-label', '搜索仓库或分支')
     this.filter.addEventListener('input', () => { this.list.scrollTop = 0; this.renderList() })
     search.append(icon('search'), this.filter)
-    head.append(heading, scope, this.status, search)
+    head.append(heading, scope, statusRow, search)
     this.list.className = 'git-list'
     this.list.tabIndex = 0
     this.list.setAttribute('role', 'list')
@@ -218,6 +223,7 @@ export class GitRepositoriesPanel {
     this.status.textContent = text
     this.status.title = this.error || s?.error || s?.skippedPaths.join('\n') || text
     this.status.classList.toggle('git-warning', Boolean(this.error || failed || s?.scanState === 'partial' || s?.scanState === 'error' || s?.scanState === 'missing-git'))
+    this.renderDirtySummary(s, rows)
     this.refreshButton.disabled = this.loading || s?.scanState === 'scanning'
     this.checked.textContent = s?.checkedAt ? `${new Date(s.checkedAt).toLocaleTimeString()} 校验` : '等待校验'
     // 不因 5 秒时间戳变动重建列表，保留焦点、选中与滚动位置。
@@ -285,6 +291,8 @@ export class GitRepositoriesPanel {
     location.className = 'git-repo-path'
     location.textContent = r.relativePath
     location.title = r.relativePath
+    const branchRow = document.createElement('div')
+    branchRow.className = 'git-branch-row'
     const branch = document.createElement('button')
     branch.className = 'git-branch'
     branch.dataset.repoId = r.id
@@ -297,6 +305,7 @@ export class GitRepositoriesPanel {
     branch.addEventListener('click', () => {
       if (value) void api.clipboard.writeText(value).then(() => toast('已复制', 'info')).catch(() => toast('复制失败'))
     })
+    branchRow.append(branch, this.worktreeBadge(r))
     const note = document.createElement('div')
     note.className = 'git-repo-note'
     note.textContent = r.state === 'unborn' ? '尚无提交' : r.state === 'detached' ? '分离 HEAD' : ''
@@ -309,8 +318,65 @@ export class GitRepositoriesPanel {
       retry.addEventListener('click', () => this.refresh())
       note.append(retry)
     }
-    row.append(heading, location, branch, note)
+    row.append(heading, location, branchRow, note)
     return row
+  }
+
+  private renderDirtySummary(s: GitSnapshot | null, rows: RepositoryBranch[]): void {
+    this.dirtySummary.classList.remove('is-dirty', 'is-clean')
+    if (this.error || !s || !rows.length || s.scanState === 'scanning' || s.scanState === 'missing-git' || s.scanState === 'error') {
+      this.dirtySummary.textContent = ''
+      return
+    }
+    const dirtyRepos = rows.filter(r => (r.dirtyCount ?? 0) > 0).length
+    const unknownRepos = rows.filter(r => r.dirtyCount === null).length
+    if (dirtyRepos > 0) {
+      this.dirtySummary.textContent = `${dirtyRepos} 个未提交`
+      this.dirtySummary.classList.add('is-dirty')
+    } else if (unknownRepos === 0) {
+      this.dirtySummary.textContent = '全部已提交'
+      this.dirtySummary.classList.add('is-clean')
+    } else {
+      this.dirtySummary.textContent = ''
+    }
+  }
+
+  private worktreeTooltip(r: RepositoryBranch): string {
+    if (r.dirtyCount === null) return '工作区状态未知，未能读取未提交文件数'
+    if (r.dirtyCount === 0) return '工作区干净，已全部提交'
+    const parts: string[] = []
+    if (r.stagedCount) parts.push(`${r.stagedCount} 已暂存`)
+    if (r.modifiedCount) parts.push(`${r.modifiedCount} 已修改`)
+    if (r.untrackedCount) parts.push(`${r.untrackedCount} 未跟踪`)
+    const detail = parts.length ? `（${parts.join(' · ')}）` : ''
+    return `${r.dirtyCount} 个未提交文件${detail}`
+  }
+
+  private worktreeBadge(r: RepositoryBranch): HTMLElement {
+    const badge = document.createElement('span')
+    badge.className = 'git-worktree-badge'
+    badge.title = this.worktreeTooltip(r)
+    if (r.dirtyCount === null) {
+      badge.classList.add('is-unknown')
+      badge.textContent = '—'
+      badge.setAttribute('aria-label', '工作区状态未知')
+      return badge
+    }
+    if (r.dirtyCount > 0) {
+      badge.classList.add('is-dirty')
+      const dot = document.createElement('span')
+      dot.className = 'badge-dot'
+      dot.setAttribute('aria-hidden', 'true')
+      const count = document.createElement('span')
+      count.textContent = r.dirtyCount > 999 ? '999+' : String(r.dirtyCount)
+      badge.append(dot, count)
+      badge.setAttribute('aria-label', `${r.dirtyCount} 个未提交文件`)
+      return badge
+    }
+    badge.classList.add('is-clean')
+    badge.append(icon('check'))
+    badge.setAttribute('aria-label', '工作区干净，已全部提交')
+    return badge
   }
 
   private handleKey(e: KeyboardEvent): void {

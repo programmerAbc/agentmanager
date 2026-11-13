@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import { mkdir, mkdtemp, rm, writeFile, rename, symlink } from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { GitRepositoryMonitor, type MonitorOptions } from '../src/main/gitRepositoryMonitor.ts'
+import { GitRepositoryMonitor, parsePorcelainStatus, type MonitorOptions } from '../src/main/gitRepositoryMonitor.ts'
 import type { GitSnapshot } from '../src/shared/types.ts'
 
 const exec = promisify(execFile)
@@ -45,7 +45,8 @@ async function move(from: string, to: string) {
   for (let i = 0; ; i++) {
     try { await rename(from, to); return }
     catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EPERM' || i >= 100) throw err
+      const code = (err as NodeJS.ErrnoException).code
+      if ((code !== 'EPERM' && code !== 'EBUSY') || i >= 100) throw err
       await delay(50)
     }
   }
@@ -226,4 +227,57 @@ test('非递归监听发现第一层已有目录内 git init，忽略深层新�
   await waitFor(() => o.snapshot().repositories[0]?.branch === 'external-child', 5000)
   await move(path.join(child, '.git'), path.join(outer, 'removed-git'))
   await waitFor(() => o.snapshot().scanState === 'ready' && o.snapshot().repositories.length === 0, 5000)
+})
+
+test('parsePorcelainStatus 正确解析首行前导空格、MM、未跟踪与 R/C 双路径', () => {
+  assert.deepEqual(parsePorcelainStatus(''), { dirtyCount: 0, stagedCount: 0, modifiedCount: 0, untrackedCount: 0 })
+  assert.deepEqual(
+    parsePorcelainStatus(' M first.ts\0MM both.ts\0A  staged.ts\0?? new.txt\0R  new-name.ts\0old-name.ts\0!! ignored.log\0'),
+    { dirtyCount: 5, stagedCount: 3, modifiedCount: 2, untrackedCount: 1 }
+  )
+})
+
+test('未提交文件统计：区分干净/改动/未暂存/未跟踪，INDEX 变化实时清零，错误态降级为 null', async t => {
+  const outer = await fixture(t)
+  const root = path.join(outer, 'main-repo')
+  await init(root)
+  await writeFile(path.join(root, '.gitignore'), 'unborn-repo/\n')
+  const tracked = path.join(root, 'tracked.txt')
+  await writeFile(tracked, 'v1\n')
+  await git(root, 'add', '.gitignore', 'tracked.txt')
+  await git(root, '-c', 'user.name=Monitor Test', '-c', 'user.email=monitor@example.invalid', 'commit', '-m', 'add tracked')
+
+  const unborn = path.join(root, 'unborn-repo')
+  await init(unborn, 'main', false)
+  await writeFile(path.join(unborn, 'draft.txt'), 'hello\n')
+
+  const o = observe(t, root, { pollMs: 60000, scanMs: 60000 })
+  await o.ready()
+  assert.equal(o.snapshot().repositories[0].dirtyCount, 0)
+  assert.equal(o.snapshot().repositories[1].state, 'unborn')
+  assert.equal(o.snapshot().repositories[1].dirtyCount, 1)
+  assert.equal(o.snapshot().repositories[1].untrackedCount, 1)
+
+  // 修改已跟踪文件（首行带前导空格 ' M'）并新增未跟踪文件，随后 git add + commit 观察 INDEX 监听更新。
+  await writeFile(tracked, 'v2\n')
+  await writeFile(path.join(root, 'extra.txt'), 'u\n')
+  o.monitor.refresh()
+  await waitFor(() => o.snapshot().repositories[0]?.dirtyCount === 2, 5000)
+  assert.equal(o.snapshot().repositories[0].modifiedCount, 1)
+  assert.equal(o.snapshot().repositories[0].untrackedCount, 1)
+
+  await git(root, 'add', 'tracked.txt', 'extra.txt')
+  await waitFor(() => o.snapshot().repositories[0]?.stagedCount === 2, 5000)
+  assert.equal(o.snapshot().repositories[0].dirtyCount, 2)
+
+  await git(root, '-c', 'user.name=Monitor Test', '-c', 'user.email=monitor@example.invalid', 'commit', '-m', 'commit all')
+  await waitFor(() => o.snapshot().repositories[0]?.dirtyCount === 0, 5000)
+
+  // HEAD 损坏时不误报为干净（dirtyCount 降级为 null），恢复后重新回到 0。
+  await writeFile(path.join(root, '.git', 'HEAD'), 'bad-head\n')
+  await waitFor(() => o.snapshot().repositories[0]?.state === 'error', 5000)
+  assert.equal(o.snapshot().repositories[0].dirtyCount, null)
+
+  await writeFile(path.join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n')
+  await waitFor(() => o.snapshot().repositories[0]?.state === 'branch' && o.snapshot().repositories[0]?.dirtyCount === 0, 5000)
 })
