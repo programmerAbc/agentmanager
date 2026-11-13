@@ -1,4 +1,6 @@
 ## Completed
+- 1.9.2交付（2026-11-13）：版本升至 `1.9.2`（`package.json` / `package-lock.json` / `README.md`），代码与文档提交推送 `origin/main`。`npm.cmd test` 19/19、`npm.cmd run build`、独立输出 NSIS 打包（`--config.directories.output=.devtest/package-1.9.2-local --config.electronDist=node_modules/electron/dist`）与 `node .devtest/verify-release-192.cjs` 静态 asar 校验通过。安装包已复制到 `D:\agnent_manager_release\agentmanager-1.9.2-setup.exe`（123796579 字节），SHA256：`DFBCA79C9605EBDB60948EEDB71E94D45C0D3B24A90E1B7E8D96F194BE5E93BE`，与源构建一致。旧包（1.8.2 / 1.9.0 / 1.9.1）保留，未触碰当前运行的 AgentManager。
+- 2026-11-13 Git 分支未提交文件指示器（方案 A）：先交付设计稿 `docs/design/git-dirty-indicator.html` 并获用户确认方案 A；随后完成完整实现。`src/shared/types.ts` 扩展 `dirtyCount / stagedCount / modifiedCount / untrackedCount`；`src/main/gitRepositoryMonitor.ts` 新增 `parsePorcelainStatus` 与 `--no-optional-locks status --porcelain=v1 -z --no-renames -unormal` 只读采集、错误降级 `null` 及 `INDEX` 目录监听；`src/renderer/gitRepositoriesPanel.ts` 与 `src/renderer/styles.css` 在分支胶囊右侧新增紧凑徽标（`● <数量>` / `✓` / `—`）、明细 tooltip 与状态栏未提交仓库摘要。
 - 1.9.1交付（2026-11-12）：第一层扫描调整提交ed065e0、版本提交f1caa2b均已推送origin/main；起始已在main，fetch后0/0，无需额外合并。17项测试通过，独立目录NSIS打包成功。安装包 `D:\agnent_manager_release\agentmanager-1.9.1-setup.exe`（123795072字节），SHA256：53E2C0434649C46E3312C13FAA576848927F7DA6819EF723ACEAAA4399517A85，与实际构建源包一致。1.8.2 / 1.9.0旧包保留，未安装或启动打包GUI。
 - 2026-11-12 第一层扫描调整完成（1.9.0交付后的新修改，未提交 / 未打包）：按用户要求只检查工作目录的直属子目录，继续展示根仓库。扫描只枚举根目录，对第一层只探测 `.git`；根 / 第一层发现监听均非递归，深层变化不再触发扫描。UI、设计原型和基准文档已同步。`npm test`17/17与`npm run build`通过。
 - 1.9.0交付（2026-11-12）：全部功能与设计文档提交 `dafd971`，版本提交 `87760d3`，均已推送 origin/main。起始已在 main，fetch 后双方0/0，无需额外合并。`npm test`16/16、`npm run build:win`通过。安装包 `D:\agnent_manager_release\agentmanager-1.9.0-setup.exe`（123712688字节），SHA256：89742894899D7B3A81F6AAFDAE496F580B9712D3D6309F09F893C0AD23785023，与dist产物一致。原1.8.2安装包保留。未启动打包版GUI、未安装、未动当前AgentManager。
@@ -65,6 +67,7 @@
 - 用户环境：用户已用 AgentManager 1.0.0 覆盖安装了旧的 Agent Desk 0.4.1，结果装到了 `%LOCALAPPDATA%\Programs\agent-desk\AgentManager`（沿用旧 InstallLocation 并追加新名字，见 lessons.md）。已告知用户：卸载 → 删除空的 `Programs\agent-desk` → 重新安装，即可装到 `Programs\AgentManager`（数据在 `%APPDATA%\AgentManager`，卸载不删）。安装包无需重新打包。
 
 ## In Progress
+- 1.9.2 安装包已交付 `D:\agnent_manager_release\agentmanager-1.9.2-setup.exe` 并完成提交推送，等用户自行安装更新。
 - 当前没有未完成的第一层范围编码或打包任务；1.9.1已提交、推送并交付安装包，等用户自行安装。此前1.9.0保留为历史递归版。
 - 2026-11-12 当前无未完成的Git功能编码或打包任务；1.9.0已交付，等用户自行安装。网络盘 / 巨型目录长期性能、真实系统休眠与 ACL 不可读场景未做现场集成验证。
 - 无编码任务。1.8.2 已打包等用户自行安装；M22 与按钮启动 AGY 的界面未在 dev 实例实测。
@@ -88,6 +91,8 @@
 - 「启动 Claude」把命令直接写进终端：若终端前台正运行别的程序（不是 PowerShell 提示符），命令会被输入给那个程序。
 
 ## Changed Files
+- 1.9.2 交付：`package.json`、`package-lock.json`、`README.md`、`plans.md`、`handoff.md`；打包产物与校验脚本在忽略目录 `.devtest/package-1.9.2-local`、`.devtest/verify-release-192.cjs` 及 `D:\agnent_manager_release\agentmanager-1.9.2-setup.exe`。
+- 2026-11-13 Git 未提交指示器：新增 `docs/design/git-dirty-indicator.html`；修改 `src/shared/types.ts`、`src/main/gitRepositoryMonitor.ts`、`src/renderer/gitRepositoriesPanel.ts`、`src/renderer/styles.css`、`tests/gitRepositoryMonitor.test.ts`、`docs/spec.md`、`docs/architecture.md`、`plans.md`、`lessons.md`、`handoff.md`。
 - 1.9.1交付：`package.json` / `package-lock.json`版本1.9.1；README、spec、方案、plans、handoff更新交付状态，lessons记录打包解压重命名绕过。产物在忽略目录 `.devtest/package-1.9.1-local` 与release目录，不入Git。
 - 第一层调整：`src/main/gitRepositoryMonitor.ts`、`src/renderer/gitRepositoriesPanel.ts`、`tests/gitRepositoryMonitor.test.ts`、README、spec、architecture、plans、lessons、handoff、设计方案与HTML原型；没有版本或依赖变更。
 - 1.9.0发布：`package.json` / `package-lock.json`版本1.9.0；README、spec、plans、handoff、Git方案文档更新交付状态。产物在dist及release目录，不入Git。
@@ -118,6 +123,8 @@
 - M12：src/shared/types.ts（THEME_SEED_WHITE / BLACK、themeModeOf、WINDOW_BACKGROUND）、src/main/{index,ipc}.ts（窗口底色）、src/renderer/{theme,terminalView,main,settingsDialog}.ts、index.html（booting）、styles.css；spec、architecture、README、plans、handoff、lessons。
 
 ## Verification
+- 1.9.2 打包（2026-11-13）：`npm.cmd test` 19/19、`npm.cmd run build`（含 `typecheck:node` 与 `typecheck:web`）通过；`electron-builder --win --config.directories.output=.devtest/package-1.9.2-local --config.electronDist=node_modules/electron/dist` 退出 0；`node .devtest/verify-release-192.cjs` 通过（校验 version `1.9.2`、`--no-optional-locks`、`parsePorcelainStatus`、`INDEX`、`git-worktree-badge`、`全部已提交`、`pty.node` 解包及源/目标包 SHA256 一致：`DFBCA79C9605EBDB60948EEDB71E94D45C0D3B24A90E1B7E8D96F194BE5E93BE`）。未启动打包 GUI 或安装。
+- 2026-11-13 Git 未提交指示器：`npm.cmd test` 19/19 通过（含新增 `parsePorcelainStatus` 单测与未提交文件统计 / `INDEX` 监听 / 错误降级 `null` 集成测试）；`npm.cmd run build`（含 `typecheck:node` 与 `typecheck:web`）退出 0。未启动打包或 dev GUI 实测，未执行 `npm run build:win`。
 - 1.9.1：`npm test`17/17；`npm run build:win`中的typecheck与Vite构建通过，但默认Electron解压在重命名 `dist/win-unpacked.tmp` 时EPERM。换独立输出 `.devtest/package-1.9.1` 仍同样失败，未删除旧目录或停止用户应用。成功命令：`npx electron-builder --win --config.directories.output=.devtest/package-1.9.1-local --config.electronDist=node_modules/electron/dist`，退出0，使用已核对的Electron44.4.5。安装包源为 `.devtest/package-1.9.1-local/agentmanager-1.9.1-setup.exe`，不是dist中旧产物。
 - `node .devtest/verify-release-191.cjs`静态asar检查通过：1.9.1、Git主进程与preload通道、浅层discoveryDirectories和非递归root watcher、界面「仅第一层子目录」、解包pty.node存在。Copy-Item后源包与release包Get-FileHash SHA256一致，值见Completed。初次功能与版本推送成功；最终交付文档一并提交推送后核验远端 / 干净工作区。
 - 本次交付前后当前安装版PID8676 / 10192 / 24232 / 61300、各自启动时间（2026-11-12 14:16:58）与路径完全一致；未启动打包GUI、未安装。17项测试与打包静态验证不代表安装后的现场验收。

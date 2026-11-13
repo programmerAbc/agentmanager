@@ -96,3 +96,8 @@
 - 已完成：仓库扫描 / 定位缓存 / 文件监听 / 5秒与30秒兜底 / 读取恢复 / IPC所有者校验 / 正式面板 / 偏好兼容 / 窄屏焦点 / 大列表窗口化。
 - 验证：`npm test` 16/16；`npm run build` 通过；隔离 Electron 的真实文件 → 监控 → IPC → UI、三主题、208仓库、终端布局与 Escape 回归通过。详见 handoff。
 - 交付：功能提交 `dafd971`、版本提交 `87760d3` 已推送main；1.9.0 Windows安装包已构建、复制到 `D:\agnent_manager_release` 并核对SHA256。安装由用户自行安排；网络盘、超大文件树的长期性能与真实休眠恢复仍待现场验证。
+
+## Git 未提交文件指示器（2026-11-13）
+
+- 需求确认：用户选定方案 A（紧凑徽标 `● <数量>` / `✓` / `—`），完整 `git status` 口径（含未跟踪）。设计稿：`docs/design/git-dirty-indicator.html`。
+- ✅ 已完成（1.9.2）：类型扩展（`RepositoryBranch`）、主进程只读状态统计（`--no-optional-locks status --porcelain=v1 -z --no-renames -unormal`）与 `INDEX` 监听、渲染面板行内布局与摘要、`npm test` 19/19 与 `npm run build` 验证。1.9.2 安装包已构建、静态校验并复制到 `D:\agnent_manager_release\agentmanager-1.9.2-setup.exe`，代码与文档已提交并推送 `origin/main`。
